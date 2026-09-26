@@ -53,6 +53,19 @@ const ro = (t = 'Modifiable uniquement par l\'agence') => `<span class="ro">${ic
 const empty = t => `<div class="empty">${t}</div>`;
 const CANAUX = { whatsapp: ['msg', 'WhatsApp'], sms: ['phone', 'SMS'], mail: ['mail', 'E-mail'] };
 const SECTEURS = ['Restauration', 'Cuisine', 'Bar', 'Hôtellerie'];
+/* Postes proposés dans les formulaires (saisie libre toujours possible). */
+const POSTES = ['Serveur', 'Chef de rang', 'Maître d\'hôtel', 'Commis de salle', 'Barman', 'Commis de cuisine', 'Cuisinier', 'Chef de partie', 'Plongeur',
+  'Extra petit-déjeuner', 'Réceptionniste', 'Veilleur de nuit', 'Femme de chambre', 'Valet de chambre', 'Gouvernante'];
+/** Secteur habituel d'un poste, pour suggérer les profils correspondants. */
+function secteurDuPoste(p) {
+  const x = p.toLowerCase();
+  if (/petit-d|gouvernante|chambre|r[ée]ception|veilleur|valet|lingerie/.test(x)) return 'Hôtellerie';
+  if (/cuisin|commis de cuisine|chef de partie|plong|p[âa]tiss/.test(x)) return 'Cuisine';
+  if (/barman|barmaid|bar\b|sommelier/.test(x)) return 'Bar';
+  if (/serveu|rang|salle|ma[îi]tre d/.test(x)) return 'Restauration';
+  return null;
+}
+const listePostes = () => `<datalist id="postes-liste">${POSTES.map(p => `<option value="${esc(p)}">`).join('')}</datalist>`;
 const opt = (list, v) => list.map(x => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('');
 
 let toastT;
@@ -632,7 +645,7 @@ V.client.demandes = async () => {
     `<div class="grid-main"><div style="display:flex;flex-direction:column;gap:18px;min-width:0">${actives.map(m => missionCard(m, 'client')).join('') || panel(null, '', empty('Aucune demande en cours.'))}
     ${passees.length ? panel('Historique', '', `<div class="list">${passees.slice(-10).reverse().map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)}</div></div>${badge(...missionStatut(m))}</div>`).join('')}</div>`) : ''}</div>
     ${panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f">Date<input type="date" name="date" min="${t}" required value="${S.p.dem_date || addDays(t || new Date().toISOString().slice(0, 10), 7)}"></label>
-      <label class="f">Poste<input type="text" name="poste" required list="postes" placeholder="Serveur"></label><datalist id="postes">${['Serveur', 'Chef de rang', 'Commis de cuisine', 'Cuisinier', 'Plongeur', 'Barman', 'Réceptionniste', 'Femme de chambre'].map(p => `<option value="${p}">`).join('')}</datalist>
+      <label class="f">Poste<input type="text" name="poste" required list="postes-liste" placeholder="Serveur"></label>${listePostes()}
       <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
       <label class="f">Nombre de personnes<input type="number" name="nb_postes" value="1" min="1" max="30" required></label><label class="f full">Précisions pour l'agence<textarea name="commentaire" placeholder="Tenue, lieu de rendez-vous…"></textarea></label>
       <div class="full"><button class="btn primary" type="submit">${ic('send')}Envoyer la demande</button></div></form>`)}</div>`;
@@ -779,7 +792,7 @@ async function missionForm() {
   const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10);
   openModal(`${modalHead(ic('plus') + 'Nouvelle mission')}<form data-f="mission"><div class="panel-b form">
     <label class="f full">Client<select name="client_id" required>${cs.map(c => `<option value="${c.id}">${esc(c.nom)}</option>`).join('')}</select></label>
-    <label class="f">Poste<input type="text" name="poste" required></label><label class="f">Date<input type="date" name="date" min="${t}" value="${addDays(t, 7)}" required></label>
+    <label class="f">Poste<input type="text" name="poste" required list="postes-liste"></label>${listePostes()}<label class="f">Date<input type="date" name="date" min="${t}" value="${addDays(t, 7)}" required></label>
     <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
     <label class="f">Nombre de postes<input type="number" name="nb_postes" min="1" max="30" value="1" required></label><label class="f">Taux horaire (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="12.50" required></label>
     <label class="f full">Motif de recours (figure sur le contrat)<select name="motif">${opt(S.cfg?.motifs || [])}</select></label></div>
@@ -789,8 +802,10 @@ async function diffuseModal(id) {
   const [ms, is] = await Promise.all([GET('/missions'), GET('/interimaires')]);
   const m = ms.find(x => x.id === id); if (!m) return;
   const deja = new Set(m.envois.map(e => e.interim_id));
-  const w = m.poste.toLowerCase().split(/\s+/)[0];
-  const match = i => i.poste.toLowerCase().includes(w) || i.secteur === m.client_secteur;
+  const norm = x => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const mots = norm(m.poste).split(/[\s-]+/).filter(x => x.length > 3 && !['extra', 'commis'].includes(x));
+  const secteurPoste = secteurDuPoste(m.poste) || m.client_secteur;
+  const match = i => mots.some(x => norm(i.poste).includes(x)) || i.secteur === secteurPoste;
   const L = is.filter(i => !deja.has(i.id) && !i.suspendu).sort((a, b) => match(b) - match(a) || (b.note || 0) - (a.note || 0));
   const c = S.cfg?.canaux || {};
   openModal(`${modalHead(ic('send') + 'Valider et diffuser la mission', `${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)} · ${fdate(m.date)} · ${m.debut}–${m.fin}`)}
@@ -805,7 +820,7 @@ async function interimForm(id) {
   const i = id ? (await GET('/interimaires')).find(x => x.id === id) : {};
   const f = (n, l, t = 'text', extra = '') => `<label class="f">${l}<input type="${t}" name="${n}" value="${esc(i[n] ?? '')}" ${extra}></label>`;
   openModal(`${modalHead(ic(id ? 'edit' : 'plus') + (id ? 'Modifier la fiche' : 'Nouvel intérimaire'))}<form data-f="interim" data-id="${id || ''}"><div class="panel-b form">
-    ${f('prenom', 'Prénom', 'text', 'required')}${f('nom', 'Nom', 'text', 'required')}${f('poste', 'Poste principal', 'text', 'required')}
+    ${f('prenom', 'Prénom', 'text', 'required')}${f('nom', 'Nom', 'text', 'required')}${f('poste', 'Poste principal', 'text', 'required list="postes-liste"')}${listePostes()}
     <label class="f">Secteur<select name="secteur">${opt(SECTEURS, i.secteur)}</select></label>${f('telephone', 'Téléphone (SMS, WhatsApp)', 'tel')}${f('email', 'E-mail', 'email')}${f('ville', 'Ville')}
     ${f('taux_horaire', 'Taux horaire (€)', 'number', 'step="0.01" min="10" max="60"')}${f('date_naissance', 'Date de naissance', 'date')}
     <label class="f">Nationalité<select name="nationalite">${opt(S.cfg?.nationalites || ['Française'], i.nationalite || 'Française')}</select></label><label class="f full">Compétences<input type="text" name="competences" value="${esc(i.competences || '')}"></label>
@@ -844,7 +859,7 @@ const A = {
     <label class="check"><input type="checkbox" name="ok" required> Je confirme la suppression définitive</label><div class="err" hidden></div></div>
     <div class="panel-f" style="justify-content:flex-end">${btn('Annuler', '', 'data-a="close"')}<button class="btn danger" type="submit">${ic('trash')}Supprimer</button></div></form>`),
   xpadd: el => openModal(`${modalHead(ic('plus') + 'Ajouter une expérience')}<form data-f="xp" data-id="${el.dataset.id}"><div class="panel-b form">
-    <label class="f">Poste<input type="text" name="poste" required maxlength="100"></label><label class="f">Employeur<input type="text" name="employeur" required maxlength="150"></label>
+    <label class="f">Poste<input type="text" name="poste" required maxlength="100" list="postes-liste"></label>${listePostes()}<label class="f">Employeur<input type="text" name="employeur" required maxlength="150"></label>
     <label class="f">Début<input type="date" name="debut" required></label><label class="f">Fin (vide si en cours)<input type="date" name="fin"></label>
     <label class="f full">Description (facultatif)<textarea name="description" maxlength="1000" placeholder="Missions, type d'établissement, nombre de couverts…"></textarea></label></div>${modalFoot('Ajouter', 'type="submit"')}</form>`),
   xpdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.append(' Confirmer'); return; } await DEL(`/experiences/${el.dataset.id}`); toast('Ligne retirée'); reload(); }, el),

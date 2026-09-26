@@ -17,11 +17,10 @@
 <div id="auth" hidden></div>
 <div class="shell" id="app" hidden>
   <aside class="sidebar" id="sidebar">
-    <div class="brand"><picture><source media="(max-width: 900px)" srcset="/img/logo-compact.png" width="480" height="78"><img class="brand-logo" src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="720" height="171"></picture>
-      <div class="mob-actions">
-        <button class="iconbtn dark bell" data-a="notifs" aria-label="Notifications"></button>
-        <button class="iconbtn dark" data-a="menu" id="menu-btn" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="drawer"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="dot" hidden></span></button>
-      </div>
+    <div class="brand"><picture><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><source media="(max-width: 900px)" srcset="/img/bandeau-horizontal.png" width="1200" height="267"><img class="brand-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture></div>
+    <div class="mob-bar">
+      <button class="mob-menu" data-a="menu" id="menu-btn" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="drawer"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span id="mob-titre">Menu</span><svg class="i chev" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg><span class="dot" hidden></span></button>
+      <button class="iconbtn dark bell" data-a="notifs" aria-label="Notifications"></button>
     </div>
     <div class="drawer" id="drawer">
       <div class="space" id="space"></div>

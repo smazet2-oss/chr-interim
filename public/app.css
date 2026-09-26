@@ -64,12 +64,12 @@ svg.i{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-widt
 /* ---- shell ---- */
 .shell{display:grid;grid-template-columns:248px minmax(0,1fr);min-height:100%}
 .drawer{display:flex;flex-direction:column;flex:1;min-height:0}
-.mob-actions,.mob-account{display:none}
+.mob-bar,.mob-account{display:none}
 .iconbtn.dark{background:var(--side-2);border-color:var(--side-line);color:#FFFFFF}
 .iconbtn.dark:hover{background:var(--side-line)}
 .sidebar{background:var(--side);color:var(--side-ink);display:flex;flex-direction:column;position:sticky;top:0;height:100vh;height:100dvh;padding:18px 12px 12px}
 .brand{display:block;padding:2px 4px 14px;margin-bottom:6px;border-bottom:1px solid var(--side-line)}
-.brand-logo{display:block;width:100%;max-width:224px;height:auto}
+.brand-logo{display:block;width:100%;max-width:224px;height:auto;border-radius:4px}
 .mark{width:32px;height:32px;border-radius:7px;background:#FFFFFF;display:grid;place-items:center;color:#0E1D40;flex:none}
 .mark svg{width:18px;height:18px}
 .brand b{color:var(--side-ink-strong);font-size:15px;display:block;line-height:1.15;letter-spacing:.01em}
@@ -306,13 +306,18 @@ button.day:hover{border-color:var(--accent)}
 @media (max-width:1000px){ .grid-main{grid-template-columns:minmax(0,1fr)} .gsearch{display:none} }
 @media (max-width:900px){
   .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr}
-  .sidebar{position:sticky;top:0;z-index:20;height:auto;padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top,0px));border-bottom:3px solid var(--gold)}
-  .brand{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:0;margin:0;border:0}
-  .brand-logo{width:auto;height:26px;max-width:52vw}
-  .mob-actions{display:flex;gap:8px}
-  .mob-actions .iconbtn{width:38px;height:38px}
-  #menu-btn .dot{position:absolute;top:6px;right:6px;width:8px;height:8px;border-radius:50%;background:var(--gold);border:2px solid var(--side-2)}
-  .drawer{display:none;max-height:calc(100dvh - 70px);overflow-y:auto;padding-top:10px;margin-top:10px;border-top:1px solid var(--side-line)}
+  .sidebar{position:sticky;top:0;z-index:20;height:auto;padding:0;padding-top:env(safe-area-inset-top,0px)}
+  .brand{display:block;padding:0;margin:0;border:0}
+  .brand picture{display:block;width:100%;max-width:none;margin:0}
+  .brand-logo{display:block;width:100%;height:auto;max-width:none;border-radius:0}
+  .mob-bar{display:flex;align-items:center;gap:8px;padding:8px 16px;background:var(--side);border-bottom:3px solid var(--gold)}
+  .mob-menu{position:relative;flex:1;min-width:0;display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border-radius:8px;border:1px solid var(--side-line);background:var(--side-2);color:#FFFFFF;font-size:14px;font-weight:600;text-align:left}
+  .mob-menu #mob-titre{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .mob-menu .chev{transition:transform .15s}
+  .sidebar.open .mob-menu .chev{transform:rotate(180deg)}
+  .mob-menu .dot{position:absolute;top:7px;left:26px;width:8px;height:8px;border-radius:50%;background:var(--gold);border:2px solid var(--side-2)}
+  .mob-bar .iconbtn{width:40px;height:40px}
+  .drawer{display:none;max-height:calc(100dvh - 60px);overflow-y:auto;padding:12px 16px 14px;border-bottom:3px solid var(--gold)}
   .sidebar.open .drawer{display:flex}
   .space{display:block;padding:0 4px 8px}
   .nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px}
@@ -366,15 +371,16 @@ dialog{border:0;padding:0;background:none}
 
 /* ---- logos selon l'appareil ---- */
 .brand picture,.auth picture{display:block}
-.auth picture{width:min(460px,100%)}
+.auth picture{width:min(560px,100%)}
+.auth-logo{border-radius:6px}
 .auth-logo{width:100%}
 @media (max-width:900px){
-  .brand{display:flex;align-items:center;justify-content:space-between;padding:0 0 10px;margin-bottom:8px}
-  .brand-logo{width:auto;height:30px;max-width:70vw}
 }
 @media (max-width:600px){
-  .auth{justify-content:flex-start;padding-top:36px;gap:22px}
-  .auth picture{width:min(250px,70vw)}
+  .auth{justify-content:flex-start;padding:0 0 56px;gap:22px}
+  .auth picture{width:100%}
+  .auth-logo{border-radius:0}
+  .auth-card{width:calc(100% - 32px)}
   .auth-card{padding:22px}
 }
 @media (min-width:1600px){
@@ -433,6 +439,5 @@ dialog{border:0;padding:0;background:none}
 }
 @media (max-width:360px){
   .kpis{grid-template-columns:minmax(0,1fr)}
-  .brand-logo{height:22px}
 }
 @media (min-width:1001px){.grid-main.side{grid-template-columns:minmax(260px,1fr) minmax(0,1.5fr)}}

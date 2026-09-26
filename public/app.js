@@ -119,7 +119,7 @@ function renderAuth() {
   }
   const brand = '';
   if (!S.me) {
-    $('#auth').innerHTML = `<div class="auth"><picture><source media="(max-width: 600px)" srcset="/img/logo-empile.png" width="620" height="438"><img class="auth-logo" src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="720" height="171"></picture><div class="auth-card">${brand}
+    $('#auth').innerHTML = `<div class="auth"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture><div class="auth-card">${brand}
       <div><h1>Connexion</h1><p class="muted small" style="margin-top:4px">L'espace qui s'ouvre (agence, employeur ou intérimaire) dépend du profil attribué par l'agence.</p></div>
       <form data-f="login"><label class="f">Identifiant<input type="text" name="username" autocomplete="username" required autofocus></label>
       <label class="f">Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
@@ -127,7 +127,7 @@ function renderAuth() {
       <p class="small muted">Mot de passe oublié ? Demandez à votre agence de le réinitialiser.</p></form></div></div>`;
     return;
   }
-  $('#auth').innerHTML = `<div class="auth"><picture><source media="(max-width: 600px)" srcset="/img/logo-empile.png" width="620" height="438"><img class="auth-logo" src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="720" height="171"></picture><div class="auth-card">${brand}
+  $('#auth').innerHTML = `<div class="auth"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture><div class="auth-card">${brand}
     <div><h1>Première connexion</h1><p class="muted small" style="margin-top:4px">Bienvenue ${esc(S.me.nom)}. Remplacez le mot de passe provisoire fourni par l'agence.</p></div>
     <form data-f="firstpw">${S.pwTemp ? '' : '<label class="f">Mot de passe provisoire<input type="password" name="actuel" autocomplete="current-password" required></label>'}
     <label class="f">Nouveau mot de passe<input type="password" name="nouveau" autocomplete="new-password" required data-rules></label>
@@ -159,6 +159,14 @@ function setMenu(open) {
   b.setAttribute('aria-expanded', open);
   b.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
 }
+/* Sur mobile, le logo défile avec la page et la barre « Menu » reste accrochée en haut. */
+function ajusterBandeau() {
+  const sb = $('#sidebar'), br = sb && sb.querySelector('.brand');
+  if (!br) return;
+  sb.style.top = matchMedia('(max-width: 900px)').matches ? -(br.offsetHeight + parseFloat(getComputedStyle(sb).paddingTop)) + 'px' : '';
+}
+addEventListener('resize', ajusterBandeau);
+addEventListener('load', ajusterBandeau);
 /* Sur petit écran, chaque tableau devient une pile de fiches : chaque cellule reçoit l'intitulé de sa colonne. */
 function etiqueterTableaux(root) {
   root.querySelectorAll('table:not(.plan)').forEach(t => {
@@ -176,7 +184,9 @@ async function renderApp() {
   $('#banner').className = 'demo' + (prof === 'agence' ? '' : ' agency');
   $('#banner').innerHTML = ic(prof === 'agence' ? 'check' : 'lock') + BANNER[prof];
   document.querySelectorAll('.bell').forEach(b => { b.innerHTML = ic('bell'); });
+  $('#mob-titre').textContent = NAV[prof].find(n => n[0] === S.view)?.[1] || 'Menu';
   setMenu(false);
+  ajusterBandeau();
   const main = $('#main');
   main.innerHTML = '<div class="loading">Chargement…</div>';
   const view = S.view;

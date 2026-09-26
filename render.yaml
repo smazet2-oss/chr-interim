@@ -3,6 +3,7 @@ services:
   - type: web
     name: chr-interim
     runtime: node
+    region: frankfurt       # données hébergées en Europe
     plan: starter            # le disque persistant nécessite une offre payante
     buildCommand: npm ci --omit=dev
     startCommand: node src/server.js

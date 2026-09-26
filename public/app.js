@@ -208,7 +208,7 @@ async function renderApp() {
   const view = S.view;
   try {
     const html = await V[prof][view]();
-    if (S.view === view) { main.innerHTML = html; etiqueterTableaux(main); }
+    if (S.view === view) { main.innerHTML = html; etiqueterTableaux(main); const z = main.querySelector('form [data-sim]'); if (z) majSimulation(z.closest('form')); }
   } catch (e) { if (S.me) main.innerHTML = `<div class="panel">${empty('Impossible de charger cette page : ' + esc(e.message))}</div>`; }
   refreshCounts();
 }
@@ -262,7 +262,7 @@ function credModal(c, titre) {
 }
 function notifModal(list) {
   return `${modalHead(ic('bell') + (list.length > 1 ? 'Nouvelles missions en attente de validation' : 'Nouvelle mission en attente de validation'))}
-    <div class="list">${list.map(m => `<div class="li"><div><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b><div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${m.etat === 'complet' ? badge('off', 'Complet pour l\'instant') : badge('attente', 'À traiter')}</div>`).join('')}</div>
+    <div class="list">${list.map(m => `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:min(100%,240px)"><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b><div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div>${simBloc(m.simulation, 'interim', list.length === 1)}</div>${m.etat === 'complet' ? badge('off', 'Complet pour l\'instant') : badge('attente', 'À traiter')}</div>`).join('')}</div>
     <div class="panel-f" style="justify-content:flex-end">${btn('Plus tard', '', 'data-a="close"')}${btn('Voir mes missions', 'chev', 'data-a="close" data-go="missions"', 'primary')}</div>`;
 }
 
@@ -289,7 +289,7 @@ function missionCard(m, mode) {
       : empty(mode === 'agence' ? 'Aucun intérimaire contacté.' : 'Diffusée. En attente de réponses des intérimaires.');
   return `<section class="panel"><div class="panel-h"><div><h2>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)}${mode === 'agence' ? ` <span class="muted" style="font-weight:400">· ${esc(m.client_nom)}</span>` : ''}</h2>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div><div class="row">${badge(sc, sl)}${actions}${locked ? ro('Mission verrouillée') : ''}</div></div>
-    ${body}${locked && m.documents?.length ? `<div class="panel-f"><span class="row">${ic('file')}Documents envoyés : ${docLinks(m.documents)}</span></div>` : ''}</section>`;
+    ${m.statut !== 'annulee' ? `<div class="panel-b sim-zone">${simBloc(m.simulation, mode)}</div>` : ''}${body}${locked && m.documents?.length ? `<div class="panel-f"><span class="row">${ic('file')}Documents envoyés : ${docLinks(m.documents)}</span></div>` : ''}</section>`;
 }
 function missionInterim(m) {
   const E = {
@@ -302,10 +302,58 @@ function missionInterim(m) {
   return `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px;flex:1"><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${m.nb_postes} poste${m.nb_postes > 1 ? 's' : ''}</div>
     ${m.etat === 'complet' ? '<div class="hint" style="margin-top:4px">Toutes les places sont prises. Le bouton se réactive si une place se libère.</div>' : ''}
+    ${['a_repondre', 'en_attente', 'confirmee', 'complet'].includes(m.etat) ? simBloc(m.simulation, 'interim') : ''}
     ${m.etat === 'confirmee' && m.documents.length ? `<div class="small" style="margin-top:6px">${ic('file', 'style="vertical-align:-3px;color:var(--ink-3)"')} Documents : ${docLinks(m.documents)}</div>` : ''}</div>
     <div class="row">${E[m.etat] || ''}</div></div>`;
 }
 
+
+/* ---------------- Simulation : paie (intérimaire), coût (employeur, agence) ---------------- */
+const hh = h => num(h) + ' h';
+const simLignes = L => `<dl class="sim-dl">${L.filter(Boolean).map(([k, v, cls]) => `<dt class="${cls || ''}">${k}</dt><dd class="${cls || ''}">${v}</dd>`).join('')}</dl>`;
+function simDetail(s, profil) {
+  if (!s) return '';
+  if (profil === 'interim') return simLignes([
+    [`Salaire de base (${hh(s.heures)} × ${eur(s.taux_horaire)})`, eur(s.brut)],
+    [`Indemnité de fin de mission`, s.ifm_due ? '+ ' + eur(s.ifm) : 'non due (emploi d\'usage ou saisonnier)'],
+    ['Indemnité de congés payés', '+ ' + eur(s.iccp)],
+    ['Total brut', eur(s.total_brut), 'tot'],
+    ['Net estimé avant impôt', '≈ ' + eur(s.net), 'net'],
+  ]);
+  const client = [
+    [`${hh(s.heures)} × ${s.nb_postes} pers. × ${eur(s.taux_facture)}/h facturé`, eur(s.ht) + ' HT'],
+    ['TVA', eur(s.tva)],
+    [profil === 'agence' ? 'Facturé au client' : 'Coût total estimé', eur(s.ttc) + ' TTC', 'tot'],
+  ];
+  if (profil === 'client') return simLignes(client);
+  return simLignes([...client,
+    [`Paie des intérimaires (${eur(s.total_brut)} brut/pers., congés et fin de mission compris)`, eur(s.total_brut * s.nb_postes)],
+    ['Charges patronales estimées', eur(s.charges)],
+    ['Coût agence', eur(s.cout_agence)],
+    ['Marge estimée', `${eur(s.marge)} HT · ${num(s.marge_pc)} %`, s.marge < 0 ? 'neg tot' : 'net tot'],
+  ]);
+}
+const simResume = (s, profil) => !s ? '' : profil === 'interim' ? `≈ ${eur(s.total_brut)} brut · ≈ ${eur(s.net)} net`
+  : profil === 'client' ? `≈ ${eur(s.ht)} HT · ${eur(s.ttc)} TTC` : `${eur(s.ht)} HT facturé · marge ≈ ${eur(s.marge)}`;
+const simTitre = profil => profil === 'interim' ? 'Simulation de ma paie' : profil === 'client' ? 'Coût estimé de la mission' : 'Simulation coût et marge';
+/** Bloc repliable : le résumé est toujours visible, le détail au clic. */
+function simBloc(s, profil, ouvert) {
+  if (!s) return '';
+  return `<details class="sim"${ouvert ? ' open' : ''}><summary>${ic('receipt')}<span><b>${simTitre(profil)}</b> · ${simResume(s, profil)}</span></summary>${simDetail(s, profil)}
+    <p class="hint">Estimation indicative${profil === 'interim' ? ' pour les horaires prévus, hors heures supplémentaires, primes et avantages repas. Le montant exact figure sur votre fiche de paie.' : ' pour les horaires prévus, hors heures supplémentaires. Le montant exact figure sur la facture.'}</p></details>`;
+}
+/** Simulation mise à jour pendant la saisie d'un formulaire (agence et employeur). */
+const simLive = base => `<div class="sim-live full" data-sim="${esc(JSON.stringify(base || {}))}"><div class="sim-vide small muted">${ic('receipt')}Renseignez les horaires pour voir le coût estimé.</div></div>`;
+let simTimer = 0;
+function majSimulation(form) {
+  const zone = form.querySelector('[data-sim]'); if (!zone) return;
+  clearTimeout(simTimer);
+  simTimer = setTimeout(async () => {
+    const b = { ...JSON.parse(zone.dataset.sim || '{}'), ...Object.fromEntries([...new FormData(form)].filter(([k]) => ['client_id', 'debut', 'fin', 'nb_postes', 'taux_horaire', 'motif'].includes(k))) };
+    try { const s = await POST('/simulation', b); zone.innerHTML = simBloc(s, S.me.profil, true); }
+    catch { zone.innerHTML = `<div class="sim-vide small muted">${ic('receipt')}Simulation indisponible : vérifiez les horaires.</div>`; }
+  }, 250);
+}
 
 /* ---------------- Dossier de l'intérimaire (partagé agence / intérimaire) ---------------- */
 const moisAn = iso => new Date(iso + 'T12:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
@@ -439,7 +487,7 @@ async function openJour(date) {
       const I = m.intervenants, par = e => I.filter(x => x.etat === e);
       const canaux = x => x.canaux.map(c => CANAUX[c]?.[1]).join(', ');
       return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${esc(m.motif || '')}</div></div>${badge(...missionStatut({ ...m, actifs: I.filter(x => ['accepte', 'retenu'].includes(x.etat)).length, retenus: par('retenu').length }))}</div>
-        <dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc([m.client_adresse, m.client_ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc([m.client_contact, m.client_telephone].filter(Boolean).join(' · ') || '—')}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}<dt>Postes pourvus</dt><dd>${par('retenu').length} / ${m.nb_postes}</dd></dl>
+        ${simBloc(m.simulation, 'agence')}<dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc([m.client_adresse, m.client_ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc([m.client_contact, m.client_telephone].filter(Boolean).join(' · ') || '—')}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}<dt>Postes pourvus</dt><dd>${par('retenu').length} / ${m.nb_postes}</dd></dl>
         ${m.statut === 'nouvelle' ? `<div class="row" style="margin-top:8px">${btn('Valider et diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary')}</div>` : ''}
         ${groupe('Validés', 'libre', par('retenu'), x => ligne(x, suiviIntervenant(x, m.date), ` · ${canaux(x)}`))}
         ${groupe('En attente de l\'employeur', 'attente', par('accepte'), x => ligne(x, m.statut === 'diffusee' ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${x.interim_id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${x.interim_id}" data-ok="1"`, 'sm primary') : ''))}
@@ -455,7 +503,7 @@ async function openJour(date) {
     corps = d.missions.map(m => {
       const C = m.candidats, par = (...e) => C.filter(x => e.includes(x.etat));
       return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)}</h3><div class="small muted">${m.debut}–${m.fin}${m.commentaire ? ' · ' + esc(m.commentaire) : ''}</div></div>${badge(...missionStatut({ ...m, actifs: par('accepte', 'retenu').length, retenus: par('retenu').length }))}</div>
-        <div class="small" style="margin:6px 0">Postes pourvus : <b>${par('retenu').length} / ${m.nb_postes}</b></div>
+        <div class="small" style="margin:6px 0">Postes pourvus : <b>${par('retenu').length} / ${m.nb_postes}</b></div>${simBloc(m.simulation, 'client')}
         ${m.statut === 'nouvelle' ? empty('Demande en cours de validation par l\'agence.') : ''}
         ${groupe('Validés', 'libre', par('retenu'), x => ligne(x, stars(x.note) + suiviIntervenant(x, m.date)))}
         ${groupe('En attente de votre décision', 'attente', par('accepte'), x => ligne(x, stars(x.note) + (m.statut === 'diffusee' ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${x.interim_id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${x.interim_id}" data-ok="1"`, 'sm primary') : '')))}
@@ -466,7 +514,7 @@ async function openJour(date) {
   } else {
     const ET = { confirmee: ['libre', 'Mission confirmée'], en_attente: ['attente', 'En attente de confirmation'], a_repondre: ['pris', 'À traiter'], complet: ['off', 'Complet'], non_retenu: ['off', 'Non retenu'], pourvue: ['off', 'Mission pourvue'], decline: ['off', 'Vous avez décliné'], annulee: ['off', 'Annulée'] };
     corps = d.missions.map(m => `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir({ ...m, statut: m.etat === 'annulee' ? 'annulee' : '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${badge(...ET[m.etat])}</div>
-      <dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc(m.lieu || '—')}</dd><dt>Nombre de postes</dt><dd>${m.nb_postes}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}
+      ${['a_repondre', 'en_attente', 'confirmee', 'complet'].includes(m.etat) ? simBloc(m.simulation, 'interim', true) : ''}<dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc(m.lieu || '—')}</dd><dt>Nombre de postes</dt><dd>${m.nb_postes}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}
       ${m.contact ? `<dt>Sur place</dt><dd>${esc(m.contact.nom || '—')}${m.contact.telephone ? ` · <a class="link" href="tel:${esc(m.contact.telephone.replace(/\s/g, ''))}">${esc(m.contact.telephone)}</a>` : ''}</dd>` : ''}
       ${m.collegues?.length ? `<dt>Avec vous</dt><dd>${esc(m.collegues.join(', '))}</dd>` : ''}
       ${m.contrat ? `<dt>Contrat</dt><dd class="row">${badge(...ETAT_CONTRAT[m.contrat])}${m.contrat_id ? `<a class="link" href="/api/contrats/${m.contrat_id}/document" target="_blank" rel="noopener">Lire</a>` : ''}${m.contrat === 'a_signer' ? btn('Signer', 'edit', `data-a="signer" data-id="${m.contrat_id}" data-n=""`, 'sm primary') : ''}</dd>` : ''}
@@ -698,7 +746,7 @@ V.client.demandes = async () => {
       <label class="f">Poste<input type="text" name="poste" required list="postes-liste" placeholder="Serveur"></label>${listePostes()}
       <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
       <label class="f">Nombre de personnes<input type="number" name="nb_postes" value="1" min="1" max="30" required></label><label class="f full">Précisions pour l'agence<textarea name="commentaire" placeholder="Tenue, lieu de rendez-vous…"></textarea></label>
-      <div class="full"><button class="btn primary" type="submit">${ic('send')}Envoyer la demande</button></div></form>`)}</div>`;
+      ${simLive()}<div class="full"><button class="btn primary" type="submit">${ic('send')}Envoyer la demande</button></div></form>`)}</div>`;
 };
 V.client.jour = async () => {
   S.p.jd = S.p.jd || S.cfg?.aujourdhui;
@@ -840,8 +888,9 @@ async function missionForm() {
     <label class="f">Poste<input type="text" name="poste" required list="postes-liste"></label>${listePostes()}<label class="f">Date<input type="date" name="date" min="${t}" value="${addDays(t, 7)}" required></label>
     <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
     <label class="f">Nombre de postes<input type="number" name="nb_postes" min="1" max="30" value="1" required></label><label class="f">Taux horaire (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="12.50" required></label>
-    <label class="f full">Motif de recours (figure sur le contrat)<select name="motif">${opt(S.cfg?.motifs || [])}</select></label></div>
+    <label class="f full">Motif de recours (figure sur le contrat)<select name="motif">${opt(S.cfg?.motifs || [])}</select></label>${simLive()}</div>
     ${modalFoot('Créer la mission', 'type="submit"')}</form>`);
+  majSimulation($('form[data-f="mission"]'));
 }
 async function diffuseModal(id) {
   const [ms, is] = await Promise.all([GET('/missions'), GET('/interimaires')]);
@@ -857,9 +906,11 @@ async function diffuseModal(id) {
     <form data-f="diffuser" data-id="${m.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:14px">
     <div><div class="small muted" style="margin-bottom:6px;font-weight:500">Moyen d'envoi</div><div class="statusline">${Object.entries(CANAUX).map(([k, [i, l]]) => `<label class="check" style="border:1px solid var(--line);border-radius:7px;padding:6px 10px"><input type="checkbox" name="canal" value="${k}" ${k !== 'mail' ? 'checked' : ''}>${ic(i)}${l}${c[k] ? '' : ' <span class="hint">(simulé)</span>'}</label>`).join('')}</div></div>
     <label class="f" style="max-width:200px">Taux horaire (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="${m.taux_horaire}"></label>
+    ${simLive({ client_id: m.client_id, debut: m.debut, fin: m.fin, nb_postes: m.nb_postes, motif: m.motif })}
     <div><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="small muted" style="font-weight:500">Intérimaires destinataires</span>${deja.size ? `<span class="small muted">${deja.size} déjà contacté(s)</span>` : ''}</div>
     <div style="border:1px solid var(--line);border-radius:8px;max-height:280px;overflow:auto">${L.map(i => `<label class="li clickable" style="padding:9px 12px"><span class="person"><input type="checkbox" name="interim" value="${i.id}" style="width:16px;height:16px;accent-color:var(--accent)"><span class="avatar">${initials(i.prenom + ' ' + i.nom)}</span><span><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)}${i.telephone ? '' : ' · pas de téléphone'}${i.email ? '' : ' · pas d\'e-mail'}</span></span></span>${match(i) ? badge('libre', 'Profil correspondant') : ''}</label>`).join('') || empty('Tous les intérimaires ont déjà été contactés.')}</div></div>
     <div class="err" hidden></div></div>${modalFoot(ic('send') + 'Valider et envoyer', 'type="submit"')}</form>`);
+  majSimulation($('form[data-f="diffuser"]'));
 }
 async function interimForm(id) {
   const i = id ? (await GET('/interimaires')).find(x => x.id === id) : {};
@@ -1049,6 +1100,7 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => { const el = e.target; if (el.dataset?.a === 'toggleextra') A.toggleextra(el); });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || (e.key === ' ' && e.target.matches('.cs-jour'))) && e.target.matches('[data-a="isel"],[data-a="csel"],.cs-jour')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape') closeModal(); });
+document.addEventListener('input', e => { const f = e.target.closest?.('form[data-f="mission"],form[data-f="demande"],form[data-f="diffuser"]'); if (f && e.target.name !== 'interim' && e.target.name !== 'canal') majSimulation(f); });
 document.addEventListener('input', e => { if (e.target.dataset && 'rules' in e.target.dataset) { const r = $('#rules'); if (r) r.innerHTML = rulesHtml(e.target.value); } });
 document.addEventListener('submit', e => {
   const f = e.target.closest('form[data-f]'); if (!f) return;

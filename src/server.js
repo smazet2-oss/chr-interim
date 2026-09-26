@@ -9,6 +9,8 @@ const { tx, one, all, run, DATA_DIR } = require('./db');
 const { envoyer, canalConfigure, gabaritEmail, siteUrl } = require('./notify');
 const dossier = require('./dossier');
 const P = require('./parametres');
+const simulation = require('./simulation');
+const { dureeHeures } = simulation;
 
 const app = express();
 app.set('trust proxy', 1);
@@ -31,14 +33,9 @@ const str = (v, max = 200) => (v == null ? '' : String(v).trim().slice(0, max));
 const CANAUX = ['whatsapp', 'sms', 'mail'];
 // Motifs de recours au travail temporaire (article L1251-6 du Code du travail).
 const MOTIFS = ['Accroissement temporaire d\'activité', 'Remplacement d\'un salarié absent', 'Emploi à caractère saisonnier', 'Emploi d\'usage constant (secteur HCR)'];
+const TAUX_DEFAUT = 12.0; // taux horaire appliqué aux demandes des employeurs, ajustable par l'agence
 const CANAL_LABEL = { whatsapp: 'WhatsApp', sms: 'SMS', mail: 'E-mail' };
 
-function dureeHeures(debut, fin) {
-  const [h1, m1] = debut.split(':').map(Number), [h2, m2] = fin.split(':').map(Number);
-  let min = (h2 * 60 + m2) - (h1 * 60 + m1);
-  if (min <= 0) min += 24 * 60;
-  return Math.round(min / 15) / 4;
-}
 function genPassword() {
   const L = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz', D = '23456789', A = L + D;
   const b = crypto.randomBytes(10), p = (s, i) => s[b[i] % s.length];
@@ -378,7 +375,7 @@ function missionRow(id) { return one('SELECT m.*, c.nom AS client_nom, c.secteur
 function missionPourAgence(m) {
   const env = all(`SELECT e.interim_id, e.canaux, i.prenom, i.nom, i.poste, r.etat FROM envois e JOIN interimaires i ON i.id = e.interim_id
      LEFT JOIN reponses r ON r.mission_id = e.mission_id AND r.interim_id = e.interim_id WHERE e.mission_id = ? ORDER BY e.id`, m.id);
-  return { ...m, envois: env.map(e => ({ interim_id: e.interim_id, nom: `${e.prenom} ${e.nom}`, poste: e.poste, canaux: e.canaux.split(','), etat: e.etat || null })), ...compteurs(m.id), documents: docsMission(m) };
+  return { ...m, simulation: simulation.pourMission(m, 'agence'), envois: env.map(e => ({ interim_id: e.interim_id, nom: `${e.prenom} ${e.nom}`, poste: e.poste, canaux: e.canaux.split(','), etat: e.etat || null })), ...compteurs(m.id), documents: docsMission(m) };
 }
 function compteurs(mid) {
   const c = one(`SELECT SUM(etat IN ('accepte','retenu')) AS actifs, SUM(etat = 'retenu') AS retenus FROM reponses WHERE mission_id = ?`, mid);
@@ -399,7 +396,7 @@ function missionPourInterim(m, iid) {
   else etat = actifs >= m.nb_postes ? 'complet' : 'a_repondre';
   return {
     id: m.id, client_nom: m.client_nom, client_secteur: m.client_secteur, poste: m.poste, date: m.date, debut: m.debut, fin: m.fin,
-    nb_postes: m.nb_postes, taux_horaire: m.taux_horaire, etat,
+    nb_postes: m.nb_postes, taux_horaire: m.taux_horaire, etat, simulation: simulation.pourMission(m, 'interim'),
     documents: etat === 'confirmee' ? docsMission(m).map(d => d.id === null ? { ...d, contrat_id: one('SELECT id FROM contrats WHERE mission_id = ? AND interim_id = ?', m.id, iid)?.id } : d) : [],
   };
 }
@@ -411,7 +408,7 @@ api.get('/missions', (req, res) => {
   if (p === 'client') {
     const ms = all('SELECT m.*, c.nom AS client_nom FROM missions m JOIN clients c ON c.id = m.client_id WHERE m.client_id = ? ORDER BY m.date, m.debut', req.user.client_id);
     return res.json(ms.map(m => ({
-      ...m, ...compteurs(m.id), documents: docsMission(m),
+      ...m, ...compteurs(m.id), documents: docsMission(m), simulation: simulation.pourMission(m, 'client'),
       candidats: all(`SELECT r.interim_id, r.etat, i.prenom, i.nom, i.poste, i.competences,
         (SELECT ROUND(AVG(e.note),1) FROM evaluations e JOIN heures h ON h.id = e.heure_id WHERE h.interim_id = i.id AND e.sens = 'client_vers_interim') AS note
         FROM reponses r JOIN interimaires i ON i.id = r.interim_id WHERE r.mission_id = ? AND r.etat != 'decline' ORDER BY r.id`, m.id),
@@ -433,11 +430,24 @@ api.post('/missions', role('agence', 'client'), wrap((req, res) => {
   if (!isTime(b.debut) || !isTime(b.fin)) fail(400, 'Horaires invalides (format HH:MM).');
   const nb = parseInt(b.nb_postes, 10); if (!(nb >= 1 && nb <= 30)) fail(400, 'Nombre de postes invalide.');
   const motif = MOTIFS.includes(b.motif) ? b.motif : MOTIFS[0];
-  const taux = req.user.profil === 'agence' && b.taux_horaire ? Number(b.taux_horaire) : 12.0;
+  const taux = req.user.profil === 'agence' && b.taux_horaire ? Number(b.taux_horaire) : TAUX_DEFAUT;
   if (!(taux >= 10 && taux <= 60)) fail(400, 'Taux horaire invalide.');
   const r = run('INSERT INTO missions (client_id, poste, date, debut, fin, nb_postes, taux_horaire, commentaire, motif, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)',
     client_id, poste, b.date, b.debut, b.fin, nb, taux, str(b.commentaire, 500), motif, req.user.id);
   res.status(201).json(missionRow(r.lastInsertRowid));
+}));
+
+/** Simulation en direct pendant la saisie d'une mission : coût (employeur, agence) selon le profil. */
+api.post('/simulation', role('agence', 'client'), wrap((req, res) => {
+  const b = req.body, p = req.user.profil;
+  if (!isTime(b.debut) || !isTime(b.fin)) fail(400, 'Horaires invalides.');
+  const client_id = p === 'client' ? req.user.client_id : Number(b.client_id);
+  const c = one('SELECT coefficient FROM clients WHERE id = ?', client_id); if (!c) fail(400, 'Client introuvable.');
+  const nb = Math.min(30, Math.max(1, parseInt(b.nb_postes, 10) || 1));
+  // L'employeur ne fixe pas le taux : celui par défaut est appliqué, l'agence peut l'ajuster ensuite.
+  const taux = p === 'agence' && Number(b.taux_horaire) >= 10 && Number(b.taux_horaire) <= 60 ? Number(b.taux_horaire) : TAUX_DEFAUT;
+  const motif = MOTIFS.includes(b.motif) ? b.motif : MOTIFS[0];
+  res.json(simulation.vue(simulation.calculer({ debut: b.debut, fin: b.fin, nb_postes: nb, taux_horaire: taux, motif, coefficient: c.coefficient }), p));
 }));
 
 /** Diffusion par l'agence : choix des intérimaires et des canaux. */
@@ -464,7 +474,7 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
     run('UPDATE missions SET statut = \'diffusee\' WHERE id = ?', m.id);
   });
   const d = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const texte = `${P.get('raison_sociale')} : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h. Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`;
+  const texte = `${P.get('raison_sociale')} : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h, soit environ ${simulation.pourMission(m, 'interim').total_brut.toFixed(2).replace('.', ',')} € brut avec fin de mission et congés payés (estimation). Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`;
   for (const i of dest) for (const c of canaux) envoyer(c, i, `Nouvelle mission — ${m.poste} le ${d}`, texte, { titre: 'Nouvelle mission disponible', bouton: 'Voir la mission' });
   res.json({ envoyes: dest.length, canaux, simules: canaux.filter(c => !canalConfigure(c)).map(c => CANAL_LABEL[c]) });
 }));

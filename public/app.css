@@ -519,3 +519,25 @@ button.cell:hover{filter:brightness(.96)}
   .ev.ev-urgent{background:var(--danger-dot);box-shadow:none}
   .ev-plus{font-size:9px}
 }
+
+/* ---------- Simulation paie / coût ---------- */
+.sim{border:1px solid var(--line);border-left:3px solid #C99948;border-radius:8px;background:var(--surface);margin-top:8px;font-size:13px}
+.sim summary{display:flex;align-items:center;gap:8px;padding:8px 10px;cursor:pointer;list-style:none}
+.sim summary::-webkit-details-marker{display:none}
+.sim summary::after{content:'';margin-left:auto;flex:none;width:7px;height:7px;border-right:2px solid var(--ink-3);border-bottom:2px solid var(--ink-3);transform:rotate(45deg);transition:transform .15s}
+.sim[open] summary::after{transform:rotate(-135deg)}
+.sim summary svg{width:16px;height:16px;flex:none;color:#7E5F24}
+.sim summary span{min-width:0}
+.sim-dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 12px;margin:0;padding:2px 10px 8px}
+.sim-dl dt{color:var(--ink-2);min-width:0}
+.sim-dl dd{margin:0;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.sim-dl .tot{font-weight:700;color:var(--ink);border-top:1px solid var(--line);padding-top:4px}
+.sim-dl .net{color:var(--libre-fg);font-weight:700}
+.sim-dl .neg{color:var(--danger-fg)}
+.sim .hint{margin:0;padding:0 10px 8px}
+.sim-zone{padding-top:0;padding-bottom:0}
+.sim-zone .sim{margin:0 0 12px}
+.sim-live .sim{margin-top:0}
+.sim-vide{display:flex;align-items:center;gap:6px}
+.sim-vide svg{width:15px;height:15px}
+@media (max-width:640px){.sim-dl{grid-template-columns:minmax(0,1fr)}.sim-dl dd{text-align:left;padding-bottom:3px}.sim-dl .tot+dd,.sim-dl dd.tot{border-top:0}}

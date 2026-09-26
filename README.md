@@ -75,6 +75,16 @@ Les cases, les missions et les en-têtes de jour sont cliquables (souris, doigt 
 - **Employeur** (Planning) : calendrier du mois ; pour chaque mission, les intérimaires validés (avec leur téléphone une fois la mission verrouillée), en attente de sa décision (boutons Accepter / Refuser) et refusés.
 - **Intérimaire** (Mon planning) : un clic sur un jour libre le passe en disponible, indisponible puis non renseigné ; un clic sur un jour de mission affiche le lieu, les horaires, le taux, l'état, le contrat (lecture, signature), les heures, les documents et, une fois la mission confirmée, le contact sur place et les collègues. Il peut accepter ou refuser une mission proposée depuis cette fenêtre.
 
+### Simulation de paie et de coût
+
+Chaque mission affiche une simulation repliable (résumé visible, détail au clic), calculée sur les horaires prévus avec les taux de la rubrique Paramètres :
+
+- **Intérimaire** (fenêtre de nouvelle mission à la connexion, Missions proposées, détail du jour) : salaire de base, indemnité de fin de mission (non due pour un emploi d'usage ou saisonnier), indemnité de congés payés, total brut et net estimé. Le SMS, l'e-mail ou le WhatsApp de diffusion annonce aussi le brut estimé.
+- **Employeur** (Mes missions, détail du jour, formulaire de demande en direct) : heures × personnes × taux facturé (taux horaire × coefficient du client), HT, TVA et TTC.
+- **Agence** (Missions, détail du jour, création et diffusion en direct, y compris quand le taux est modifié) : coût client, paie des intérimaires, charges patronales estimées, coût agence et marge.
+
+Chaque profil ne reçoit du serveur que ses propres chiffres : l'intérimaire ne voit ni la facturation ni la marge, l'employeur ne voit pas la marge. Les taux « Cotisations salariales moyennes » et « Charges patronales moyennes » (Paramètres › Paie) servent uniquement à ces estimations.
+
 ### Dossier de l'intérimaire
 
 - **Expériences** : l'intérimaire (ou l'agence) ajoute ses expériences passées avec le bouton « Ajouter ». Chaque mission verrouillée ajoute sa ligne toute seule ; elle disparaît si la mission est annulée.

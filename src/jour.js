@@ -1,6 +1,7 @@
 'use strict';
 // Détail d'une journée et vue mensuelle du calendrier, selon le profil connecté.
 const { one, all } = require('./db');
+const simulation = require('./simulation');
 
 const moisValide = s => typeof s === 'string' && /^\d{4}-\d{2}$/.test(s);
 
@@ -42,7 +43,7 @@ module.exports = function register(api, h) {
 
     if (p === 'agence') {
       const missions = all(SQL_M + ' WHERE m.date = ? ORDER BY m.debut, c.nom', date).map(m => ({
-        ...m,
+        ...m, simulation: simulation.pourMission(m, 'agence'),
         intervenants: all(`SELECT e.interim_id, e.canaux, e.created_at AS envoye_le, i.prenom, i.nom, i.poste, i.telephone, r.etat
             FROM envois e JOIN interimaires i ON i.id = e.interim_id LEFT JOIN reponses r ON r.mission_id = e.mission_id AND r.interim_id = e.interim_id
             WHERE e.mission_id = ? ORDER BY i.nom`, m.id)
@@ -59,7 +60,7 @@ module.exports = function register(api, h) {
 
     if (p === 'client') {
       const missions = all(SQL_M + ' WHERE m.date = ? AND m.client_id = ? ORDER BY m.debut', date, req.user.client_id).map(m => ({
-        id: m.id, poste: m.poste, date: m.date, debut: m.debut, fin: m.fin, nb_postes: m.nb_postes, taux_horaire: m.taux_horaire, statut: m.statut, commentaire: m.commentaire,
+        id: m.id, poste: m.poste, date: m.date, debut: m.debut, fin: m.fin, nb_postes: m.nb_postes, taux_horaire: m.taux_horaire, statut: m.statut, commentaire: m.commentaire, simulation: simulation.pourMission(m, 'client'),
         candidats: all(`SELECT r.interim_id, r.etat, i.prenom, i.nom, i.poste, i.telephone,
             (SELECT ROUND(AVG(e.note),1) FROM evaluations e JOIN heures h ON h.id = e.heure_id WHERE h.interim_id = i.id AND e.sens = 'client_vers_interim') AS note
             FROM reponses r JOIN interimaires i ON i.id = r.interim_id WHERE r.mission_id = ? AND r.etat != 'decline' ORDER BY r.id`, m.id)

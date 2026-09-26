@@ -66,6 +66,8 @@ const GROUPES = [
   { id: 'paie', titre: 'Paie', aide: 'Taux utilisés pour calculer les fiches de paie des intérimaires.', champs: [
     { k: 'ifm_taux', l: 'Indemnité de fin de mission (%)', type: 'number', def: '10', min: 0, max: 20, aide: '10 % minimum, sauf accord ou cas d\'exclusion (article L1251-32).' },
     { k: 'iccp_taux', l: 'Indemnité compensatrice de congés payés (%)', type: 'number', def: '10', min: 10, max: 20, aide: '10 % minimum de la rémunération, fin de mission comprise.' },
+    { k: 'cotisations_salariales_taux', l: 'Cotisations salariales moyennes (%)', type: 'number', def: '22', min: 0, max: 40, aide: 'Sert uniquement à estimer le salaire net dans la simulation de paie montrée aux intérimaires.' },
+    { k: 'charges_patronales_taux', l: 'Charges patronales moyennes (%)', type: 'number', def: '20', min: 0, max: 60, aide: 'Après réduction générale des cotisations. Sert uniquement à estimer le coût et la marge de l\'agence dans les simulations.' },
     { k: 'convention', l: 'Convention collective', def: 'HCR (IDCC 1979)' },
     { k: 'paie_jour', l: 'Versement du salaire', def: 'Dans les 5 jours suivant la fin de chaque quinzaine' },
   ] },

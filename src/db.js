@@ -216,6 +216,21 @@ addColumn('missions', 'motif', "TEXT NOT NULL DEFAULT 'Accroissement temporaire 
 addColumn('interimaires', 'date_naissance', 'TEXT');
 addColumn('interimaires', 'nationalite', "TEXT NOT NULL DEFAULT 'Française'");
 addColumn('factures', 'tva_taux', 'REAL NOT NULL DEFAULT 20');
+addColumn('factures', 'coefficient', 'REAL');
+// Contrat de mission : signature de l'entreprise utilisatrice, instantané des termes, relances
+addColumn('contrats', 'client_signe_le', 'TEXT');
+addColumn('contrats', 'client_signe_nom', 'TEXT');
+addColumn('contrats', 'client_signe_ip', 'TEXT');
+addColumn('contrats', 'donnees', 'TEXT');
+addColumn('contrats', 'relance_le', 'TEXT');
+addColumn('contrats', 'nb_relances', 'INTEGER NOT NULL DEFAULT 0');
+addColumn('factures', 'relance_le', 'TEXT');
+addColumn('factures', 'nb_relances', 'INTEGER NOT NULL DEFAULT 0');
+// Mission validée quand tous ses contrats sont signés par les deux parties ; précisions du contrat
+addColumn('missions', 'validee_le', 'TEXT');
+for (const c of ['remplace_nom', 'remplace_poste', 'taches', 'risques', 'epi']) addColumn('missions', c, 'TEXT');
+// Intérimaire : état civil complet pour le contrat de mission
+for (const c of ['lieu_naissance', 'nir', 'adresse', 'code_postal']) addColumn('interimaires', c, 'TEXT');
 // Suspension d'un profil (réversible) : plus de connexion, plus de missions.
 for (const t of ['clients', 'interimaires']) {
   addColumn(t, 'suspendu', 'INTEGER NOT NULL DEFAULT 0');

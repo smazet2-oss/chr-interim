@@ -66,7 +66,7 @@ test('suspendre, réactiver, supprimer', async () => {
   // Client suspendu : déconnecté, l'agence ne peut plus lui créer de mission.
   await ag.post(`/clients/${c.id}/suspendre`);
   assert.equal((await cl.get('/missions')).status, 401);
-  assert.equal((await ag.post('/missions', { client_id: c.id, poste: 'X', date: plusJours(5), debut: '10:00', fin: '12:00', nb_postes: 1, taux_horaire: 12 })).status, 409);
+  assert.equal((await ag.post('/missions', { client_id: c.id, poste: 'X', date: plusJours(5), debut: '10:00', fin: '12:00', nb_postes: 1, taux_horaire: 12.5 })).status, 409);
   await ag.post(`/clients/${c.id}/reactiver`);
 
   // Suppression sans historique : fiche, compte et réponses supprimés.
@@ -75,7 +75,7 @@ test('suspendre, réactiver, supprimer', async () => {
   assert.equal(one('SELECT COUNT(*) n FROM envois WHERE interim_id = ?', j.id).n, 0);
 
   // Suppression refusée quand il existe un historique légal (contrat, relevé d'heures).
-  const m2 = (await ag.post('/missions', { client_id: c.id, poste: 'Serveuse', date: plusJours(6), debut: '12:00', fin: '15:00', nb_postes: 1, taux_horaire: 12 })).data;
+  const m2 = (await ag.post('/missions', { client_id: c.id, poste: 'Serveuse', date: plusJours(6), debut: '12:00', fin: '15:00', nb_postes: 1, taux_horaire: 12.5 })).data;
   await ag.post(`/missions/${m2.id}/diffuser`, { interims: [i.id], canaux: ['sms'] });
   const lea2 = await connecte(ai.username, 'Lea2026xx');
   await lea2.post(`/missions/${m2.id}/repondre`, { accepte: true });

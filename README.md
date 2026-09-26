@@ -59,9 +59,35 @@ Sur la fiche d'un intérimaire ou d'un client, l'agence dispose de deux boutons 
 4. **Choix de l'employeur** : il accepte ou refuse chaque intérimaire (l'agence peut aussi décider à sa place).
    - Un refus libère la place et réactive le bouton pour les autres.
    - L'intérimaire qui a accepté voit « En attente de confirmation » tant que la mission n'est pas validée.
-5. **Verrouillage** : quand toutes les places sont confirmées, la mission est verrouillée. Les intérimaires retenus reçoivent la confirmation et accèdent aux documents : contrat de mission et documents déposés par l'employeur. Les autres voient « Non retenu ».
+5. **Contrats et validation** : quand toutes les places sont confirmées, la mission est « pourvue » et un contrat de mission est établi pour chaque intérimaire retenu, rempli automatiquement (voir plus bas). L'intérimaire et l'employeur le signent en ligne dans leur espace. **La mission est validée quand tous ses contrats sont signés par les deux parties** ; l'intérimaire voit alors « Mission confirmée » et les coordonnées sur place. Les autres voient « Non retenu ».
 6. **Après la mission** : l'intérimaire confirme ses heures ou déclare des heures en plus avec une justification. L'employeur valide et accepte ou refuse les heures en plus. Chacun note l'autre en fin de service ; les avis reçus par les intérimaires sont anonymes.
-7. **Facturation et paie** : l'agence génère les factures de la période (heures validées × taux × coefficient du client) et consulte la paie calculée, avec IFM et ICCP de 10 % chacune. Ce calcul est indicatif et doit être contrôlé par votre gestionnaire de paie.
+7. **Facturation et paie** : l'agence génère les factures de la période (heures validées × taux horaire brut, majorations horaires comprises, × coefficient du client) et consulte la paie calculée, avec IFM et ICCP de 10 % chacune. Ce calcul est indicatif et doit être contrôlé par votre gestionnaire de paie.
+
+### Contrat de mission et signature
+
+Le contrat reprend le modèle HCR (IDCC 1979) en 9 articles : parties, motif de recours (avec le salarié remplacé), poste et classification HCR (niveau et échelon), tâches, risques et équipements de protection, durée et temps de travail, période d'essai, rémunération (taux horaire brut, majorations, repas HCR, fin de mission, congés payés), hygiène et sécurité, visite d'information et de prévention, retraite et prévoyance.
+
+- **Rempli automatiquement** avec les Paramètres de l'agence (dont le représentant légal), la fiche de l'intérimaire (naissance, n° de sécurité sociale, domicile), la fiche du client et la mission. Tâches, risques et équipements prennent les valeurs habituelles du poste, modifiables à la création de la mission. Les termes sont figés à l'émission.
+- **Signature** : l'intérimaire (nom exact) et l'employeur (nom et fonction) recopient « Lu et approuvé » et signent dans leur espace. Date, heure et adresse de connexion sont enregistrées ; l'agence est signataire à l'émission.
+- **Confidentialité** : la version de l'employeur n'affiche ni la date et le lieu de naissance, ni le n° de sécurité sociale, ni le domicile de l'intérimaire.
+- **Consultation** : le contrat signé reste disponible dans les trois espaces (rubrique « Contrats de mission » pour l'agence et l'employeur, « Contrats » pour l'intérimaire), imprimable ou enregistrable en PDF.
+
+### Relances
+
+- **Contrats non signés** : bouton « Relancer » pour l'agence ; relance automatique toutes les 24 h (toutes les 4 h si la mission commence dans moins de 24 h), 3 fois au plus, par e-mail, SMS et WhatsApp s'il est configuré, avec une notification dans l'espace concerné. Seule la partie qui n'a pas signé est relancée.
+- **Factures échues** : bouton « Relancer » dans Facturation ; relance automatique tous les 7 jours, 3 fois au plus.
+- Réglages dans Paramètres › Relances ; historique dans « Contrats de mission ».
+
+### Coefficient, contrat commercial et convention HCR
+
+- **Coefficient** : 1,45 par défaut pour chaque entreprise (Paramètres › Facturation), modifiable uniquement à la hausse. Dans Clients, « Nouveau contrat » établit un contrat commercial (coefficient, délai de paiement, conditions particulières) avec un aperçu de la marge. Dès que l'entreprise le signe dans « Mon contrat » (ou que l'agence le marque « signé sur papier »), son coefficient et son délai s'appliquent automatiquement aux simulations et aux factures.
+- **Taux horaires HCR** (Paramètres › Convention HCR) : grille par niveau et échelon, niveau de chaque poste, SMIC en plancher. Le taux horaire brut d'une mission prend le minimum du poste, modifiable à la hausse.
+- **Majorations selon les horaires** : nuit (22 h – 7 h), dimanche, jours fériés (calculés automatiquement, Pâques comprise) et 1er mai. Valeurs HCR par défaut : seul le 1er mai est majoré (100 %, obligation légale) ; la nuit est compensée en repos dans la convention. Les majorations s'appliquent à la paie, aux factures, au contrat et aux simulations.
+
+### Prospects et page « Besoin de renforts ? »
+
+- **Page publique** `/contact` (lien depuis la page de connexion) : les hôtels, cafés et restaurants remplissent le questionnaire de l'étude de marché (établissement, besoins, solutions actuelles, attentes, budget, suivi) avec leur accord pour être recontactés. L'agence reçoit un e-mail d'alerte.
+- **Espace agence › Prospects** : demandes du site et **visites terrain** saisies avec le même questionnaire (date, enquêteur, accord écrit ou oral), statut, date de relance, notes, conversion en fiche client (coefficient par défaut) et suppression à la demande de la personne. Les prospects à relancer apparaissent dans le tableau de bord.
 
 ### Calendriers et détail d'une journée
 
@@ -92,7 +118,7 @@ Chaque profil ne reçoit du serveur que ses propres chiffres : l'intérimaire ne
   - **toujours** : pièce d'identité, carte Vitale ou attestation de droits, RIB, justificatif de domicile de moins de 3 mois ;
   - **selon la situation** : titre de séjour autorisant à travailler (nationalité hors UE, EEE et Suisse), autorisation parentale (moins de 18 ans) ;
   - **facultatives** : diplômes et certificats (HACCP…), attestation de suivi médical, permis de conduire, CV.
-- **Contrats** : un contrat de mission est créé pour chaque intérimaire retenu. Il le lit en ligne (page imprimable) et le signe en saisissant son nom (signature électronique simple : date, heure et adresse IP enregistrées). Les informations de l'agence se règlent par variables d'environnement : `AGENCE_RAISON_SOCIALE`, `AGENCE_ADRESSE`, `AGENCE_SIRET`, `AGENCE_GARANTIE_FINANCIERE`, `CAISSE_RETRAITE`, `ORGANISME_PREVOYANCE`. Tant qu'elles sont vides, le contrat affiche « [à compléter] ».
+- **Contrats** : voir « Contrat de mission et signature ». Tant qu'une information de l'agence ou de l'intérimaire manque, le contrat affiche « [à compléter] ».
 - **Paie** : l'agence génère les fiches de paie d'une période (rubrique Paie), dépose le PDF produit par son logiciel de paie et les marque payées. L'intérimaire voit ses fiches payées ou en attente ; une **alerte** signale les heures non validées qui bloquent le paiement, avec ce qu'il manque (sa confirmation, la validation de l'employeur ou l'accord sur les heures en plus).
 
 ### Envoi des messages
@@ -135,8 +161,8 @@ Sauvegardez régulièrement le dossier `DATA_DIR`.
 
 Ce prototype est fonctionnel, mais plusieurs points sont à traiter avant de l'ouvrir à de vrais clients et intérimaires :
 
-- **RGPD** : registre des traitements, mentions d'information, durée de conservation (le numéro de sécurité sociale n'est volontairement pas collecté).
-- **Contrats** : le modèle de contrat de mission et le motif de recours sont à faire valider par un juriste. La signature électronique intégrée est une signature « simple » ; pour une valeur probante renforcée, passer par un prestataire (Yousign, par exemple). Le contrat de mise à disposition avec l'employeur n'est pas encore généré.
+- **RGPD** : registre des traitements, mentions d'information, durée de conservation. Le numéro de sécurité sociale est collecté pour le contrat de mission : il n'est visible que par l'agence et l'intérimaire. Les prospects peuvent être supprimés à leur demande.
+- **Contrats** : le modèle de contrat de mission, le contrat commercial et les valeurs HCR par défaut (grille, SMIC, repas) sont à faire valider par un juriste et à mettre à jour à chaque avenant. La signature électronique intégrée est une signature « simple » ; pour une valeur probante renforcée, passer par un prestataire (Yousign, par exemple).
 - **Documents personnels** : les pièces d'identité et RIB sont des données sensibles ; prévoir leur durée de conservation et leur suppression à la fin de la relation.
 - **Paie et factures** : validation des calculs par un expert-comptable. L'export vers votre logiciel de paie n'est pas prévu.
 - **Hébergement** : sauvegardes automatiques et nom de domaine.
@@ -147,6 +173,12 @@ Ce prototype est fonctionnel, mais plusieurs points sont à traiter avant de l'o
 src/server.js     API : connexion, droits, missions, heures, documents, factures, paie
 src/db.js         schéma de la base SQLite
 src/notify.js     envoi e-mail, SMS et WhatsApp, et journal des envois
+src/contrat-mission.js  contrat de mission HCR rempli automatiquement
+src/contrats-clients.js contrat commercial et coefficient de chaque entreprise
+src/hcr.js, src/hcr-grille.js  convention HCR : taux par poste, majorations, jours fériés
+src/relances.js   relances des contrats non signés et des factures échues
+src/prospects.js  page publique « Besoin de renforts ? » et suivi des prospects
+src/simulation.js simulation de paie, de coût et de marge
 src/seed-demo.js  données de démonstration
 public/           interface (HTML, CSS, JavaScript sans framework)
 test/             tests automatiques de l'API

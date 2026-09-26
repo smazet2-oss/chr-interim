@@ -94,13 +94,21 @@ test('expériences, dossier légal, contrat et paie', async () => {
   assert.equal((await paul.get('/contrats')).data.length, 0);
   const doc = await ines.get(`/contrats/${k.id}/document`);
   assert.equal(doc.status, 200);
-  assert.match(doc.data, /Contrat de mission/);
+  assert.match(doc.data, /contrat de mission/i);
   assert.match(doc.data, /Hôtel Test/);
   assert.equal((await paul.get(`/contrats/${k.id}/document`)).status, 404);
-  assert.equal((await ines.post(`/contrats/${k.id}/signer`, { accepte: true, nom: 'Quelqu\'un' })).status, 400, 'nom exact exigé');
-  assert.equal((await ines.post(`/contrats/${k.id}/signer`, { accepte: true, nom: 'ines garcia' })).status, 200);
+  assert.equal((await ines.post(`/contrats/${k.id}/signer`, { accepte: true, mention: 'Lu et approuvé', nom: 'Quelqu\'un' })).status, 400, 'nom exact exigé');
+  assert.equal((await ines.post(`/contrats/${k.id}/signer`, { accepte: true, nom: 'ines garcia' })).status, 400, 'mention « Lu et approuvé » exigée');
+  assert.equal((await ines.post(`/contrats/${k.id}/signer`, { accepte: true, mention: 'Lu et approuvé', nom: 'ines garcia' })).status, 200);
+  assert.equal((await ines.get('/contrats')).data[0].statut, 'a_signer', 'reste à signer par l\'employeur');
+  // L'employeur voit le contrat sans les données personnelles de l'intérimaire, puis signe.
+  const docClient = await cl.get(`/contrats/${k.id}/document`);
+  assert.equal(docClient.status, 200); assert.match(docClient.data, /communiqué à l'agence uniquement/);
+  assert.doesNotMatch(docClient.data, /01\/05\/2000/);
+  assert.equal((await cl.post(`/contrats/${k.id}/signer`, { accepte: true, mention: 'Lu et approuvé', nom: 'Directeur Hôtel Test' })).status, 200);
   assert.equal((await ines.get('/contrats')).data[0].statut, 'signe');
-  assert.equal((await ines.post(`/contrats/${k.id}/signer`, { accepte: true, nom: 'Inès Garcia' })).status, 409);
+  assert.match((await ag.get(`/contrats/${k.id}/document`)).data, /Signé par toutes les parties/);
+  assert.equal((await ines.post(`/contrats/${k.id}/signer`, { accepte: true, mention: 'Lu et approuvé', nom: 'Inès Garcia' })).status, 409);
 
   // Paie : on place la mission dans le passé. Heures non confirmées → alerte.
   const hier = plusJours(-1);
@@ -119,7 +127,7 @@ test('expériences, dossier légal, contrat et paie', async () => {
   assert.equal((await ag.post('/bulletins/generer', { debut, fin })).data.crees, 1);
   const b = (await ines.get('/bulletins')).data[0];
   assert.equal(b.heures, 4);
-  assert.equal(b.brut, 48);
+  assert.equal(b.brut, 48.08, 'taux par défaut du poste : SMIC 12,02 € × 4 h');
   assert.equal(b.statut, 'en_attente');
   assert.equal(b.bloquees.length, 0);
   assert.equal((await ines.get('/paie/en-cours')).data.length, 0, 'heures désormais sur une fiche');

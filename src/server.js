@@ -10,6 +10,7 @@ const { envoyer, canalConfigure, gabaritEmail, siteUrl } = require('./notify');
 const dossier = require('./dossier');
 const P = require('./parametres');
 const simulation = require('./simulation');
+const hcr = require('./hcr');
 const { dureeHeures } = simulation;
 
 const app = express();
@@ -33,7 +34,6 @@ const str = (v, max = 200) => (v == null ? '' : String(v).trim().slice(0, max));
 const CANAUX = ['whatsapp', 'sms', 'mail'];
 // Motifs de recours au travail temporaire (article L1251-6 du Code du travail).
 const MOTIFS = ['Accroissement temporaire d\'activité', 'Remplacement d\'un salarié absent', 'Emploi à caractère saisonnier', 'Emploi d\'usage constant (secteur HCR)'];
-const TAUX_DEFAUT = 12.0; // taux horaire appliqué aux demandes des employeurs, ajustable par l'agence
 const CANAL_LABEL = { whatsapp: 'WhatsApp', sms: 'SMS', mail: 'E-mail' };
 
 function genPassword() {
@@ -162,8 +162,14 @@ app.post('/api/password', auth, wrap((req, res) => {
 }));
 
 const api = express.Router();
+// Page publique « Besoin de renforts ? » (questionnaire établissement), sans compte.
+const prospects = require('./prospects');
+prospects.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 api.use(auth);
+prospects.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
+const contratsClients = require('./contrats-clients')(api, { fail: (...a) => fail(...a), isDate: (...a) => isDate(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), str: (...a) => str(...a), today: () => today() });
+const relances = require('./relances')(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 require('./jour')(api, { fail: (...a) => fail(...a), isDate: (...a) => isDate(...a), wrap: fn => wrap(fn), today: () => today(), missionPourInterim: (...a) => missionPourInterim(...a), missionRow: (...a) => missionRow(...a) });
 
 /* ---------------- Clients ---------------- */
@@ -171,7 +177,11 @@ const CLIENT_FIELDS = ['nom', 'siret', 'secteur', 'adresse', 'ville', 'contact',
 function clientBody(b) {
   const c = {};
   for (const f of CLIENT_FIELDS) if (b[f] !== undefined) c[f] = str(b[f]);
-  if (b.coefficient !== undefined) { c.coefficient = Number(b.coefficient); if (!(c.coefficient >= 1 && c.coefficient <= 5)) fail(400, 'Coefficient invalide (entre 1 et 5).'); }
+  if (b.coefficient !== undefined && b.coefficient !== '') {
+    c.coefficient = Math.round(Number(String(b.coefficient).replace(',', '.')) * 100) / 100;
+    const min = contratsClients.coefMin();
+    if (!(c.coefficient >= min && c.coefficient <= 5)) fail(400, `Coefficient invalide : ${String(min).replace('.', ',')} minimum (valeur par défaut), 5 maximum.`);
+  }
   if (b.delai_paiement !== undefined) { c.delai_paiement = parseInt(b.delai_paiement, 10); if (!(c.delai_paiement >= 0 && c.delai_paiement <= 90)) fail(400, 'Délai de paiement invalide.'); }
   return c;
 }
@@ -189,6 +199,7 @@ api.get('/clients', (req, res) => {
 api.post('/clients', role('agence'), wrap((req, res) => {
   const c = clientBody(req.body);
   if (c.delai_paiement === undefined) c.delai_paiement = P.num('delai_paiement_defaut', 15);
+  if (c.coefficient === undefined) c.coefficient = contratsClients.coefMin();
   if (!c.nom) fail(400, 'La raison sociale est obligatoire.');
   const keys = Object.keys(c);
   const r = run(`INSERT INTO clients (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`, ...keys.map(k => c[k]));
@@ -196,17 +207,32 @@ api.post('/clients', role('agence'), wrap((req, res) => {
 }));
 api.put('/clients/:id', role('agence'), wrap((req, res) => {
   const c = clientBody(req.body), keys = Object.keys(c);
-  if (!one('SELECT 1 FROM clients WHERE id = ?', req.params.id)) fail(404, 'Client introuvable.');
+  const avant = one('SELECT * FROM clients WHERE id = ?', req.params.id); if (!avant) fail(404, 'Client introuvable.');
+  // Avec un contrat signé, le coefficient et le délai sont ceux du contrat : un nouveau contrat est nécessaire pour les changer.
+  const signe = contratsClients.contratSigne(avant.id);
+  if (signe && ((c.coefficient !== undefined && c.coefficient !== signe.coefficient) || (c.delai_paiement !== undefined && c.delai_paiement !== signe.delai_paiement))) {
+    fail(409, `Le coefficient et le délai de paiement viennent du contrat signé ${signe.numero}. Établissez un nouveau contrat pour les modifier.`);
+  }
   if (keys.length) run(`UPDATE clients SET ${keys.map(k => k + ' = ?').join(', ')} WHERE id = ?`, ...keys.map(k => c[k]), req.params.id);
   res.json(one('SELECT * FROM clients WHERE id = ?', req.params.id));
 }));
 
 /* ---------------- Intérimaires ---------------- */
-const INTERIM_FIELDS = ['prenom', 'nom', 'poste', 'secteur', 'telephone', 'email', 'ville', 'competences', 'experience'];
+const INTERIM_FIELDS = ['prenom', 'nom', 'poste', 'secteur', 'telephone', 'email', 'ville', 'competences', 'experience', 'lieu_naissance', 'adresse', 'code_postal'];
 function interimBody(b) {
   const c = {};
   for (const f of INTERIM_FIELDS) if (b[f] !== undefined) c[f] = str(b[f], f === 'competences' || f === 'experience' ? 1000 : 200);
   if (b.taux_horaire !== undefined) { c.taux_horaire = Number(b.taux_horaire); if (!(c.taux_horaire >= 10 && c.taux_horaire <= 60)) fail(400, 'Taux horaire invalide.'); }
+  if (b.nir !== undefined) {
+    // Numéro de sécurité sociale : 13 chiffres + clé (Corse : 2A / 2B), clé de contrôle vérifiée.
+    const n = String(b.nir || '').replace(/\s/g, '').toUpperCase();
+    if (n) {
+      if (!/^[12]\d{2}(0[1-9]|1[0-2]|[2-9]\d)(\d{2}|2A|2B)\d{8}$/.test(n)) fail(400, 'Numéro de sécurité sociale invalide (15 caractères).');
+      const corps = BigInt(n.slice(0, 13).replace('2A', '19').replace('2B', '18'));
+      if (97n - (corps % 97n) !== BigInt(n.slice(13))) fail(400, 'Numéro de sécurité sociale invalide : la clé ne correspond pas.');
+    }
+    c.nir = n || null;
+  }
   if (b.date_naissance !== undefined) { if (b.date_naissance && !isDate(b.date_naissance)) fail(400, 'Date de naissance invalide.'); c.date_naissance = b.date_naissance || null; }
   if (b.nationalite !== undefined) { if (!dossier.NATIONALITES.includes(b.nationalite)) fail(400, 'Nationalité invalide.'); c.nationalite = b.nationalite; }
   return c;
@@ -254,6 +280,7 @@ const PROFILS = {
   clients: { label: 'Client', fk: 'client_id', nom: r => r.nom,
     historique: id => ({
       'facture(s)': one('SELECT COUNT(*) n FROM factures WHERE client_id = ?', id).n,
+      'contrat(s) commercial(aux) signé(s)': one('SELECT COUNT(*) n FROM contrats_clients WHERE client_id = ? AND statut IN (\'signe\', \'remplace\')', id).n,
       'mission(s) réalisée(s)': one(`SELECT COUNT(*) n FROM missions m WHERE m.client_id = ? AND EXISTS (SELECT 1 FROM heures h WHERE h.mission_id = m.id)`, id).n,
     }),
     fichiers: id => all('SELECT fichier FROM documents WHERE client_id = ?', id).map(d => path.join(UPLOAD_DIR, path.basename(d.fichier))) },
@@ -375,7 +402,12 @@ function missionRow(id) { return one('SELECT m.*, c.nom AS client_nom, c.secteur
 function missionPourAgence(m) {
   const env = all(`SELECT e.interim_id, e.canaux, i.prenom, i.nom, i.poste, r.etat FROM envois e JOIN interimaires i ON i.id = e.interim_id
      LEFT JOIN reponses r ON r.mission_id = e.mission_id AND r.interim_id = e.interim_id WHERE e.mission_id = ? ORDER BY e.id`, m.id);
-  return { ...m, simulation: simulation.pourMission(m, 'agence'), envois: env.map(e => ({ interim_id: e.interim_id, nom: `${e.prenom} ${e.nom}`, poste: e.poste, canaux: e.canaux.split(','), etat: e.etat || null })), ...compteurs(m.id), documents: docsMission(m) };
+  return { ...m, simulation: simulation.pourMission(m, 'agence'), envois: env.map(e => ({ interim_id: e.interim_id, nom: `${e.prenom} ${e.nom}`, poste: e.poste, canaux: e.canaux.split(','), etat: e.etat || null, contrat: e.etat === 'retenu' ? contratDe(m.id, e.interim_id) : null })), ...compteurs(m.id), documents: docsMission(m) };
+}
+/** État de signature du contrat d'un intérimaire sur une mission. */
+function contratDe(mid, iid) {
+  const k = one('SELECT id, numero, statut, signe_le, client_signe_le FROM contrats WHERE mission_id = ? AND interim_id = ?', mid, iid);
+  return k ? { id: k.id, numero: k.numero, statut: k.statut, interim_signe: !!k.signe_le, client_signe: !!k.client_signe_le } : null;
 }
 function compteurs(mid) {
   const c = one(`SELECT SUM(etat IN ('accepte','retenu')) AS actifs, SUM(etat = 'retenu') AS retenus FROM reponses WHERE mission_id = ?`, mid);
@@ -391,13 +423,16 @@ function missionPourInterim(m, iid) {
   const { actifs } = compteurs(m.id);
   let etat;
   if (m.statut === 'annulee') etat = 'annulee';
-  else if (m.statut === 'verrouillee') etat = r && r.etat === 'retenu' ? 'confirmee' : r && r.etat !== 'decline' ? 'non_retenu' : 'pourvue';
+  // Retenu : « signature » tant que son contrat n'est pas signé par les deux parties, puis « confirmée ».
+  const k = r && r.etat === 'retenu' ? contratDe(m.id, iid) : null;
+  if (m.statut === 'verrouillee') etat = k ? (k.statut === 'signe' ? 'confirmee' : 'signature') : r && r.etat !== 'decline' ? 'non_retenu' : 'pourvue';
   else if (r) etat = r.etat === 'decline' ? 'decline' : 'en_attente';
   else etat = actifs >= m.nb_postes ? 'complet' : 'a_repondre';
   return {
     id: m.id, client_nom: m.client_nom, client_secteur: m.client_secteur, poste: m.poste, date: m.date, debut: m.debut, fin: m.fin,
     nb_postes: m.nb_postes, taux_horaire: m.taux_horaire, etat, simulation: simulation.pourMission(m, 'interim'),
-    documents: etat === 'confirmee' ? docsMission(m).map(d => d.id === null ? { ...d, contrat_id: one('SELECT id FROM contrats WHERE mission_id = ? AND interim_id = ?', m.id, iid)?.id } : d) : [],
+    contrat: k, validee_le: m.validee_le || null,
+    documents: ['confirmee', 'signature'].includes(etat) ? docsMission(m).map(d => d.id === null ? { ...d, contrat_id: one('SELECT id FROM contrats WHERE mission_id = ? AND interim_id = ?', m.id, iid)?.id } : d) : [],
   };
 }
 api.get('/missions', (req, res) => {
@@ -411,7 +446,8 @@ api.get('/missions', (req, res) => {
       ...m, ...compteurs(m.id), documents: docsMission(m), simulation: simulation.pourMission(m, 'client'),
       candidats: all(`SELECT r.interim_id, r.etat, i.prenom, i.nom, i.poste, i.competences,
         (SELECT ROUND(AVG(e.note),1) FROM evaluations e JOIN heures h ON h.id = e.heure_id WHERE h.interim_id = i.id AND e.sens = 'client_vers_interim') AS note
-        FROM reponses r JOIN interimaires i ON i.id = r.interim_id WHERE r.mission_id = ? AND r.etat != 'decline' ORDER BY r.id`, m.id),
+        FROM reponses r JOIN interimaires i ON i.id = r.interim_id WHERE r.mission_id = ? AND r.etat != 'decline' ORDER BY r.id`, m.id)
+        .map(c => ({ ...c, contrat: c.etat === 'retenu' ? contratDe(m.id, c.interim_id) : null })),
     })));
   }
   const ms = all(`SELECT m.*, c.nom AS client_nom, c.secteur AS client_secteur FROM missions m JOIN clients c ON c.id = m.client_id
@@ -430,10 +466,14 @@ api.post('/missions', role('agence', 'client'), wrap((req, res) => {
   if (!isTime(b.debut) || !isTime(b.fin)) fail(400, 'Horaires invalides (format HH:MM).');
   const nb = parseInt(b.nb_postes, 10); if (!(nb >= 1 && nb <= 30)) fail(400, 'Nombre de postes invalide.');
   const motif = MOTIFS.includes(b.motif) ? b.motif : MOTIFS[0];
-  const taux = req.user.profil === 'agence' && b.taux_horaire ? Number(b.taux_horaire) : TAUX_DEFAUT;
-  if (!(taux >= 10 && taux <= 60)) fail(400, 'Taux horaire invalide.');
-  const r = run('INSERT INTO missions (client_id, poste, date, debut, fin, nb_postes, taux_horaire, commentaire, motif, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    client_id, poste, b.date, b.debut, b.fin, nb, taux, str(b.commentaire, 500), motif, req.user.id);
+  // L'employeur ne fixe pas le taux : c'est le minimum HCR du poste (jamais sous le SMIC), ajustable par l'agence.
+  const taux = req.user.profil === 'agence' && b.taux_horaire ? Number(b.taux_horaire) : hcr.tauxPoste(poste);
+  if (!(taux >= hcr.smic() && taux <= 60)) fail(400, `Taux horaire brut invalide : ${hcr.smic().toFixed(2).replace('.', ',')} € minimum (SMIC).`);
+  // Précisions reprises dans le contrat de mission (sinon, valeurs habituelles du poste)
+  const extra = Object.fromEntries(['remplace_nom', 'remplace_poste', 'taches', 'risques', 'epi'].map(k => [k, str(b[k], k.startsWith('remplace') ? 120 : 600) || null]));
+  if (/remplacement/i.test(motif) && !extra.remplace_nom) fail(400, 'Motif de remplacement : indiquez le nom du salarié remplacé (mention obligatoire du contrat).');
+  const r = run('INSERT INTO missions (client_id, poste, date, debut, fin, nb_postes, taux_horaire, commentaire, motif, created_by, remplace_nom, remplace_poste, taches, risques, epi) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    client_id, poste, b.date, b.debut, b.fin, nb, taux, str(b.commentaire, 500), motif, req.user.id, extra.remplace_nom, extra.remplace_poste, extra.taches, extra.risques, extra.epi);
   res.status(201).json(missionRow(r.lastInsertRowid));
 }));
 
@@ -444,10 +484,9 @@ api.post('/simulation', role('agence', 'client'), wrap((req, res) => {
   const client_id = p === 'client' ? req.user.client_id : Number(b.client_id);
   const c = one('SELECT coefficient FROM clients WHERE id = ?', client_id); if (!c) fail(400, 'Client introuvable.');
   const nb = Math.min(30, Math.max(1, parseInt(b.nb_postes, 10) || 1));
-  // L'employeur ne fixe pas le taux : celui par défaut est appliqué, l'agence peut l'ajuster ensuite.
-  const taux = p === 'agence' && Number(b.taux_horaire) >= 10 && Number(b.taux_horaire) <= 60 ? Number(b.taux_horaire) : TAUX_DEFAUT;
+  const taux = p === 'agence' && Number(b.taux_horaire) >= hcr.smic() && Number(b.taux_horaire) <= 60 ? Number(b.taux_horaire) : hcr.tauxPoste(b.poste);
   const motif = MOTIFS.includes(b.motif) ? b.motif : MOTIFS[0];
-  res.json(simulation.vue(simulation.calculer({ debut: b.debut, fin: b.fin, nb_postes: nb, taux_horaire: taux, motif, coefficient: c.coefficient }), p));
+  res.json(simulation.vue(simulation.calculer({ date: isDate(b.date) ? b.date : null, debut: b.debut, fin: b.fin, nb_postes: nb, taux_horaire: taux, motif, coefficient: c.coefficient }), p));
 }));
 
 /** Diffusion par l'agence : choix des intérimaires et des canaux. */
@@ -459,7 +498,7 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
   if (!ids.length) fail(400, 'Choisissez au moins un intérimaire.');
   if (!canaux.length) fail(400, 'Choisissez au moins un moyen d\'envoi.');
   if (req.body.taux_horaire !== undefined) {
-    const t = Number(req.body.taux_horaire); if (!(t >= 10 && t <= 60)) fail(400, 'Taux horaire invalide.');
+    const t = Number(req.body.taux_horaire); if (!(t >= hcr.smic() && t <= 60)) fail(400, `Taux horaire brut invalide : ${hcr.smic().toFixed(2).replace('.', ',')} € minimum (SMIC).`);
     run('UPDATE missions SET taux_horaire = ? WHERE id = ?', t, m.id); m.taux_horaire = t;
   }
   const dest = [];
@@ -513,7 +552,6 @@ api.post('/missions/:id/decision', role('agence', 'client'), wrap((req, res) => 
       const h = dureeHeures(m.debut, m.fin);
       for (const x of all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat = \'retenu\'', m.id)) {
         run('INSERT OR IGNORE INTO heures (mission_id, interim_id, heures_prevues) VALUES (?,?,?)', m.id, x.interim_id, h);
-        run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', x.interim_id, m.id, `Mission confirmée : ${m.poste} chez ${m.client_nom}. Votre contrat est à signer.`);
       }
       dossier.surVerrouillage(m, all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat = \'retenu\'', m.id).map(x => x.interim_id), today().slice(0, 4));
       for (const x of all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat IN (\'non_retenu\',\'refuse_client\')', m.id)) {
@@ -715,7 +753,7 @@ api.delete('/documents/:id', role('client', 'agence'), wrap((req, res) => {
 
 /* ---------------- Factures et paie ---------------- */
 const HEURES_FACTURABLES = `SELECT h.id, h.heures_prevues + CASE WHEN h.extra_statut = 'accepte' THEN h.extra ELSE 0 END AS total,
-  m.taux_horaire, m.client_id, m.date, h.interim_id FROM heures h JOIN missions m ON m.id = h.mission_id
+  m.taux_horaire, m.client_id, m.date, m.debut, m.fin, h.interim_id FROM heures h JOIN missions m ON m.id = h.mission_id
   WHERE h.valide_interim = 1 AND h.valide_client = 1 AND h.extra_statut != 'attente' AND m.date BETWEEN ? AND ?`;
 api.get('/factures', (req, res) => {
   if (req.user.profil === 'interim') return res.status(403).json({ error: 'Accès refusé.' });
@@ -733,12 +771,13 @@ api.post('/factures/generer', role('agence'), wrap((req, res) => {
   tx(() => {
     for (const [cid, ls] of Object.entries(parClient)) {
       const c = one('SELECT * FROM clients WHERE id = ?', cid);
-      const ht = Math.round(ls.reduce((s, l) => s + l.total * l.taux_horaire * c.coefficient, 0) * 100) / 100;
+      // Heures × taux horaire brut (majorations HCR comprises) × coefficient du client (celui du contrat signé)
+      const ht = Math.round(ls.reduce((s, l) => s + l.total * l.taux_horaire * hcr.facteur(l.date, l.debut, l.fin) * c.coefficient, 0) * 100) / 100;
       const annee = today().slice(0, 4);
       const n = one('SELECT COUNT(*) n FROM factures WHERE numero LIKE ?', `${P.get('facture_prefixe') || 'F'}-${annee}-%`).n + 1;
       const numero = `${P.get('facture_prefixe') || 'F'}-${annee}-${String(n).padStart(4, '0')}`;
       const ech = new Date(); ech.setDate(ech.getDate() + c.delai_paiement);
-      const r = run('INSERT INTO factures (numero, client_id, debut, fin, montant_ht, echeance, tva_taux) VALUES (?,?,?,?,?,?,?)', numero, cid, debut, fin, ht, ech.toISOString().slice(0, 10), P.num('tva_taux', 20));
+      const r = run('INSERT INTO factures (numero, client_id, debut, fin, montant_ht, echeance, tva_taux, coefficient) VALUES (?,?,?,?,?,?,?,?)', numero, cid, debut, fin, ht, ech.toISOString().slice(0, 10), P.num('tva_taux', 20), c.coefficient);
       ls.forEach(l => run('INSERT INTO facture_heures (facture_id, heure_id) VALUES (?,?)', r.lastInsertRowid, l.id));
       creees.push(numero);
     }
@@ -753,8 +792,12 @@ api.post('/factures/:id/payee', role('agence'), wrap((req, res) => {
 api.get('/paie', role('agence'), wrap((req, res) => {
   const { debut, fin } = req.query;
   if (!isDate(debut) || !isDate(fin)) fail(400, 'Période invalide.');
-  const rows = all(`SELECT i.id, i.prenom, i.nom, SUM(x.total) AS heures, SUM(x.total * x.taux_horaire) AS brut
-     FROM (${HEURES_FACTURABLES}) x JOIN interimaires i ON i.id = x.interim_id GROUP BY i.id ORDER BY i.nom`, debut, fin);
+  const par = {};
+  for (const x of all(`SELECT x.*, i.prenom, i.nom FROM (${HEURES_FACTURABLES}) x JOIN interimaires i ON i.id = x.interim_id ORDER BY i.nom`, debut, fin)) {
+    const r = (par[x.interim_id] = par[x.interim_id] || { id: x.interim_id, prenom: x.prenom, nom: x.nom, heures: 0, brut: 0 });
+    r.heures += x.total; r.brut += x.total * x.taux_horaire * hcr.facteur(x.date, x.debut, x.fin);
+  }
+  const rows = Object.values(par);
   const ti = P.num('ifm_taux', 10) / 100, tc = P.num('iccp_taux', 10) / 100;
   res.json(rows.map(r => { const ifm = r.brut * ti, iccp = (r.brut + ifm) * tc; return { ...r, ifm, iccp, total: r.brut + ifm + iccp }; }));
 }));
@@ -784,9 +827,9 @@ api.get('/factures/:id/document', wrap((req, res) => {
   if (req.user.profil === 'interim') fail(404, 'Facture introuvable.');
   const f = one('SELECT f.*, c.nom AS client_nom, c.adresse AS client_adresse, c.ville AS client_ville, c.siret AS client_siret FROM factures f JOIN clients c ON c.id = f.client_id WHERE f.id = ?', req.params.id);
   if (!f || (req.user.profil === 'client' && f.client_id !== req.user.client_id)) fail(404, 'Facture introuvable.');
-  const lignes = all(`SELECT m.date, m.poste, m.taux_horaire, c.coefficient, i.prenom, i.nom,
+  const lignes = all(`SELECT m.date, m.debut, m.fin, m.poste, m.taux_horaire, COALESCE(f.coefficient, c.coefficient) AS coefficient, i.prenom, i.nom,
       h.heures_prevues + CASE WHEN h.extra_statut = 'accepte' THEN h.extra ELSE 0 END AS heures
-      FROM facture_heures fh JOIN heures h ON h.id = fh.heure_id JOIN missions m ON m.id = h.mission_id JOIN clients c ON c.id = m.client_id
+      FROM facture_heures fh JOIN factures f ON f.id = fh.facture_id JOIN heures h ON h.id = fh.heure_id JOIN missions m ON m.id = h.mission_id JOIN clients c ON c.id = m.client_id
       JOIN interimaires i ON i.id = h.interim_id WHERE fh.facture_id = ? ORDER BY m.date, i.nom`, f.id);
   const e = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const eur = n => Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
@@ -811,7 +854,7 @@ table{width:100%;border-collapse:collapse;margin-top:18px;font-size:13px}th{back
 <div><div class="lbl">Facturé à</div><b>${e(f.client_nom)}</b><br>${e([f.client_adresse, f.client_ville].filter(Boolean).join(', '))}${f.client_siret ? `<br>SIRET ${e(f.client_siret)}` : ''}</div>
 <div><div class="lbl">Dates</div>Émise le ${new Date(f.created_at + 'Z').toLocaleDateString('fr-FR')}<br>Période : du ${d(f.debut)} au ${d(f.fin)}<br><b>Échéance : ${d(f.echeance)}</b>${f.payee_le ? `<br><span class="paye">Payée le ${d(f.payee_le)}</span>` : ''}</div></div>
 <div style="overflow-x:auto"><table><thead><tr><th>Date</th><th>Intérimaire</th><th>Poste</th><th class="r">Heures</th><th class="r">Taux HT</th><th class="r">Montant HT</th></tr></thead><tbody>
-${lignes.map(l => `<tr><td>${d(l.date)}</td><td>${e(l.prenom)} ${e(l.nom)}</td><td>${e(l.poste)}</td><td class="r">${String(l.heures).replace('.', ',')}</td><td class="r">${eur(l.taux_horaire * l.coefficient)}</td><td class="r">${eur(l.heures * l.taux_horaire * l.coefficient)}</td></tr>`).join('')}</tbody></table></div>
+${lignes.map(l => { const fm = hcr.facteur(l.date, l.debut, l.fin), maj = Math.round((fm - 1) * 1000) / 10; return `<tr><td>${d(l.date)}</td><td>${e(l.prenom)} ${e(l.nom)}</td><td>${e(l.poste)}${maj > 0 ? `<br><small>majorations horaires : +${String(maj).replace('.', ',')} %</small>` : ''}</td><td class="r">${String(l.heures).replace('.', ',')}</td><td class="r">${eur(l.taux_horaire * fm * l.coefficient)}</td><td class="r">${eur(l.heures * l.taux_horaire * fm * l.coefficient)}</td></tr>`; }).join('')}</tbody></table></div>
 <div class="tot"><div><span>Total HT</span><span>${eur(f.montant_ht)}</span></div><div><span>TVA ${String(f.tva_taux).replace('.', ',')} %</span><span>${eur(tva)}</span></div><div class="ttc"><span>Total TTC</span><span>${eur(f.montant_ht + tva)}</span></div></div>
 <div class="mentions"><p><b>Règlement</b> par virement avant le ${d(f.echeance)}${g('iban') ? ` · IBAN ${e(g('iban'))}${g('bic') ? ` · BIC ${e(g('bic'))}` : ''}` : ` · IBAN ${manque}`}</p>
 <p>En cas de retard de paiement : pénalités au ${e(g('penalites'))}, et indemnité forfaitaire pour frais de recouvrement de 40 € (articles L441-10 et D441-5 du Code de commerce). ${e(g('facture_mentions'))}</p>
@@ -820,7 +863,10 @@ ${lignes.map(l => `<tr><td>${d(l.date)}</td><td>${e(l.prenom)} ${e(l.nom)}</td><
 }));
 
 api.get('/journal', role('agence'), (req, res) => res.json(all('SELECT * FROM envois_messages ORDER BY id DESC LIMIT 200')));
-api.get('/config', (req, res) => res.json({ canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES }));
+api.get('/config', (req, res) => res.json({ canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES,
+  taux_postes: hcr.tauxPostes(), smic: hcr.smic(), coefficient_minimum: contratsClients.coefMin(),
+  // Coût d'une heure pour l'agence ÷ taux horaire brut (fin de mission, congés payés, charges) : sert au calcul de marge d'un contrat.
+  ...(req.user.profil === 'agence' ? { facteur_cout: (1 + P.num('ifm_taux', 10) / 100) * (1 + P.num('iccp_taux', 10) / 100) * (1 + P.num('charges_patronales_taux', 20) / 100) } : {}) }));
 
 app.use('/api', api);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
@@ -857,10 +903,11 @@ function initAdmin() {
   console.log(`\n  Compte agence créé : identifiant « ${username} », mot de passe provisoire « ${password} »\n  (à changer à la première connexion)\n`);
 }
 
-module.exports = { app, initAdmin, genPassword };
+module.exports = { app, initAdmin, genPassword, relances };
 
 if (require.main === module) {
   initAdmin();
   const port = Number(process.env.PORT || 3000);
   app.listen(port, () => console.log(`CHR Intérim démarré sur http://localhost:${port}`));
+  relances.demarrer();
 }

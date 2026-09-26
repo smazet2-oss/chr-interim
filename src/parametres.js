@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const crypto = require('node:crypto');
 const { db, one, all, run, DATA_DIR } = require('./db');
+const HCR = require('./hcr-grille');
 
 db.exec(`CREATE TABLE IF NOT EXISTS parametres (cle TEXT PRIMARY KEY, valeur TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))`);
 
@@ -50,6 +51,8 @@ const GROUPES = [
     { k: 'telephone', l: 'Téléphone', type: 'tel' },
     { k: 'email', l: 'E-mail de contact', type: 'email' },
     { k: 'site', l: 'Site internet', type: 'url' },
+    { k: 'representant_nom', l: 'Représentant légal (prénom et nom)', aide: 'Signataire des contrats de mission pour l\'agence.' },
+    { k: 'representant_qualite', l: 'Qualité du représentant', def: 'Gérant(e)' },
     { k: 'garantie_financiere', l: 'Garantie financière (organisme et n°)', env: 'AGENCE_GARANTIE_FINANCIERE', aide: 'Obligatoire pour une entreprise de travail temporaire (article L1251-49 du Code du travail).' },
     { k: 'caisse_retraite', l: 'Caisse de retraite complémentaire', env: 'CAISSE_RETRAITE' },
     { k: 'organisme_prevoyance', l: 'Organisme de prévoyance', env: 'ORGANISME_PREVOYANCE' },
@@ -57,6 +60,7 @@ const GROUPES = [
   { id: 'facturation', titre: 'Facturation', aide: 'Utilisé pour générer et imprimer les factures clients.', champs: [
     { k: 'facture_prefixe', l: 'Préfixe des numéros de facture', def: 'F', motif: '^[A-Z0-9-]{1,8}$', aide: 'Exemple : F donne F-2026-0001' },
     { k: 'tva_taux', l: 'Taux de TVA (%)', type: 'number', def: '20', min: 0, max: 30 },
+    { k: 'coefficient_minimum', l: 'Coefficient de facturation par défaut et minimum', type: 'number', def: '1.45', min: 1, max: 5, aide: 'Appliqué à chaque entreprise tant qu\'aucun contrat n\'est signé. Un contrat ne peut fixer qu\'un coefficient égal ou supérieur.' },
     { k: 'delai_paiement_defaut', l: 'Délai de paiement par défaut (jours)', type: 'number', def: '15', min: 0, max: 60, aide: 'Appliqué aux nouveaux clients. Maximum légal : 60 jours.' },
     { k: 'penalites', l: 'Pénalités de retard', def: 'taux d\'intérêt appliqué par la BCE majoré de 10 points', aide: 'Au moins trois fois le taux d\'intérêt légal (article L441-10 du Code de commerce).' },
     { k: 'iban', l: 'IBAN', motif: '^[A-Z]{2}\\d{2}[ A-Z0-9]{10,32}$' },
@@ -68,8 +72,24 @@ const GROUPES = [
     { k: 'iccp_taux', l: 'Indemnité compensatrice de congés payés (%)', type: 'number', def: '10', min: 10, max: 20, aide: '10 % minimum de la rémunération, fin de mission comprise.' },
     { k: 'cotisations_salariales_taux', l: 'Cotisations salariales moyennes (%)', type: 'number', def: '22', min: 0, max: 40, aide: 'Sert uniquement à estimer le salaire net dans la simulation de paie montrée aux intérimaires.' },
     { k: 'charges_patronales_taux', l: 'Charges patronales moyennes (%)', type: 'number', def: '20', min: 0, max: 60, aide: 'Après réduction générale des cotisations. Sert uniquement à estimer le coût et la marge de l\'agence dans les simulations.' },
+    { k: 'repas_valeur', l: 'Valeur d\'un repas HCR (€)', type: 'number', def: '4.22', min: 0, max: 30, aide: 'Avantage en nature ou indemnité compensatrice de nourriture, égale au minimum garanti. À mettre à jour à chaque revalorisation.' },
     { k: 'convention', l: 'Convention collective', def: 'HCR (IDCC 1979)' },
     { k: 'paie_jour', l: 'Versement du salaire', def: 'Dans les 5 jours suivant la fin de chaque quinzaine' },
+  ] },
+  { id: 'hcr', titre: 'Convention HCR : taux horaires et majorations', aide: 'Valeurs par défaut de la convention collective des hôtels, cafés, restaurants (IDCC 1979). Le taux horaire brut proposé pour une mission est celui du niveau du poste, jamais sous le SMIC. À mettre à jour à chaque avenant « salaires » et revalorisation du SMIC.', champs: [
+    { k: 'smic_horaire', l: 'SMIC horaire brut (€)', type: 'number', def: HCR.SMIC_DEFAUT, min: 5, max: 50, aide: 'Plancher légal : aucun taux horaire brut ne peut être inférieur.' },
+    { k: 'maj_nuit_pc', l: 'Majoration des heures de nuit, 22 h – 7 h (%)', type: 'number', def: '0', min: 0, max: 100, aide: 'HCR : pas de majoration de salaire obligatoire, la contrepartie du travail de nuit est un repos compensateur. Indiquez un taux si vous majorez la nuit.' },
+    { k: 'maj_dimanche_pc', l: 'Majoration du dimanche (%)', type: 'number', def: '0', min: 0, max: 100, aide: 'HCR : le dimanche est un jour de travail habituel, sans majoration obligatoire.' },
+    { k: 'maj_ferie_pc', l: 'Majoration des jours fériés (hors 1er mai) (%)', type: 'number', def: '0', min: 0, max: 200, aide: 'HCR : jour férié travaillé compensé en repos ou en indemnité pour les salariés ayant un an d\'ancienneté. Indiquez 100 pour le payer double.' },
+    { k: 'maj_1er_mai_pc', l: 'Majoration du 1er mai (%)', type: 'number', def: '100', min: 100, max: 200, aide: 'Code du travail (article L3133-6) : le 1er mai travaillé est payé double, soit 100 % minimum.' },
+    ...HCR.NIVEAUX.map(n => ({ k: HCR.cleNiveau(n), l: `Grille : niveau ${n.split('-')[0]}, échelon ${n.split('-')[1]} (€/h brut)`, type: 'number', def: HCR.GRILLE_DEFAUT[n], min: 5, max: 100 })),
+    ...Object.entries(HCR.POSTES).map(([p, n]) => ({ k: HCR.clePoste(p), l: `Niveau du poste ${p}`, type: 'select', options: HCR.NIVEAUX, def: n })),
+  ] },
+  { id: 'relances', titre: 'Relances', aide: 'Rappels envoyés par e-mail, SMS (et WhatsApp si configuré) aux signataires d\'un contrat de mission en attente et aux clients dont une facture est échue. L\'agence peut aussi relancer à tout moment.', champs: [
+    { k: 'relances_auto', l: 'Relances automatiques', type: 'select', options: ['oui', 'non'], def: 'oui' },
+    { k: 'relance_contrat_h', l: 'Contrat non signé : relancer toutes les (heures)', type: 'number', def: '24', min: 2, max: 168, aide: 'Ramené à 4 h si la mission commence dans moins de 24 h. Le contrat doit être signé au plus tard 2 jours ouvrables après le début de la mission.' },
+    { k: 'relance_facture_j', l: 'Facture échue : relancer tous les (jours)', type: 'number', def: '7', min: 1, max: 60 },
+    { k: 'relances_max', l: 'Nombre maximum de relances automatiques', type: 'number', def: '3', min: 1, max: 10 },
   ] },
   { id: 'messagerie', titre: 'Messagerie : e-mail, SMS et WhatsApp', aide: 'Sans ces réglages, les messages sont seulement enregistrés dans le journal des envois. Les mots de passe et clés sont chiffrés.', champs: [
     { k: 'site_url', l: 'Adresse publique du site', type: 'url', env: 'APP_URL', motif: '^https?://[^\\s/]+', aide: 'Exemple : https://chr-interim.onrender.com. Utilisée dans les liens des messages et pour afficher le logo dans WhatsApp.' },

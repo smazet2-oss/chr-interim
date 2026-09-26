@@ -6,6 +6,8 @@ const crypto = require('node:crypto');
 const multer = require('multer');
 const { one, all, run, tx, DATA_DIR } = require('./db');
 const P = require('./parametres');
+const hcr = require('./hcr');
+const contratMission = require('./contrat-mission');
 
 const PIECES_DIR = path.join(DATA_DIR, 'pieces');
 fs.mkdirSync(PIECES_DIR, { recursive: true });
@@ -178,68 +180,66 @@ module.exports = function register(api, h) {
     res.json({ ok: true });
   }));
 
-  /* ----- Contrats de mission ----- */
-  const CONTRAT_SQL = `SELECT k.*, m.poste, m.date, m.debut, m.fin, m.taux_horaire, m.motif, m.client_id,
-    c.nom AS client_nom, c.adresse AS client_adresse, c.ville AS client_ville,
-    i.prenom, i.nom AS interim_nom, i.ville AS interim_ville, i.date_naissance, i.nationalite
+  /* ----- Contrats de mission : signature par l'intérimaire et par l'entreprise utilisatrice ----- */
+  const CONTRAT_SQL = `SELECT k.*, m.poste, m.date, m.debut, m.fin, m.taux_horaire, m.motif, m.client_id, m.validee_le,
+    c.nom AS client_nom, i.prenom, i.nom AS interim_nom
     FROM contrats k JOIN missions m ON m.id = k.mission_id JOIN clients c ON c.id = m.client_id JOIN interimaires i ON i.id = k.interim_id`;
+  const publicContrat = ({ signe_ip, client_signe_ip, donnees, ...k }) => k;
   function contratAccessible(req) {
     const k = one(CONTRAT_SQL + ' WHERE k.id = ?', req.params.id);
-    if (!k || (req.user.profil === 'interim' && k.interim_id !== req.user.interim_id)) fail(404, 'Contrat introuvable.');
-    if (req.user.profil === 'client') fail(404, 'Contrat introuvable.');
+    const p = req.user.profil;
+    if (!k || (p === 'interim' && k.interim_id !== req.user.interim_id) || (p === 'client' && k.client_id !== req.user.client_id)) fail(404, 'Contrat introuvable.');
     return k;
   }
-  api.get('/contrats', role('agence', 'interim'), (req, res) => {
-    const rows = req.user.profil === 'agence'
-      ? all(CONTRAT_SQL + (req.query.interim_id ? ' WHERE k.interim_id = ?' : '') + ' ORDER BY m.date DESC', ...(req.query.interim_id ? [Number(req.query.interim_id)] : []))
+  api.get('/contrats', wrap((req, res) => {
+    const p = req.user.profil, q = req.query;
+    const rows = p === 'agence'
+      ? all(CONTRAT_SQL + (q.interim_id ? ' WHERE k.interim_id = ?' : q.mission_id ? ' WHERE k.mission_id = ?' : '') + ' ORDER BY m.date DESC, k.id DESC', ...(q.interim_id ? [Number(q.interim_id)] : q.mission_id ? [Number(q.mission_id)] : []))
+      : p === 'client' ? all(CONTRAT_SQL + ' WHERE m.client_id = ? ORDER BY m.date DESC, k.id DESC', req.user.client_id)
       : all(CONTRAT_SQL + ' WHERE k.interim_id = ? ORDER BY m.date DESC', req.user.interim_id);
-    res.json(rows.map(({ signe_ip, ...k }) => k));
-  });
-  api.post('/contrats/:id/signer', role('interim'), wrap((req, res) => {
-    const k = contratAccessible(req);
-    if (k.statut !== 'a_signer') fail(409, k.statut === 'signe' ? 'Ce contrat est déjà signé.' : 'Ce contrat est annulé.');
-    if (!req.body.accepte) fail(400, 'Cochez la case pour confirmer que vous avez lu le contrat.');
-    const nom = str(req.body.nom, 120);
-    const attendu = `${k.prenom} ${k.interim_nom}`;
-    const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
-    if (norm(nom) !== norm(attendu)) fail(400, `Pour signer, saisissez exactement votre nom : ${attendu}.`);
-    run('UPDATE contrats SET statut = \'signe\', signe_le = datetime(\'now\'), signe_nom = ?, signe_ip = ? WHERE id = ?', nom, req.ip, k.id);
-    res.json({ ok: true });
+    res.json(rows.map(publicContrat));
   }));
-  /** Contrat lisible et imprimable (HTML). */
+  const norm = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  /** Signature : « Lu et approuvé » + nom. L'intérimaire signe avec son nom exact, l'employeur avec son nom et sa fonction. */
+  api.post('/contrats/:id/signer', role('interim', 'client'), wrap((req, res) => {
+    const k = contratAccessible(req), p = req.user.profil;
+    if (k.statut === 'annule') fail(409, 'Ce contrat est annulé.');
+    if (p === 'interim' ? k.signe_le : k.client_signe_le) fail(409, 'Vous avez déjà signé ce contrat.');
+    if (!req.body.accepte) fail(400, 'Cochez la case pour confirmer que vous avez lu le contrat.');
+    if (norm(req.body.mention) !== 'lu et approuve') fail(400, 'Saisissez la mention « Lu et approuvé ».');
+    const nom = str(req.body.nom, 120);
+    if (p === 'interim') {
+      const attendu = `${k.prenom} ${k.interim_nom}`;
+      if (norm(nom) !== norm(attendu)) fail(400, `Pour signer, saisissez exactement votre nom : ${attendu}.`);
+      run('UPDATE contrats SET signe_le = datetime(\'now\'), signe_nom = ?, signe_ip = ? WHERE id = ?', nom, req.ip, k.id);
+    } else {
+      if (nom.length < 3) fail(400, 'Indiquez le nom et la fonction du signataire.');
+      run('UPDATE contrats SET client_signe_le = datetime(\'now\'), client_signe_nom = ?, client_signe_ip = ? WHERE id = ?', nom, req.ip, k.id);
+    }
+    const r = finaliser(k.id);
+    res.json({ ok: true, ...r });
+  }));
+  /** Contrat signé par les deux parties → « signe » ; tous les contrats de la mission signés → mission validée. */
+  function finaliser(id) {
+    const k = one(CONTRAT_SQL + ' WHERE k.id = ?', id);
+    if (!(k.signe_le && k.client_signe_le) || k.statut !== 'a_signer') return { contrat_signe: false, mission_validee: false };
+    run('UPDATE contrats SET statut = \'signe\' WHERE id = ?', k.id);
+    run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', k.interim_id, k.mission_id, `Contrat ${k.numero} signé par les deux parties : votre mission ${k.poste} chez ${k.client_nom} est confirmée.`);
+    const reste = one('SELECT COUNT(*) n FROM contrats WHERE mission_id = ? AND statut = \'a_signer\'', k.mission_id).n;
+    if (reste) return { contrat_signe: true, mission_validee: false };
+    run('UPDATE missions SET validee_le = datetime(\'now\') WHERE id = ? AND validee_le IS NULL', k.mission_id);
+    run('INSERT INTO notifications (client_id, mission_id, message) VALUES (?,?,?)', k.client_id, k.mission_id, `Mission ${k.poste} du ${k.date} validée : tous les contrats sont signés.`);
+    return { contrat_signe: true, mission_validee: true };
+  }
+  /** Contrat lisible et imprimable, adapté au lecteur (l'employeur ne voit pas les données personnelles). */
   api.get('/contrats/:id/document', wrap((req, res) => {
     const k = contratAccessible(req);
-    const e = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const cfg = k => P.get(k) ? e(P.get(k)) : '<mark>[à compléter]</mark>';
-    const adresse = [P.get('adresse'), [P.get('code_postal'), P.get('ville')].filter(Boolean).join(' ')].filter(Boolean).join(', ');
-    const pc = k => String(P.num(k, 10)).replace('.', ',');
-    const d = new Date(k.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-    const taux = Number(k.taux_horaire).toFixed(2).replace('.', ',');
-    const usage = /usage|saisonnier/i.test(k.motif);
     res.set('Content-Type', 'text/html; charset=utf-8');
-    res.send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Contrat ${e(k.numero)}</title>
-<style>body{font-family:Georgia,'Times New Roman',serif;max-width:760px;margin:24px auto;padding:0 20px;color:#111;line-height:1.55;font-size:15px}
-h1{font-size:22px;text-align:center;margin-bottom:4px}p.sub{text-align:center;color:#555;margin-top:0}h2{font-size:15px;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid #999;padding-bottom:3px;margin-top:26px}
-dl{display:grid;grid-template-columns:220px 1fr;gap:4px 14px;margin:8px 0}dt{color:#555}dd{margin:0}mark{background:#fde68a}
-.sig{border:1px solid #999;padding:12px 14px;margin-top:10px}.ok{color:#166534;font-weight:bold}.wait{color:#92400e;font-weight:bold}
-.entete{background:#112233;margin:-24px -20px 22px;padding:18px 24px;border-bottom:5px solid #C99948;-webkit-print-color-adjust:exact;print-color-adjust:exact}.entete img{display:block;height:58px;width:auto;max-width:100%}h2{border-bottom-color:#C99948!important}
-@media print{body{margin:0}.entete{margin:0 0 22px}} @media (max-width:560px){body{font-size:14px;padding:0 14px}.entete{margin:-24px -14px 18px;padding:14px}.entete img{height:26px}h1{font-size:18px}h2{font-size:13px}} @media (max-width:560px){dl{grid-template-columns:1fr}dt{margin-top:6px}}</style></head><body>
-<div class="entete"><picture><source media="(max-width: 560px)" srcset="/img/logo-compact.png"><img src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR"></picture></div>
-<h1>Contrat de mission (travail temporaire)</h1><p class="sub">N° ${e(k.numero)} · établi le ${new Date(k.created_at + 'Z').toLocaleDateString('fr-FR')}</p>
-<h2>Entreprise de travail temporaire</h2><dl><dt>Raison sociale</dt><dd>${cfg('raison_sociale')}${P.get('forme_juridique') ? ' (' + e(P.get('forme_juridique')) + ')' : ''}</dd><dt>Adresse</dt><dd>${adresse ? e(adresse) : '<mark>[à compléter]</mark>'}</dd><dt>SIRET</dt><dd>${cfg('siret')}</dd><dt>Garantie financière</dt><dd>${cfg('garantie_financiere')}</dd>${P.get('telephone') || P.get('email') ? `<dt>Contact</dt><dd>${e([P.get('telephone'), P.get('email')].filter(Boolean).join(' · '))}</dd>` : ''}</dl>
-<h2>Salarié intérimaire</h2><dl><dt>Nom et prénom</dt><dd>${e(k.interim_nom.toUpperCase())} ${e(k.prenom)}</dd><dt>Date de naissance</dt><dd>${k.date_naissance ? new Date(k.date_naissance + 'T12:00').toLocaleDateString('fr-FR') : '<mark>[à compléter]</mark>'}</dd><dt>Nationalité</dt><dd>${e(k.nationalite)}</dd><dt>Ville</dt><dd>${e(k.interim_ville || '')}</dd></dl>
-<h2>Entreprise utilisatrice</h2><dl><dt>Raison sociale</dt><dd>${e(k.client_nom)}</dd><dt>Lieu de mission</dt><dd>${e([k.client_adresse, k.client_ville].filter(Boolean).join(', ')) || '<mark>[à compléter]</mark>'}</dd></dl>
-<h2>Mission</h2><dl><dt>Motif de recours</dt><dd>${e(k.motif)}</dd><dt>Poste et qualification</dt><dd>${e(k.poste)}</dd><dt>Date</dt><dd>${e(d)}</dd><dt>Horaires</dt><dd>${e(k.debut)} – ${e(k.fin)}</dd><dt>Terme de la mission</dt><dd>${new Date(k.date + 'T12:00').toLocaleDateString('fr-FR')}, fin de service</dd><dt>Période d'essai</dt><dd>2 jours (mission d'un mois au plus)</dd></dl>
-<h2>Rémunération</h2><dl><dt>Salaire horaire brut</dt><dd>${taux} €, identique à celui d'un salarié de qualification équivalente de l'entreprise utilisatrice</dd>
-<dt>Indemnité de fin de mission</dt><dd>${usage ? 'Non due pour ce motif de recours (article L1251-33 du Code du travail)' : `${pc('ifm_taux')} % de la rémunération brute totale`}</dd><dt>Indemnité compensatrice de congés payés</dt><dd>${pc('iccp_taux')} % de la rémunération totale, indemnité de fin de mission comprise</dd><dt>Heures supplémentaires</dt><dd>Majorées selon la convention collective ${e(P.get('convention'))}, après accord de l'entreprise utilisatrice</dd></dl>
-<h2>Protection sociale</h2><dl><dt>Caisse de retraite complémentaire</dt><dd>${cfg('caisse_retraite')}</dd><dt>Organisme de prévoyance</dt><dd>${cfg('organisme_prevoyance')}</dd></dl>
-<h2>Mentions</h2><p>L'embauche du salarié par l'entreprise utilisatrice à l'issue de la mission n'est pas interdite. Le salarié bénéficie des équipements collectifs de l'entreprise utilisatrice (restauration, transports) dans les mêmes conditions que ses salariés. Les documents de prise de poste de l'entreprise utilisatrice (règlement intérieur, consignes de sécurité et d'hygiène) sont disponibles dans l'espace intérimaire.</p>
-<h2>Signature</h2><div class="sig">${k.statut === 'signe' ? `<span class="ok">Signé électroniquement</span> par ${e(k.signe_nom)} le ${new Date(k.signe_le + 'Z').toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}.` : k.statut === 'annule' ? '<span class="wait">Contrat annulé.</span>' : '<span class="wait">En attente de la signature du salarié.</span>'}</div>
-</body></html>`);
+    res.send(contratMission.html(k, req.user.profil));
   }));
 
   /* ----- Fiches de paie ----- */
-  const HEURES_VALIDEES = `SELECT h.id, h.interim_id, m.date, m.taux_horaire,
+  const HEURES_VALIDEES = `SELECT h.id, h.interim_id, m.date, m.debut, m.fin, m.taux_horaire,
     h.heures_prevues + CASE WHEN h.extra_statut = 'accepte' THEN h.extra ELSE 0 END AS total
     FROM heures h JOIN missions m ON m.id = h.mission_id
     WHERE h.valide_interim = 1 AND h.valide_client = 1 AND h.extra_statut != 'attente' AND m.date BETWEEN ? AND ?
@@ -268,7 +268,7 @@ dl{display:grid;grid-template-columns:220px 1fr;gap:4px 14px;margin:8px 0}dt{col
     const valides = all(`${HEURES_VALIDEES} AND h.interim_id = ?`, '0000-01-01', t, iid);
     const P = {};
     const per = d => { const [a, b] = quinzaine(d); return (P[a] = P[a] || { debut: a, fin: b, heures: 0, brut: 0, bloquees: [] }); };
-    valides.forEach(v => { const p = per(v.date); p.heures += v.total; p.brut += v.total * v.taux_horaire; });
+    valides.forEach(v => { const p = per(v.date); p.heures += v.total; p.brut += v.total * v.taux_horaire * hcr.facteur(v.date, v.debut, v.fin); });
     suspens.forEach(s => per(s.date).bloquees.push({ date: s.date, client_nom: s.client_nom, manque: manque(s) }));
     res.json(Object.values(P).sort((a, b) => b.debut.localeCompare(a.debut)).map(p => ({ ...p, ...calcul(p.heures, r2(p.brut)) })));
   });
@@ -281,7 +281,7 @@ dl{display:grid;grid-template-columns:220px 1fr;gap:4px 14px;margin:8px 0}dt{col
     let n = 0;
     tx(() => {
       for (const [iid, ls] of Object.entries(par)) {
-        const c = calcul(ls.reduce((s, l) => s + l.total, 0), r2(ls.reduce((s, l) => s + l.total * l.taux_horaire, 0)));
+        const c = calcul(ls.reduce((s, l) => s + l.total, 0), r2(ls.reduce((s, l) => s + l.total * l.taux_horaire * hcr.facteur(l.date, l.debut, l.fin), 0)));
         const r = run('INSERT INTO bulletins (interim_id, debut, fin, heures, brut, ifm, iccp, total) VALUES (?,?,?,?,?,?,?,?)',
           iid, debut, fin, c.heures, c.brut, r2(c.ifm), r2(c.iccp), r2(c.total));
         ls.forEach(l => run('INSERT INTO bulletin_heures (bulletin_id, heure_id) VALUES (?,?)', r.lastInsertRowid, l.id));
@@ -324,9 +324,8 @@ module.exports.surVerrouillage = function surVerrouillage(m, interimIds, annee) 
   for (const iid of interimIds) {
     run('INSERT OR IGNORE INTO experiences (interim_id, debut, fin, employeur, poste, source, mission_id) VALUES (?,?,?,?,?,\'mission\',?)',
       iid, m.date, m.date, m.client_nom, m.poste, m.id);
-    const n = one('SELECT COUNT(*) n FROM contrats WHERE numero LIKE ?', `C-${annee}-%`).n + 1;
-    run('INSERT OR IGNORE INTO contrats (numero, mission_id, interim_id) VALUES (?,?,?)', `C-${annee}-${String(n).padStart(5, '0')}`, m.id, iid);
   }
+  contratMission.creer(m, interimIds, annee);
 };
 /** À l'annulation d'une mission : retrait de la ligne d'expérience, contrats annulés. */
 module.exports.surAnnulation = function surAnnulation(missionId) {

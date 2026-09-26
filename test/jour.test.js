@@ -68,7 +68,12 @@ test('détail d\'une journée selon le profil', async () => {
   assert.equal(alice.telephone, '0611111111');
   assert.equal(alice.contrat, 'a_signer');
 
-  // Intérimaire : détail de sa mission, coordonnées de l'employeur seulement si confirmée.
+  // Intérimaire : détail de sa mission, coordonnées de l'employeur seulement si confirmée (contrat signé des deux côtés).
+  assert.equal((await A.get('/jour/' + jour)).data.missions[0].etat, 'signature');
+  assert.equal((await A.get('/jour/' + jour)).data.missions[0].contact, null);
+  for (const k of (await cl.get('/contrats')).data.filter(x => x.date === jour)) await cl.post(`/contrats/${k.id}/signer`, { accepte: true, mention: 'Lu et approuvé', nom: 'M. Faure, gérant' });
+  const kA = (await A.get('/contrats')).data[0];
+  await A.post(`/contrats/${kA.id}/signer`, { accepte: true, mention: 'Lu et approuvé', nom: 'Alice Test' });
   const ja = (await A.get('/jour/' + jour)).data.missions[0];
   assert.equal(ja.etat, 'confirmee');
   assert.equal(ja.lieu, '3 quai Saint-Antoine, Lyon');

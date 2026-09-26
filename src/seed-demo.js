@@ -4,6 +4,7 @@
 const bcrypt = require('bcryptjs');
 const { one, all, run, tx } = require('./db');
 const dossier = require('./dossier');
+require('./prospects'); // crée la table des prospects
 
 if (one('SELECT 1 FROM clients LIMIT 1')) {
   console.log('La base contient déjà des données : démonstration non installée. (npm run demo:reset pour repartir de zéro)');
@@ -72,12 +73,38 @@ tx(() => {
   const f4 = mission(C[0], 'Serveur', jour(0), '19:00', '23:30', 1, 12.2, 'diffusee');
   envoi(f4, I[0], 'sms,whatsapp'); envoi(f4, I[3], 'sms');
 
+  // Mission à venir pourvue : contrat en cours de signature (Yanis et l'employeur).
+  const f6 = mission(C[0], 'Commis de cuisine', jour(3), '11:00', '15:00', 1, 12.5, 'verrouillee');
+  envoi(f6, I[0], 'sms'); rep(f6, I[0], 'retenu');
+  run('INSERT INTO heures (mission_id, interim_id, heures_prevues) VALUES (?,?,4)', f6, I[0]);
+
+  // Données légales de l'agence et état civil des intérimaires (remplissent les contrats de mission).
+  for (const [k, v] of [['representant_nom', 'Claire Morel'], ['representant_qualite', 'Gérante'], ['siret', '912 345 678 00017'], ['adresse', '5 rue de la République'],
+    ['code_postal', '69002'], ['ville', 'Lyon'], ['garantie_financiere', 'Atradius, 75 000 €, 159 rue Anatole France, 92300 Levallois-Perret'], ['caisse_retraite', 'Klesia'],
+    ['organisme_prevoyance', 'Intérimaires Santé / Intérimaires Prévoyance'], ['telephone', '04 78 00 00 00'], ['email', 'contact@chr-interim.example']]) {
+    run('INSERT INTO parametres (cle, valeur) VALUES (?,?) ON CONFLICT(cle) DO NOTHING', k, v);
+  }
+  run('UPDATE interimaires SET date_naissance = \'1998-03-14\', lieu_naissance = \'Lyon (France)\', nir = \'198036938812397\', adresse = \'14 rue de Marseille\', code_postal = \'69007\' WHERE id = ?', I[0]);
+  I.slice(1).forEach((id, k) => run('UPDATE interimaires SET date_naissance = ?, lieu_naissance = ?, adresse = ?, code_postal = ? WHERE id = ?', `199${k}-0${k + 1}-1${k}`, 'Lyon (France)', `${10 + k} avenue Berthelot`, '69007', id));
+
   // Contrats et lignes d'expérience des missions déjà verrouillées.
   for (const m of all('SELECT m.*, c.nom AS client_nom FROM missions m JOIN clients c ON c.id = m.client_id WHERE m.statut = \'verrouillee\'')) {
     dossier.surVerrouillage(m, all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat = \'retenu\'', m.id).map(x => x.interim_id), jour(0).slice(0, 4));
   }
-  run('UPDATE contrats SET statut = \'signe\', signe_le = datetime(\'now\',\'-3 days\'), signe_nom = \'Lucas Martin\' WHERE interim_id = ?', I[3]);
-  run('UPDATE interimaires SET date_naissance = \'1998-03-14\' WHERE id = ?', I[0]);
+  // Missions passées : contrats signés par l'intérimaire et l'employeur, missions validées.
+  for (const k of all('SELECT k.id, i.prenom, i.nom, c.contact FROM contrats k JOIN missions m ON m.id = k.mission_id JOIN interimaires i ON i.id = k.interim_id JOIN clients c ON c.id = m.client_id WHERE m.date < ?', jour(0))) {
+    run('UPDATE contrats SET created_at = datetime(\'now\',\'-6 days\'), statut = \'signe\', signe_le = datetime(\'now\',\'-5 days\'), signe_nom = ?, client_signe_le = datetime(\'now\',\'-4 days\'), client_signe_nom = ? WHERE id = ?', `${k.prenom} ${k.nom}`, `${k.contact}, gérant`, k.id);
+  }
+  run('UPDATE missions SET validee_le = datetime(\'now\',\'-4 days\') WHERE statut = \'verrouillee\' AND date < ?', jour(0));
+
+  // Prospects : une demande reçue par le site, une visite terrain à relancer aujourd'hui.
+  run(`INSERT INTO prospects (source, etablissement, adresse, repondant, telephone, email, type_etab, reponses, accord, statut) VALUES ('site',?,?,?,?,?,?,?, 'en_ligne', 'nouveau')`,
+    'La Table du Marché', 'Lyon 6e', 'Sophie Garnier, gérante', '06 11 22 33 44', 'sophie@tabledumarche.example', 'Restauration traditionnelle / gastronomique',
+    JSON.stringify({ frequence: 'Ponctuellement (1 à 3 fois par mois)', postes: ['Cuisinier / chef de partie', 'Serveur / chef de rang'], delai: 'Court terme (24 à 48 h)', problemes: ['Manque de réactivité (délais trop longs)'], services: ['Garantie de remplacement sous 2 heures'], coefficient: 'Entre 1,95 et 2,10', message: 'Besoin de deux extras les samedis soir.' }));
+  run(`INSERT INTO prospects (source, etablissement, adresse, repondant, telephone, type_etab, reponses, date_visite, enqueteur, accord, statut, date_relance, notes_agence) VALUES ('visite',?,?,?,?,?,?,?, 'Claire Morel', 'oral', 'a_relancer', ?, ?)`,
+    'Hôtel des Célestins', 'Lyon 2e', 'Paul Martin, directeur', '04 78 11 22 33', 'Hôtel / hôtel-restaurant',
+    JSON.stringify({ frequence: 'Saisonnier / événementiel', postes: ['Employé d\'étage / gouvernante', 'Réceptionniste / veilleur de nuit'], satisfaction: 'Moyennement satisfait', reglement: 'Virement à 30 jours' }),
+    jour(-7), jour(0), 'Intéressé pour la saison des salons. Envoyer une proposition tarifaire.');
   run('INSERT INTO experiences (interim_id, debut, fin, employeur, poste, description) VALUES (?,?,?,?,?,?)', I[0], '2021-09-01', '2024-06-30', 'Restaurant L\'Ardoise, Lyon', 'Commis de cuisine', 'Brasserie de 80 couverts, poste garde-manger puis chaud.');
   run('INSERT INTO experiences (interim_id, debut, fin, employeur, poste) VALUES (?,?,?,?,?)', I[0], '2019-09-01', '2021-06-30', 'Lycée hôtelier François Rabelais', 'CAP Cuisine (formation)');
   // Fiche de paie de Lucas (heures validées des deux côtés).

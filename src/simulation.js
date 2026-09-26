@@ -3,6 +3,7 @@
 // Les taux viennent des Paramètres (rubrique Paie et Facturation). Ce sont des estimations indicatives.
 const { one } = require('./db');
 const P = require('./parametres');
+const hcr = require('./hcr');
 
 const r2 = n => Math.round(n * 100) / 100;
 
@@ -24,8 +25,11 @@ function calculer(m) {
   const heures = dureeHeures(m.debut, m.fin), nb = Math.max(1, Number(m.nb_postes) || 1);
   const taux = Number(m.taux_horaire) || 0, coef = Number(m.coefficient) || 1;
   const due = ifmDue(m.motif);
+  // Majorations selon les horaires (convention HCR, Paramètres)
+  const majorations = hcr.majorations(m.date, m.debut, m.fin).lignes.map(l => ({ ...l, montant: r2(l.heures * taux * l.pc / 100) }));
   // Par intérimaire
-  const brut = heures * taux;
+  const base = heures * taux;
+  const brut = base + majorations.reduce((s, l) => s + l.montant, 0);
   const ifm = due ? brut * P.num('ifm_taux', 10) / 100 : 0;
   const iccp = (brut + ifm) * P.num('iccp_taux', 10) / 100;
   const total_brut = brut + ifm + iccp;
@@ -33,10 +37,10 @@ function calculer(m) {
   const charges = total_brut * P.num('charges_patronales_taux', 20) / 100;
   // Facturation à l'employeur : heures × taux × coefficient du client, pour tous les postes
   const taux_facture = taux * coef;
-  const ht = heures * taux_facture * nb, tva = ht * P.num('tva_taux', 20) / 100;
+  const ht = brut * coef * nb, tva = ht * P.num('tva_taux', 20) / 100;
   const cout_agence = (total_brut + charges) * nb;
   return {
-    heures, nb_postes: nb, taux_horaire: taux, ifm_due: due,
+    heures, nb_postes: nb, taux_horaire: taux, ifm_due: due, base: r2(base), majorations,
     brut: r2(brut), ifm: r2(ifm), iccp: r2(iccp), total_brut: r2(total_brut), net: r2(net),
     coefficient: coef, taux_facture: r2(taux_facture), ht: r2(ht), tva: r2(tva), ttc: r2(ht + tva),
     charges: r2(charges * nb), cout_agence: r2(cout_agence), marge: r2(ht - cout_agence),
@@ -47,8 +51,8 @@ function calculer(m) {
 /** Ne renvoie à chaque profil que ce qui le concerne. */
 function vue(s, profil) {
   if (profil === 'agence') return s;
-  if (profil === 'client') return { heures: s.heures, nb_postes: s.nb_postes, taux_facture: s.taux_facture, ht: s.ht, tva: s.tva, ttc: s.ttc };
-  return { heures: s.heures, taux_horaire: s.taux_horaire, ifm_due: s.ifm_due, brut: s.brut, ifm: s.ifm, iccp: s.iccp, total_brut: s.total_brut, net: s.net };
+  if (profil === 'client') return { heures: s.heures, nb_postes: s.nb_postes, taux_facture: s.taux_facture, majorations: s.majorations.map(({ libelle, heures, pc }) => ({ libelle, heures, pc })), ht: s.ht, tva: s.tva, ttc: s.ttc };
+  return { heures: s.heures, taux_horaire: s.taux_horaire, ifm_due: s.ifm_due, base: s.base, majorations: s.majorations, brut: s.brut, ifm: s.ifm, iccp: s.iccp, total_brut: s.total_brut, net: s.net };
 }
 
 /** Simulation d'une mission enregistrée, vue par un profil. */

@@ -35,6 +35,7 @@ const P = {
   left: '<path d="m15 18-6-6 6-6"/>',
   alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>',
   phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
@@ -94,12 +95,12 @@ const GET = u => api('GET', u), POST = (u, b = {}) => api('POST', u, b), PUT = (
 const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, busy: false };
 const NAV = {
   agence: [['accueil', 'Tableau de bord', 'dash'], ['missions', 'Missions', 'briefcase'], ['planning', 'Planning', 'cal'], ['interimaires', 'Intérimaires', 'users'],
-    ['clients', 'Clients', 'building'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
+    ['clients', 'Clients', 'building'], ['prospects', 'Prospects', 'target'], ['contrats', 'Contrats de mission', 'file'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
     ['paie', 'Paie', 'wallet'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
   // Employeur et intérimaire : par ordre d'importance, l'administratif et le social en dernier. ['-', titre] = intertitre.
   client: [['-', 'Activité'], ['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
     ['-', 'Suivi'], ['interimaires', 'Intérimaires', 'users'],
-    ['-', 'Administratif et social'], ['documents', 'Documents', 'folder'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']],
+    ['-', 'Administratif et social'], ['documents', 'Documents', 'folder'], ['contrats', 'Contrats de mission', 'edit'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']],
   interim: [['-', 'Activité'], ['accueil', 'Accueil', 'dash'], ['missions', 'Missions proposées', 'send'], ['dispo', 'Mon planning', 'cal'], ['heures', 'Mes heures', 'clock'],
     ['-', 'Suivi'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star'],
     ['-', 'Administratif et social'], ['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']],
@@ -118,6 +119,7 @@ function go(view, params) {
 }
 
 async function boot() {
+  if (location.pathname === '/contact') return renderContact();
   try { S.me = await GET('/me'); } catch { S.me = null; }
   if (S.me && !S.me.must_change) S.cfg = await GET('/config').catch(() => null);
   renderAuth();
@@ -140,7 +142,8 @@ function renderAuth() {
       <form data-f="login"><label class="f">Identifiant<input type="text" name="username" autocomplete="username" required autofocus></label>
       <label class="f">Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
       <div class="err" role="alert" hidden></div><button class="btn primary" type="submit">Se connecter</button>
-      <p class="small muted">Mot de passe oublié ? Demandez à votre agence de le réinitialiser.</p></form></div></div>`;
+      <p class="small muted">Mot de passe oublié ? Demandez à votre agence de le réinitialiser.</p></form></div>
+      <a class="auth-contact" href="/contact">${ic('building')}<span><b>Vous êtes un hôtel, un café ou un restaurant ?</b> Besoin de renforts : parlez-nous de vos besoins</span>${ic('chev')}</a></div>`;
     return;
   }
   $('#auth').innerHTML = `<div class="auth"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture><div class="auth-card">${brand}
@@ -270,7 +273,7 @@ function notifModal(list) {
 function missionStatut(m) {
   if (m.statut === 'nouvelle') return ['attente', 'À valider par l\'agence'];
   if (m.statut === 'annulee') return ['off', 'Annulée'];
-  if (m.statut === 'verrouillee') return ['libre', 'Validée et verrouillée'];
+  if (m.statut === 'verrouillee') return m.validee_le ? ['libre', 'Validée · contrats signés'] : ['attente', 'Pourvue · contrats en signature'];
   if (m.actifs >= m.nb_postes) return ['pris', `Complète · ${m.retenus}/${m.nb_postes} confirmé${m.nb_postes > 1 ? 's' : ''} par l'employeur`];
   return ['pris', `Diffusée · ${m.actifs}/${m.nb_postes} acceptation${m.nb_postes > 1 ? 's' : ''}`];
 }
@@ -279,13 +282,13 @@ const docLinks = docs => docs.map(d => d.id ? `<a class="link" href="/api/docume
 
 function missionCard(m, mode) {
   const [sc, sl] = missionStatut(m), locked = m.statut === 'verrouillee';
-  const rows = mode === 'agence' ? m.envois.map(e => ({ id: e.interim_id, nom: e.nom, poste: e.poste, etat: e.etat, canaux: e.canaux }))
-    : m.candidats.map(c => ({ id: c.interim_id, nom: `${c.prenom} ${c.nom}`, poste: c.poste, etat: c.etat, note: c.note, comp: c.competences }));
+  const rows = mode === 'agence' ? m.envois.map(e => ({ id: e.interim_id, nom: e.nom, poste: e.poste, etat: e.etat, canaux: e.canaux, contrat: e.contrat }))
+    : m.candidats.map(c => ({ id: c.interim_id, nom: `${c.prenom} ${c.nom}`, poste: c.poste, etat: c.etat, note: c.note, comp: c.competences, contrat: c.contrat }));
   const actions = mode === 'agence' && !locked && m.statut !== 'annulee'
     ? btn(m.statut === 'nouvelle' ? 'Valider et diffuser' : 'Envoyer à d\'autres', 'send', `data-a="diffuser" data-id="${m.id}"`, m.statut === 'nouvelle' ? 'sm primary' : 'sm') + btn('Annuler', '', `data-a="annuler" data-id="${m.id}"`, 'sm ghost') : '';
   const body = m.statut === 'nouvelle' ? empty(mode === 'agence' ? 'Choisissez les intérimaires et le moyen d\'envoi pour diffuser cette mission.' : 'Votre demande est en cours de validation par l\'agence.')
     : rows.length ? `<div class="list">${rows.map(r => `<div class="li" style="flex-wrap:wrap"><div class="person"><div class="avatar">${initials(r.nom)}</div><div><b>${esc(r.nom)}</b><span>${esc(r.poste)}${r.canaux ? ' · envoyé par ' + r.canaux.map(c => CANAUX[c]?.[1]).join(', ') : ''}${r.note !== undefined ? ' · ' + stars(r.note) : ''}</span></div></div>
-      <div class="row">${badge(...REP[r.etat ?? 'null'])}${r.etat === 'accepte' && !locked ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="1"`, 'sm primary') : ''}</div></div>`).join('')}</div>`
+      <div class="row">${badge(...REP[r.etat ?? 'null'])}${contratMini(r.contrat)}${r.etat === 'accepte' && !locked ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="1"`, 'sm primary') : ''}</div></div>`).join('')}</div>`
       : empty(mode === 'agence' ? 'Aucun intérimaire contacté.' : 'Diffusée. En attente de réponses des intérimaires.');
   return `<section class="panel"><div class="panel-h"><div><h2>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)}${mode === 'agence' ? ` <span class="muted" style="font-weight:400">· ${esc(m.client_nom)}</span>` : ''}</h2>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h</div></div><div class="row">${badge(sc, sl)}${actions}${locked ? ro('Mission verrouillée') : ''}</div></div>
@@ -293,7 +296,8 @@ function missionCard(m, mode) {
 }
 function missionInterim(m) {
   const E = {
-    confirmee: badge('libre', 'Mission confirmée'), non_retenu: badge('off', 'Non retenu · mission pourvue'), pourvue: badge('off', 'Mission pourvue'),
+    confirmee: badge('libre', 'Mission confirmée'),
+    signature: m.contrat?.interim_signe ? badge('attente', 'Contrat signé · attente de l\'employeur') : btn('Signer mon contrat', 'edit', `data-a="signer" data-id="${m.contrat?.id}" data-n="${esc(m.contrat?.numero || '')}"`, 'sm primary'), non_retenu: badge('off', 'Non retenu · mission pourvue'), pourvue: badge('off', 'Mission pourvue'),
     decline: badge('off', 'Vous avez décliné'), annulee: badge('off', 'Mission annulée'),
     en_attente: `<button class="btn sm" disabled>${ic('clock')}En attente de confirmation</button>`,
     complet: `<button class="btn sm" disabled>${ic('lock')}Complet</button>`,
@@ -302,8 +306,9 @@ function missionInterim(m) {
   return `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px;flex:1"><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h · ${m.nb_postes} poste${m.nb_postes > 1 ? 's' : ''}</div>
     ${m.etat === 'complet' ? '<div class="hint" style="margin-top:4px">Toutes les places sont prises. Le bouton se réactive si une place se libère.</div>' : ''}
-    ${['a_repondre', 'en_attente', 'confirmee', 'complet'].includes(m.etat) ? simBloc(m.simulation, 'interim') : ''}
-    ${m.etat === 'confirmee' && m.documents.length ? `<div class="small" style="margin-top:6px">${ic('file', 'style="vertical-align:-3px;color:var(--ink-3)"')} Documents : ${docLinks(m.documents)}</div>` : ''}</div>
+    ${m.etat === 'signature' ? `<div class="hint" style="margin-top:4px">Vous êtes retenu(e). La mission sera confirmée quand vous et l'employeur aurez signé le contrat.</div>` : ''}
+    ${['a_repondre', 'en_attente', 'confirmee', 'complet', 'signature'].includes(m.etat) ? simBloc(m.simulation, 'interim') : ''}
+    ${['confirmee', 'signature'].includes(m.etat) && m.documents.length ? `<div class="small" style="margin-top:6px">${ic('file', 'style="vertical-align:-3px;color:var(--ink-3)"')} Documents : ${docLinks(m.documents)}</div>` : ''}</div>
     <div class="row">${E[m.etat] || ''}</div></div>`;
 }
 
@@ -314,14 +319,18 @@ const simLignes = L => `<dl class="sim-dl">${L.filter(Boolean).map(([k, v, cls])
 function simDetail(s, profil) {
   if (!s) return '';
   if (profil === 'interim') return simLignes([
-    [`Salaire de base (${hh(s.heures)} × taux horaire brut ${eur(s.taux_horaire)}/h)`, eur(s.brut)],
+    [`Salaire de base (${hh(s.heures)} × taux horaire brut ${eur(s.taux_horaire)}/h)`, eur(s.base ?? s.brut)],
+    ...(s.majorations || []).map(l => [`${l.libelle} : ${hh(l.heures)} majorées de ${num(l.pc)} %`, '+ ' + eur(l.montant)]),
     [`Indemnité de fin de mission`, s.ifm_due ? '+ ' + eur(s.ifm) : 'non due (emploi d\'usage ou saisonnier)'],
     ['Indemnité de congés payés', '+ ' + eur(s.iccp)],
     ['Total brut', eur(s.total_brut), 'tot'],
     ['Net estimé avant impôt', '≈ ' + eur(s.net), 'net'],
   ]);
+  const maj = s.majorations || [];
   const client = [
-    [`${hh(s.heures)} × ${s.nb_postes} pers. × ${eur(s.taux_facture)}/h facturé HT (taux horaire brut × coefficient)`, eur(s.ht) + ' HT'],
+    [`${hh(s.heures)} × ${s.nb_postes} pers. × ${eur(s.taux_facture)}/h facturé HT (taux horaire brut × coefficient${profil === 'agence' ? ' ' + num(s.coefficient) : ''})`, eur(s.heures * s.nb_postes * s.taux_facture) + (maj.length ? '' : ' HT')],
+    ...maj.map(l => [`${l.libelle} : ${hh(l.heures)} × ${s.nb_postes} pers. majorées de ${num(l.pc)} %`, '+ ' + eur(l.heures * s.nb_postes * s.taux_facture * l.pc / 100)]),
+    ...(maj.length ? [['Total HT', eur(s.ht) + ' HT']] : []),
     ['TVA', eur(s.tva)],
     [profil === 'agence' ? 'Facturé au client' : 'Coût total estimé', eur(s.ttc) + ' TTC', 'tot'],
   ];
@@ -349,7 +358,7 @@ function majSimulation(form) {
   const zone = form.querySelector('[data-sim]'); if (!zone) return;
   clearTimeout(simTimer);
   simTimer = setTimeout(async () => {
-    const b = { ...JSON.parse(zone.dataset.sim || '{}'), ...Object.fromEntries([...new FormData(form)].filter(([k]) => ['client_id', 'debut', 'fin', 'nb_postes', 'taux_horaire', 'motif'].includes(k))) };
+    const b = { ...JSON.parse(zone.dataset.sim || '{}'), ...Object.fromEntries([...new FormData(form)].filter(([k]) => ['client_id', 'date', 'poste', 'debut', 'fin', 'nb_postes', 'taux_horaire', 'motif'].includes(k))) };
     try { const s = await POST('/simulation', b); zone.innerHTML = simBloc(s, S.me.profil, true); }
     catch { zone.innerHTML = `<div class="sim-vide small muted">${ic('receipt')}Simulation indisponible : vérifiez les horaires.</div>`; }
   }, 250);
@@ -386,10 +395,29 @@ function piecesPanel(iid, d, types) {
   return panel('Dossier administratif', d.complet ? badge('libre', 'Dossier complet') : badge('attente', `${d.manquantes.length} pièce${d.manquantes.length > 1 ? 's' : ''} manquante${d.manquantes.length > 1 ? 's' : ''}`), `<div class="list">${rows}</div>`,
     'Formats acceptés : PDF ou photo (JPG, PNG, HEIC), 10 Mo maximum. Les documents sont visibles uniquement par vous et l\'agence.');
 }
+/* ----- Contrats de mission : signature de l'intérimaire et de l'employeur ----- */
+const sigEtat = (ok, qui) => `<span class="sig-etat ${ok ? 'ok' : ''}">${ic(ok ? 'check' : 'clock')}${qui}</span>`;
+/** Bouton de signature selon le lecteur, bouton de relance pour l'agence. */
+function actionsContrat(k) {
+  if (k.statut !== 'a_signer') return '';
+  const p = S.me.profil, signe = p === 'interim' ? (k.signe_le || k.interim_signe) : (k.client_signe_le || k.client_signe);
+  if (p === 'agence') return btn('Relancer', 'send', `data-a="krelance" data-id="${k.id}"`, 'sm');
+  return signe ? '' : btn(p === 'interim' ? 'Signer mon contrat' : 'Signer le contrat', 'edit', `data-a="signer" data-id="${k.id}" data-n="${esc(k.numero)}"`, 'sm primary');
+}
 function contratsPanel(ks) {
-  const ST = { a_signer: ['attente', 'En attente de signature'], signe: ['libre', 'Signé'], annule: ['off', 'Annulé'] };
-  return ks.length ? `<div class="list">${ks.map(k => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:220px"><b>${esc(k.poste)} · ${esc(k.client_nom)}</b><div class="small muted"><span class="mono">${esc(k.numero)}</span> · ${fdate(k.date, 'long')} · ${k.debut}–${k.fin}${k.statut === 'signe' ? ` · signé le ${fdate(k.signe_le, 'num')}` : ''}</div></div>
-    <div class="row">${badge(...ST[k.statut])}<a class="btn sm" href="/api/contrats/${k.id}/document" target="_blank" rel="noopener">${ic('file')}Lire le contrat</a>${S.me.profil === 'interim' && k.statut === 'a_signer' ? btn('Signer', 'edit', `data-a="signer" data-id="${k.id}" data-n="${esc(k.numero)}"`, 'sm primary') : ''}</div></div>`).join('')}</div>` : empty('Aucun contrat pour le moment. Un contrat est créé à chaque mission confirmée.');
+  const p = S.me.profil;
+  const ST = { a_signer: ['attente', 'En cours de signature'], signe: ['libre', 'Signé par les deux parties'], annule: ['off', 'Annulé'] };
+  return ks.length ? `<div class="list">${ks.map(k => `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:230px"><b>${esc(k.poste)} · ${p === 'interim' ? esc(k.client_nom) : `${esc(k.prenom)} ${esc(k.interim_nom)}${p === 'agence' ? ' · ' + esc(k.client_nom) : ''}`}</b>
+      <div class="small muted"><span class="mono">${esc(k.numero)}</span> · ${fdate(k.date, 'long')} · ${k.debut}–${k.fin}</div>
+      ${k.statut !== 'annule' ? `<div class="sig-ligne">${sigEtat(k.signe_le, 'Intérimaire' + (k.signe_le ? ' · ' + fdate(k.signe_le, 'num') : ''))}${sigEtat(k.client_signe_le, 'Employeur' + (k.client_signe_le ? ' · ' + fdate(k.client_signe_le, 'num') : ''))}${p === 'agence' && k.nb_relances ? `<span class="small muted">${k.nb_relances} relance${k.nb_relances > 1 ? 's' : ''}</span>` : ''}</div>` : ''}</div>
+    <div class="row">${badge(...ST[k.statut])}<a class="btn sm" href="/api/contrats/${k.id}/document" target="_blank" rel="noopener">${ic('file')}${k.statut === 'signe' ? 'Contrat signé' : 'Lire'}</a>${actionsContrat(k)}</div></div>`).join('')}</div>`
+    : empty('Aucun contrat pour le moment. Un contrat est créé dès que les places d\'une mission sont pourvues.');
+}
+/** Petit état de contrat dans les listes de candidats retenus. */
+function contratMini(k) {
+  if (!k) return '';
+  if (k.statut === 'signe') return badge('libre', 'Contrat signé');
+  return `<span class="sig-ligne">${sigEtat(k.interim_signe, 'Intérimaire')}${sigEtat(k.client_signe, 'Employeur')}</span>${actionsContrat(k)}`;
 }
 const BULL_ST = b => b.statut === 'paye' ? badge('libre', 'Payé le ' + fdate(b.paye_le, 'num')) : badge('attente', 'En attente de paiement');
 const alerteHeures = bl => bl.length ? `<div class="extra" style="grid-template-columns:1fr;background:var(--danger-bg);border-color:var(--danger-dot);color:var(--danger-fg)"><div class="row small"><b>${ic('alert')}${bl.length} relevé${bl.length > 1 ? 's' : ''} d'heures non validé${bl.length > 1 ? 's' : ''} : paiement bloqué</b></div>
@@ -512,9 +540,9 @@ async function openJour(date) {
         ${m.statut === 'diffusee' && !C.length ? empty('Diffusée. En attente de réponses des intérimaires.') : ''}</section>`;
     }).join('');
   } else {
-    const ET = { confirmee: ['libre', 'Mission confirmée'], en_attente: ['attente', 'En attente de confirmation'], a_repondre: ['pris', 'À traiter'], complet: ['off', 'Complet'], non_retenu: ['off', 'Non retenu'], pourvue: ['off', 'Mission pourvue'], decline: ['off', 'Vous avez décliné'], annulee: ['off', 'Annulée'] };
+    const ET = { confirmee: ['libre', 'Mission confirmée'], signature: ['attente', 'Contrat à signer'], en_attente: ['attente', 'En attente de confirmation'], a_repondre: ['pris', 'À traiter'], complet: ['off', 'Complet'], non_retenu: ['off', 'Non retenu'], pourvue: ['off', 'Mission pourvue'], decline: ['off', 'Vous avez décliné'], annulee: ['off', 'Annulée'] };
     corps = d.missions.map(m => `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir({ ...m, statut: m.etat === 'annulee' ? 'annulee' : '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h</div></div>${badge(...ET[m.etat])}</div>
-      ${['a_repondre', 'en_attente', 'confirmee', 'complet'].includes(m.etat) ? simBloc(m.simulation, 'interim', true) : ''}<dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc(m.lieu || '—')}</dd><dt>Nombre de postes</dt><dd>${m.nb_postes}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}
+      ${['a_repondre', 'en_attente', 'confirmee', 'complet', 'signature'].includes(m.etat) ? simBloc(m.simulation, 'interim', true) : ''}<dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc(m.lieu || '—')}</dd><dt>Nombre de postes</dt><dd>${m.nb_postes}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}
       ${m.contact ? `<dt>Sur place</dt><dd>${esc(m.contact.nom || '—')}${m.contact.telephone ? ` · <a class="link" href="tel:${esc(m.contact.telephone.replace(/\s/g, ''))}">${esc(m.contact.telephone)}</a>` : ''}</dd>` : ''}
       ${m.collegues?.length ? `<dt>Avec vous</dt><dd>${esc(m.collegues.join(', '))}</dd>` : ''}
       ${m.contrat ? `<dt>Contrat</dt><dd class="row">${badge(...ETAT_CONTRAT[m.contrat])}${m.contrat_id ? `<a class="link" href="/api/contrats/${m.contrat_id}/document" target="_blank" rel="noopener">Lire</a>` : ''}${m.contrat === 'a_signer' ? btn('Signer', 'edit', `data-a="signer" data-id="${m.contrat_id}" data-n=""`, 'sm primary') : ''}</dd>` : ''}
@@ -536,7 +564,9 @@ const V = { agence: {}, client: {}, interim: {} };
 
 /* ===== Agence ===== */
 V.agence.accueil = async () => {
-  const [ms, hs, fs] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures')]);
+  const [ms, hs, fs, ks, ps] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures'), GET('/contrats'), GET('/prospects')]);
+  const kSig = ks.filter(k => k.statut === 'a_signer'), pRel = ps.filter(x => x.date_relance && x.date_relance <= (S.cfg?.aujourdhui || '') && !['client', 'perdu'].includes(x.statut));
+  const pNouv = ps.filter(x => x.statut === 'nouveau' && x.source === 'site');
   const nouvelles = ms.filter(m => m.statut === 'nouvelle'), decisions = ms.filter(m => m.statut === 'diffusee' && m.envois.some(e => e.etat === 'accepte'));
   const hAttente = hs.filter(h => h.ouvert && !(h.valide_interim && h.valide_client));
   const du = fs.filter(f => !f.payee_le), retard = du.filter(f => f.en_retard);
@@ -546,7 +576,10 @@ V.agence.accueil = async () => {
     ...ceSoir.map(m => ['e', 'alert', `Ce soir, importance haute : ${m.nb_postes} × ${m.poste} non pourvu`, `${m.client_nom} · ${m.debut}–${m.fin}`, 'missions']),
     ...nouvelles.map(m => ['w', 'send', `Mission à diffuser : ${m.nb_postes} × ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
     ...decisions.map(m => ['n', 'users', `Candidats en attente de l'employeur : ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
-    ...retard.map(f => ['e', 'alert', `Facture ${f.numero} en retard`, `${f.client_nom} · ${eur(f.montant_ttc)} TTC`, 'facturation']),
+    ...retard.map(f => ['e', 'alert', `Facture ${f.numero} en retard`, `${f.client_nom} · ${eur(f.montant_ttc)} TTC${f.nb_relances ? ` · ${f.nb_relances} relance(s)` : ''}`, 'facturation']),
+    ...(kSig.length ? [['w', 'edit', `${kSig.length} contrat${kSig.length > 1 ? 's' : ''} de mission en attente de signature`, 'Relancez l\'intérimaire ou l\'employeur si besoin', 'contrats']] : []),
+    ...pNouv.map(x => ['n', 'target', `Nouveau contact : ${x.etablissement}`, `Formulaire du site · ${x.repondant || ''}`, 'prospects']),
+    ...pRel.map(x => ['w', 'target', `Prospect à relancer : ${x.etablissement}`, `Relance prévue le ${fdate(x.date_relance, 'num')}`, 'prospects']),
     ...(hAttente.length ? [['w', 'clock', `${hAttente.length} relevé${hAttente.length > 1 ? 's' : ''} d'heures à finaliser`, 'Confirmation intérimaire ou validation employeur manquante', 'heures']] : []),
   ];
   return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), 'Activité de l\'agence.', btn('Nouvelle mission', 'plus', 'data-a="newmission"', 'primary')) +
@@ -601,7 +634,8 @@ V.agence.interimaires = async () => {
       ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
       <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}${gestionProfil('interimaires', s)}</div></div>
       <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
-      <dt>Date de naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
+      <dt>Naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}${s.lieu_naissance ? ' à ' + esc(s.lieu_naissance) : ''}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
+      <dt>Sécurité sociale</dt><dd class="mono">${esc(s.nir || '—')}</dd><dt>Domicile</dt><dd>${esc([s.adresse, [s.code_postal, s.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—')}</dd>
       <dt>Taux horaire brut</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>
       <dt>Dossier administratif</dt><dd>${s.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd><dt>Note moyenne</dt><dd>${stars(s.note)}</dd></dl>
       ${accessBox('interim', s.id, s.acces)}</div></section>
@@ -610,16 +644,59 @@ V.agence.interimaires = async () => {
 V.agence.clients = async () => {
   const L = await GET('/clients');
   const s = L.find(c => c.id === S.p.csel) || L[0];
-  const docs = s ? await GET('/documents?client_id=' + s.id) : [];
+  const [docs, cc] = s ? await Promise.all([GET('/documents?client_id=' + s.id), GET('/contrats-clients?client_id=' + s.id)]) : [[], null];
   return head('Clients', 'Fiches entreprises, conditions, documents et accès à l\'espace employeur.', btn('Nouveau client', 'plus', 'data-a="clientform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun client. Créez la première fiche.')) :
       panel(`${L.length} client${L.length > 1 ? 's' : ''}`, '', `<div class="scroll"><table><thead><tr><th>Client</th><th>Secteur</th><th class="r">Missions</th><th class="r">Pourvues</th><th>Note des intérimaires</th><th>Accès</th></tr></thead><tbody>
       ${L.map(c => `<tr class="clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0"><td><b>${esc(c.nom)}</b> ${c.suspendu ? badge('off', 'Suspendu') : ''}<div class="small muted">${esc(c.ville || '')}</div></td><td>${esc(c.secteur)}</td><td class="r num">${c.nb_missions}</td><td class="r num">${c.nb_pourvues}</td><td>${stars(c.note)}</td><td>${c.acces ? `<span class="mono">${esc(c.acces)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>`) +
       `<div class="grid2"><section class="panel"><div class="panel-h"><h2>${esc(s.nom)}</h2><div class="row">${btn('Modifier', 'edit', `data-a="clientform" data-id="${s.id}"`, 'sm')}${gestionProfil('clients', s)}</div></div><div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}
       <dl class="kv"><dt>SIRET</dt><dd>${esc(s.siret || '—')}</dd><dt>Adresse</dt><dd>${esc([s.adresse, s.ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc(s.contact || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd>
-      <dt>Coefficient</dt><dd>${num(s.coefficient)}</dd><dt>Paiement</dt><dd>${s.delai_paiement} jours</dd><dt>Convention</dt><dd>${esc(s.convention)}</dd></dl>${accessBox('client', s.id, s.acces)}</div></section>
-      ${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div>`);
+      <dt>Coefficient</dt><dd><b>${num(s.coefficient)}</b> <span class="small muted">${origineCoef(cc)}</span></dd><dt>Paiement</dt><dd>${s.delai_paiement} jours</dd><dt>Convention</dt><dd>${esc(s.convention)}</dd></dl>${accessBox('client', s.id, s.acces)}</div></section>
+      <div style="display:flex;flex-direction:column;gap:18px;min-width:0">${contratsClientPanel(s, cc, 'agence')}${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div></div>`);
 };
+/* ----- Contrat commercial de l'entreprise : coefficient et délai de paiement ----- */
+const CC_ETAT = { a_signer: ['attente', 'En attente de signature'], signe: ['libre', 'Signé · en vigueur'], remplace: ['off', 'Remplacé'], annule: ['off', 'Annulé'] };
+function origineCoef(cc) {
+  const k = cc?.contrats.find(x => x.statut === 'signe');
+  return k ? `contrat ${esc(k.numero)} signé le ${fdate(k.signe_le, 'num')}` : `par défaut, aucun contrat signé (minimum ${num(cc?.coefficient_minimum ?? 1.45)})`;
+}
+function contratsClientPanel(c, cc, profil) {
+  const L = cc?.contrats || [], agence = profil === 'agence';
+  const ligne = k => `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:200px"><b>${esc(k.numero)}</b> · coefficient <b>${num(k.coefficient)}</b> · paiement à ${k.delai_paiement} jours
+      <div class="small muted">Établi le ${fdate(k.created_at, 'num')} · effet au ${fdate(k.date_effet, 'num')}${k.signe_le ? ` · signé ${k.signe_mode === 'papier' ? 'sur papier' : 'en ligne'} par ${esc(k.signe_nom)} le ${fdate(k.signe_le, 'num')}` : ''}</div>
+      ${k.conditions ? `<div class="small" style="margin-top:4px">${esc(k.conditions)}</div>` : ''}</div>
+    <div class="row">${badge(...CC_ETAT[k.statut])}<a class="btn sm" href="/api/contrats-clients/${k.id}/document" target="_blank" rel="noopener">${ic('file')}Voir</a>
+      ${k.statut === 'a_signer' ? (agence ? btn('Signé sur papier', 'check', `data-a="ccsign" data-id="${k.id}"`, 'sm') + btn('Annuler', '', `data-a="ccannul" data-id="${k.id}"`, 'sm ghost') : btn('Signer le contrat', 'edit', `data-a="ccsign" data-id="${k.id}"`, 'sm primary')) : ''}</div></div>`;
+  return panel('Contrat commercial', agence ? btn('Nouveau contrat', 'plus', `data-a="ccnew" data-id="${c.id}" data-coef="${c.coefficient}" data-delai="${c.delai_paiement}"`, 'sm primary') : '',
+    `<div class="panel-b small muted" style="padding-bottom:0">${agence ? `Sans contrat signé, le coefficient par défaut (${num(cc?.coefficient_minimum ?? 1.45)}) s'applique. Dès la signature, le coefficient et le délai du contrat s'appliquent automatiquement aux simulations et aux factures.` : 'Le coefficient et le délai de paiement du contrat signé s\'appliquent à vos missions et factures.'}</div>
+    ${L.length ? `<div class="list">${L.map(ligne).join('')}</div>` : empty('Aucun contrat enregistré.')}`);
+}
+function ccModal(el) {
+  const min = S.cfg?.coefficient_minimum || 1.45, t = S.cfg?.aujourdhui || '';
+  openModal(`${modalHead(ic('file') + 'Nouveau contrat commercial', 'À faire signer par l\'entreprise dans son espace, ou à marquer « signé sur papier ».')}<form data-f="ccnew" data-id="${el.dataset.id}"><div class="panel-b form">
+    <label class="f">Coefficient de facturation<input type="number" name="coefficient" step="0.01" min="${min}" max="5" value="${Math.max(min, Number(el.dataset.coef) || min)}" required data-coef-saisie><span class="hint">Minimum ${num(min)}, redéfinissable à la hausse.</span></label>
+    <label class="f">Délai de paiement (jours)<input type="number" name="delai_paiement" min="0" max="60" value="${el.dataset.delai || 15}" required></label>
+    <label class="f">Date d'effet<input type="date" name="date_effet" value="${t}" required></label>
+    <div class="f"><span>Marge brute estimée sur une heure</span><b data-marge-coef></b><span class="hint">Mission classique, avec les taux de Paramètres › Paie.</span></div>
+    <label class="f full">Conditions particulières (facultatif)<textarea name="conditions" maxlength="2000" placeholder="Minimum d'heures facturées, frais de déplacement, tenue…"></textarea></label>
+    <div class="err full" hidden></div></div>${modalFoot('Enregistrer le contrat', 'type="submit"')}</form>`);
+  margeCoef();
+}
+/** Marge brute d'une heure selon le coefficient : 1 − coût agence ÷ facturé. */
+function margeCoef() {
+  const i = $('[data-coef-saisie]'), o = $('[data-marge-coef]'); if (!i || !o) return;
+  const k = S.cfg?.facteur_cout || 1.452, c = Number(String(i.value).replace(',', '.')) || 0, m = c ? (1 - k / c) * 100 : 0;
+  o.textContent = `${num(Math.round(m * 10) / 10)} %`; o.style.color = m < 0 ? 'var(--danger-fg)' : 'var(--libre-fg)';
+}
+function ccSignModal(id) {
+  const agence = S.me.profil === 'agence';
+  openModal(`${modalHead(ic('edit') + (agence ? 'Contrat signé sur papier' : 'Signer le contrat'))}<form data-f="ccsign" data-id="${id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    <p class="small">${agence ? 'Indiquez qui a signé pour l\'entreprise. Le coefficient et le délai du contrat s\'appliqueront immédiatement.' : `<a class="link" href="/api/contrats-clients/${id}/document" target="_blank" rel="noopener">Lire le contrat</a> avant de signer. Le coefficient et le délai de paiement s'appliqueront à vos prochaines factures.`}</p>
+    <label class="f">Nom et fonction du signataire<input type="text" name="nom" required minlength="3" maxlength="120" placeholder="Jean Dupont, gérant"></label>
+    ${agence ? '' : '<label class="check"><input type="checkbox" name="accepte" value="1" required> J\'ai lu et j\'accepte le contrat, je suis habilité à signer pour l\'entreprise.</label>'}
+    <div class="err" hidden></div></div>${modalFoot(ic('check') + 'Signer', 'type="submit"')}</form>`);
+}
+
 function accessBox(type, id, acces) {
   return `<div class="access"><div><div class="small muted">Accès à l'espace ${type === 'client' ? 'employeur' : 'intérimaire'}</div>${acces ? `<span class="mono">${esc(acces)}</span>` : '<b>Aucun accès créé</b>'}</div>
     ${acces ? btn('Gérer dans Accès utilisateurs', 'chev', 'data-a="nav" data-v="acces"', 'sm') : btn('Créer l\'identifiant et le mot de passe', 'lock', `data-a="mkacc" data-type="${type}" data-id="${id}"`, 'sm primary')}</div>`;
@@ -655,6 +732,13 @@ function quinzaine() {
   const fin = new Date(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0).getDate();
   return [m + '16', m + String(fin).padStart(2, '0')];
 }
+V.agence.contrats = async () => {
+  const [ks, R] = await Promise.all([GET('/contrats'), GET('/relances')]);
+  const a = ks.filter(k => k.statut === 'a_signer');
+  return head('Contrats de mission', 'Établis automatiquement dès qu\'une mission est pourvue, signés en ligne par l\'intérimaire puis l\'employeur. La mission est validée quand tous ses contrats sont signés. Les relances automatiques se règlent dans Paramètres › Relances.') +
+    panel(`En cours de signature (${a.length})`, '', contratsPanel(a)) + panel('Tous les contrats', '', contratsPanel(ks)) +
+    panel('Historique des relances', '', R.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Objet</th><th>Destinataire</th><th>Canaux</th><th>Type</th></tr></thead><tbody>${R.map(r => `<tr><td>${fdate(r.created_at, 'num')}</td><td>${r.objet === 'contrat' ? 'Contrat' : 'Facture'} <span class="mono">${esc(r.numero || '')}</span></td><td>${esc(r.destinataire)}</td><td>${r.canaux.split(',').map(c => CANAUX[c]?.[1] || esc(c)).join(', ')}</td><td>${r.auto ? badge('off', 'Automatique') : badge('pris', 'Manuelle')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune relance envoyée.'));
+};
 V.agence.facturation = async () => {
   const fs = await GET('/factures');
   const [d, f] = quinzaine();
@@ -662,7 +746,7 @@ V.agence.facturation = async () => {
     panel('Générer les factures', '', `<form data-f="facturer" class="panel-b inline-form"><label class="f">Du<input type="date" name="debut" value="${d}" required></label><label class="f">Au<input type="date" name="fin" value="${f}" required></label><button class="btn primary" type="submit">${ic('receipt')}Générer</button></form>`) +
     panel('Factures', '', fs.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Client</th><th>Période</th><th class="r">HT</th><th class="r">TTC</th><th>Échéance</th><th>Statut</th><th></th></tr></thead><tbody>
     ${fs.map(x => `<tr><td class="mono">${x.numero}</td><td>${esc(x.client_nom)}</td><td>${fdate(x.debut, 'num')} – ${fdate(x.fin, 'num')}</td><td class="r num">${eur(x.montant_ht)}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${fdate(x.echeance, 'num')}</td>
-    <td>${x.payee_le ? badge('libre', 'Payée le ' + fdate(x.payee_le, 'num')) : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À échéance')}</td><td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap"><a class="btn sm ghost" href="/api/factures/${x.id}/document" target="_blank" rel="noopener">${ic('file')}Voir</a>${x.payee_le ? '' : btn('Marquer payée', 'check', `data-a="payee" data-id="${x.id}"`, 'sm')}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
+    <td>${x.payee_le ? badge('libre', 'Payée le ' + fdate(x.payee_le, 'num')) : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À échéance')}${!x.payee_le && x.nb_relances ? `<div class="small muted">${x.nb_relances} relance${x.nb_relances > 1 ? 's' : ''}, dernière le ${fdate(x.relance_le, 'num')}</div>` : ''}</td><td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap"><a class="btn sm ghost" href="/api/factures/${x.id}/document" target="_blank" rel="noopener">${ic('file')}Voir</a>${!x.payee_le && x.en_retard ? btn('Relancer', 'send', `data-a="frelance" data-id="${x.id}"`, 'sm') : ''}${x.payee_le ? '' : btn('Marquer payée', 'check', `data-a="payee" data-id="${x.id}"`, 'sm')}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
 };
 V.agence.paie = async () => {
   const [d0, f0] = quinzaine(); S.p.pd = S.p.pd || d0; S.p.pf = S.p.pf || f0;
@@ -730,8 +814,10 @@ V.agence.parametres = async () => {
 V.client.accueil = async () => {
   const [ms, hs, fs, jour] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures'), GET('/planning/jour')]);
   const cand = ms.filter(m => m.statut === 'diffusee' && m.candidats.some(c => c.etat === 'accepte'));
+  const aSigner = ms.flatMap(m => m.candidats.filter(c => c.contrat && c.contrat.statut === 'a_signer' && !c.contrat.client_signe));
   const hA = hs.filter(h => h.ouvert && !h.valide_client), du = fs.filter(f => !f.payee_le);
   return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.client?.nom || ''), btn('Nouvelle demande', 'plus', 'data-a="nav" data-v="demandes"', 'primary')) +
+    (aSigner.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('edit')}</div><div><b>${aSigner.length} contrat${aSigner.length > 1 ? 's' : ''} de mission à signer</b><div class="small muted">La mission est validée quand l'intérimaire et vous avez signé.</div></div>${btn('Signer', 'chev', 'data-a="nav" data-v="contrats"', 'sm primary')}</div></section>` : '') +
     `<div class="kpis">${kpi('Intérimaires aujourd\'hui', 'users', jour.length)}${kpi('Candidats à confirmer', 'check', cand.reduce((a, m) => a + m.candidats.filter(c => c.etat === 'accepte').length, 0))}${kpi('Heures à valider', 'clock', hA.length)}${kpi('Factures à régler', 'receipt', eur(du.reduce((a, f) => a + f.montant_ttc, 0)))}</div>
     <div class="grid2">${panel('Aujourd\'hui', btn('Planning du jour', 'chev', 'data-a="nav" data-v="jour"', 'sm'), jour.length ? jour.map(j => `<div class="shift"><div class="time"><b>${j.debut}</b>${j.fin}</div><div class="person"><div class="avatar">${initials(j.prenom + ' ' + j.nom)}</div><div><b>${esc(j.prenom)} ${esc(j.nom)}</b><span>${esc(j.poste)}</span></div></div><div></div></div>`).join('') : empty('Personne n\'est prévu aujourd\'hui.'))}
     ${panel('Candidats en attente de votre décision', btn('Mes missions', 'chev', 'data-a="nav" data-v="demandes"', 'sm'), cand.length ? `<div class="list">${cand.map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)} · ${m.candidats.filter(c => c.etat === 'accepte').length} candidat(s)</div></div>${btn('Décider', 'chev', 'data-a="nav" data-v="demandes"', 'sm primary')}</div>`).join('')}</div>` : empty('Aucun candidat en attente.'))}</div>`;
@@ -787,9 +873,17 @@ V.client.factures = async () => {
     panel(null, '', fs.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Période</th><th>Échéance</th><th class="r">TTC</th><th>Statut</th><th></th></tr></thead><tbody>${fs.map(x => `<tr><td class="mono">${x.numero}</td><td>${fdate(x.debut, 'num')} – ${fdate(x.fin, 'num')}</td><td>${fdate(x.echeance, 'num')}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${x.payee_le ? badge('libre', 'Payée') : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À régler')}</td><td class="r"><a class="btn sm ghost" href="/api/factures/${x.id}/document" target="_blank" rel="noopener">${ic('file')}Voir</a></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
 };
 V.client.contrat = async () => {
-  const [c] = await GET('/clients');
-  return head('Mon contrat', 'Conditions convenues avec l\'agence.', ro()) +
-    panel('Conditions', '', `<div class="panel-b"><dl class="kv"><dt>Raison sociale</dt><dd>${esc(c.nom)}</dd><dt>SIRET</dt><dd>${esc(c.siret || '—')}</dd><dt>Secteur</dt><dd>${esc(c.secteur)}</dd><dt>Convention collective</dt><dd>${esc(c.convention)}</dd><dt>Coefficient de facturation</dt><dd>${num(c.coefficient)}</dd><dt>Délai de paiement</dt><dd>${c.delai_paiement} jours</dd><dt>Facturation</dt><dd>Par quinzaine, sur heures validées</dd></dl></div>`);
+  const [[c], cc] = await Promise.all([GET('/clients'), GET('/contrats-clients')]);
+  const aSigner = cc.contrats.find(k => k.statut === 'a_signer');
+  return head('Mon contrat', 'Conditions convenues avec l\'agence.') +
+    (aSigner ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('edit')}</div><div><b>Contrat à signer : coefficient ${num(aSigner.coefficient)}, paiement à ${aSigner.delai_paiement} jours</b><div class="small muted">Il remplacera les conditions actuelles dès votre signature.</div></div>${btn('Signer', 'chev', `data-a="ccsign" data-id="${aSigner.id}"`, 'sm primary')}</div></section>` : '') +
+    contratsClientPanel(c, cc, 'client') +
+    panel('Conditions', '', `<div class="panel-b"><dl class="kv"><dt>Raison sociale</dt><dd>${esc(c.nom)}</dd><dt>SIRET</dt><dd>${esc(c.siret || '—')}</dd><dt>Secteur</dt><dd>${esc(c.secteur)}</dd><dt>Convention collective</dt><dd>${esc(c.convention)}</dd><dt>Coefficient de facturation</dt><dd><b>${num(c.coefficient)}</b> <span class="small muted">${origineCoef(cc)}</span></dd><dt>Délai de paiement</dt><dd>${c.delai_paiement} jours</dd><dt>Facturation</dt><dd>Par quinzaine, sur heures validées</dd></dl></div>`);
+};
+V.client.contrats = async () => {
+  const ks = await GET('/contrats'), a = ks.filter(k => k.statut === 'a_signer' && !k.client_signe_le);
+  return head('Contrats de mission', 'Un contrat est établi pour chaque intérimaire retenu. Signez-le en ligne : la mission est validée quand l\'intérimaire et vous avez signé. Les contrats signés restent consultables ici.') +
+    (a.length ? panel(`À signer (${a.length})`, '', contratsPanel(a)) : '') + panel('Tous les contrats', '', contratsPanel(ks));
 };
 V.client.documents = async () => {
   const docs = await GET('/documents');
@@ -802,9 +896,11 @@ V.interim.accueil = async () => {
   const [ms, hs] = await Promise.all([GET('/missions'), GET('/heures')]);
   const t = S.cfg?.aujourdhui || '', pend = ms.filter(m => m.etat === 'a_repondre');
   const next = ms.filter(m => m.etat === 'confirmee' && m.date >= t)[0];
+  const aSigner = ms.filter(m => m.etat === 'signature' && !m.contrat?.interim_signe);
   const aConf = hs.filter(h => h.ouvert && !h.valide_interim);
   return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.interim?.poste || '')) +
     (pend.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('bell')}</div><div><b>${pend.length} nouvelle${pend.length > 1 ? 's' : ''} mission${pend.length > 1 ? 's' : ''} en attente de votre réponse</b><div class="small muted">Les places sont attribuées aux premiers qui acceptent.</div></div>${btn('Voir', 'chev', 'data-a="nav" data-v="missions"', 'sm primary')}</div></section>` : '') +
+    (aSigner.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('edit')}</div><div><b>${aSigner.length} contrat${aSigner.length > 1 ? 's' : ''} de mission à signer</b><div class="small muted">Votre mission n'est confirmée qu'une fois le contrat signé par vous et l'employeur.</div></div>${btn('Signer', 'chev', 'data-a="nav" data-v="contrats"', 'sm primary')}</div></section>` : '') +
     (next ? `<section class="panel"><div class="hero"><div class="when"><span>${fdate(next.date).split(' ')[0]}</span><b>${Number(next.date.slice(8))}</b><span>${new Date(next.date + 'T12:00').toLocaleDateString('fr-FR', { month: 'short' })}</span></div><div style="flex:1;min-width:200px"><div class="small muted">Prochaine mission</div><h2 style="font-size:17px">${esc(next.poste)} · ${esc(next.client_nom)}</h2><div class="row small muted">${ic('clock')}${next.debut} – ${next.fin}</div></div>${badge('libre', 'Confirmée')}</div></section>` : '') +
     `<div class="grid2">${panel('Missions proposées', btn('Tout voir', 'chev', 'data-a="nav" data-v="missions"', 'sm'), ms.length ? `<div class="list">${ms.filter(m => m.date >= t).slice(0, 4).map(missionInterim).join('') || empty('Aucune mission à venir.')}</div>` : empty('Aucune proposition pour le moment.'))}
     ${panel('Heures à confirmer', btn('Mes heures', 'chev', 'data-a="nav" data-v="heures"', 'sm'), aConf.length ? `<div class="list">${aConf.map(h => `<div class="li"><div><b>${esc(h.client_nom)}</b><div class="small muted">${fdate(h.date)} · ${h.debut}–${h.fin}</div></div>${btn('Confirmer', 'chev', 'data-a="nav" data-v="heures"', 'sm primary')}</div>`).join('')}</div>` : empty('Tout est à jour.'))}</div>`;
@@ -823,11 +919,11 @@ V.interim.dispo = async () => {
   const E = {};
   ms.filter(m => !['decline', 'annulee'].includes(m.etat)).forEach(m => (E[m.date] = E[m.date] || []).push(m));
   S.p.im = S.p.im || t.slice(0, 7);
-  const CL = { confirmee: 'libre', en_attente: 'attente', a_repondre: 'pris', complet: 'off', non_retenu: 'off', pourvue: 'off' };
+  const CL = { confirmee: 'libre', signature: 'attente', en_attente: 'attente', a_repondre: 'pris', complet: 'off', non_retenu: 'off', pourvue: 'off' };
   return head('Mon planning', 'Cliquez sur un jour de mission pour en voir le détail. Cliquez sur un jour libre pour le passer en disponible, puis indisponible, puis non renseigné.') +
     panel('', navMois('im', S.p.im) + legendeCal(badge('pris', 'Proposée'), badge('attente', 'En attente de confirmation'), badge('libre', 'Confirmée'), badge('off', 'Indisponible')),
       `<div class="panel-b">${calendrierStandard(S.p.im, iso => {
-        const ev = (E[iso] || []).map(m => ({ texte: `${m.debut} ${m.poste} · ${m.client_nom}`, cls: CL[m.etat] || 'off', urgent: ['confirmee', 'en_attente', 'a_repondre'].includes(m.etat) && estCeSoir({ ...m, statut: '' }) }));
+        const ev = (E[iso] || []).map(m => ({ texte: `${m.debut} ${m.poste} · ${m.client_nom}`, cls: CL[m.etat] || 'off', urgent: ['confirmee', 'signature', 'en_attente', 'a_repondre'].includes(m.etat) && estCeSoir({ ...m, statut: '' }) }));
         const e = D[iso];
         if (ev.length) return { evenements: ev, action: 'jour', etiquette: e === 'indisponible' ? 'Indisponible' : '' };
         if (iso < t) return { cls: e === 'indisponible' ? 'indispo' : '', action: 'jour' };
@@ -852,7 +948,7 @@ V.interim.profil = async () => {
 };
 V.interim.contrats = async () => {
   const ks = await GET('/contrats');
-  return head('Contrats', 'Un contrat de mission est créé à chaque mission confirmée. Lisez-le puis signez-le en ligne avant de commencer.') +
+  return head('Contrats', 'Un contrat de mission est créé dès que vous êtes retenu(e). Lisez-le puis signez-le en ligne : la mission est confirmée quand l\'employeur a signé aussi. Vos contrats signés restent disponibles ici.') +
     panel(null, '', contratsPanel(ks));
 };
 V.interim.paie = async () => {
@@ -878,6 +974,100 @@ V.interim.avis = async () => {
     ${panel('Mes notes sur les établissements', '', donnes.length ? `<div class="list">${donnes.map(e => `<div class="li"><div><b>${esc(e.client_nom)}</b><div class="small muted">${fdate(e.date, 'num')} · ${esc(e.commentaire || '')}</div></div>${stars(e.note)}</div>`).join('')}</div>` : empty('Notez un établissement depuis « Mes heures », après une mission.'))}</div>`;
 };
 
+
+/* ---------------- Prospects : questionnaire établissement (page publique et visites terrain) ---------------- */
+/** Formulaire construit à partir du questionnaire servi par l'API. */
+function questionnaireHtml(Q) {
+  const champ = c => {
+    const skip = c.skip ? ' data-skip' : '', id = 'q-' + c.k;
+    if (c.type === 'radio' || c.type === 'checks') {
+      const t = c.type === 'radio' ? 'radio' : 'checkbox', opts = [...c.options, ...(c.autre ? ['Autre'] : [])];
+      return `<fieldset class="q full"${skip}><legend>${esc(c.l)}${c.type === 'checks' ? ' <span class="small muted">(plusieurs choix possibles)</span>' : ''}</legend>
+        <div class="choix">${opts.map(o => `<label><input type="${t}" name="${c.k}" value="${esc(o)}"><span>${esc(o)}</span></label>`).join('')}</div>
+        ${c.autre ? `<input type="text" name="${c.k}_autre" maxlength="200" placeholder="Précisez" hidden>` : ''}</fieldset>`;
+    }
+    if (c.type === 'select') return `<label class="f full"${skip} for="${id}">${esc(c.l)}<select id="${id}" name="${c.k}"><option value="">—</option>${[...Q.flatMap(x => x.champs).find(x => x.k === c.from).options, 'Autre'].map(o => `<option>${esc(o)}</option>`).join('')}</select></label>`;
+    if (c.type === 'textarea') return `<label class="f full"${skip} for="${id}">${esc(c.l)}<textarea id="${id}" name="${c.k}" maxlength="2000"></textarea></label>`;
+    return `<label class="f"${skip} for="${id}"><span>${esc(c.l)}${c.req ? ' <span class="req">*</span>' : ''}</span><input id="${id}" type="${c.type === 'number' ? 'number' : c.type}" name="${c.k}" ${c.type === 'number' ? 'min="0" step="0.01" inputmode="decimal"' : ''} ${c.req ? 'required' : ''} ${c.k === 'email' ? 'autocomplete="email"' : c.k === 'telephone' ? 'autocomplete="tel"' : ''}></label>`;
+  };
+  return Q.map(sec => `<section class="q-sec"${sec.skip ? ' data-skip' : ''}><h2>${esc(sec.titre)}</h2><div class="form">${sec.champs.map(champ).join('')}</div></section>`).join('');
+}
+/** Réponses du formulaire : cases à cocher multiples en tableaux. */
+function lireQuestionnaire(fd) {
+  const o = {};
+  for (const [k, v] of fd) { if (v === '') continue; if (k in o) o[k] = [].concat(o[k], v); else o[k] = v; }
+  for (const k of ['postes', 'canaux', 'problemes', 'services']) if (o[k] && !Array.isArray(o[k])) o[k] = [o[k]];
+  if (o.consentement) o.consentement = true;
+  return o;
+}
+let AGENCE_PUB = null;
+async function renderContact() {
+  $('#app').hidden = true; $('#auth').hidden = false;
+  document.title = 'Besoin de renforts ? · CHR Intérim';
+  let d; try { d = await GET('/public/questionnaire'); } catch { d = null; }
+  if (!d) { $('#auth').innerHTML = '<div class="auth"><div class="auth-card"><p>Page momentanément indisponible. Réessayez dans un instant.</p></div></div>'; return; }
+  AGENCE_PUB = d.agence;
+  const a = d.agence, joindre = [a.telephone && `<a class="link" href="tel:${esc(a.telephone.replace(/\s/g, ''))}">${esc(a.telephone)}</a>`, a.email && `<a class="link" href="mailto:${esc(a.email)}">${esc(a.email)}</a>`].filter(Boolean).join(' · ');
+  $('#auth').innerHTML = `<div class="auth contact"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="${esc(a.nom)}, spécialiste des métiers HCR" width="1200" height="267"></picture>
+    <div class="auth-card contact-card">
+      <div><h1>Besoin de renforts ?</h1><p class="muted" style="margin-top:6px">Hôtels, cafés, restaurants, traiteurs : parlez-nous de votre établissement et de vos besoins en extras. Nous vous recontactons rapidement avec des profils qualifiés. <b>5 minutes</b>, seul le nom de l'établissement, le vôtre et un moyen de vous joindre sont obligatoires.</p>
+      ${joindre ? `<p class="small" style="margin-top:8px">Une urgence ? Appelez-nous : ${joindre}</p>` : ''}</div>
+      <form data-f="contact" novalidate>${questionnaireHtml(d.questionnaire)}
+        <input type="text" name="site_web" tabindex="-1" autocomplete="off" class="piege" aria-hidden="true">
+        <label class="check consent"><input type="checkbox" name="consentement" value="1" required> J'accepte que mes coordonnées et mes réponses soient conservées par ${esc(a.nom)} pour être recontacté(e) au sujet de mes besoins et de ses offres. Je peux à tout moment demander leur modification ou leur suppression${a.email ? ` à ${esc(a.email)}` : ''}.</label>
+        <div class="err" role="alert" hidden></div>
+        <button class="btn primary" type="submit" style="justify-content:center">${ic('send')}Envoyer ma demande</button></form>
+      <p class="small muted" style="text-align:center">Vous avez déjà un compte ? <a class="link" href="/">Accéder à votre espace</a></p></div></div>`;
+}
+function contactMerci() {
+  const a = AGENCE_PUB || {};
+  return `<div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center"><div class="merci-ic">${ic('check')}</div><h1>Merci, votre demande est envoyée</h1>
+    <p class="muted">Notre équipe vous recontacte très vite pour préparer vos renforts.${a.telephone ? ` Pour une urgence : <a class="link" href="tel:${esc(a.telephone.replace(/\s/g, ''))}">${esc(a.telephone)}</a>.` : ''}</p>
+    <a class="btn" href="/">Retour à l'accueil</a></div>`;
+}
+
+const P_ST = { nouveau: ['pris', 'Nouveau'], a_relancer: ['attente', 'À relancer'], en_discussion: ['pris', 'En discussion'], client: ['libre', 'Client'], perdu: ['off', 'Sans suite'] };
+V.agence.prospects = async () => {
+  const L = await GET('/prospects'), t = S.cfg?.aujourdhui || '';
+  const f = S.p.pf || 'actifs', vis = L.filter(x => f === 'tous' || (f === 'actifs' ? !['client', 'perdu'].includes(x.statut) : x.statut === f));
+  const dus = L.filter(x => x.date_relance && x.date_relance <= t && !['client', 'perdu'].includes(x.statut)).length;
+  return head('Prospects', 'Établissements intéressés par des renforts : demandes reçues par la page publique <a class="link" href="/contact" target="_blank" rel="noopener">/contact</a> et visites terrain. Fixez une date de relance, puis transformez le prospect en client.', btn('Nouvelle visite terrain', 'plus', 'data-a="visite"', 'primary')) +
+    `<div class="kpis">${kpi('Prospects actifs', 'target', L.filter(x => !['client', 'perdu'].includes(x.statut)).length)}${kpi('À relancer aujourd\'hui', 'clock', dus, dus ? 'Relances en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Demandes du site', 'send', L.filter(x => x.source === 'site').length)}${kpi('Devenus clients', 'building', L.filter(x => x.statut === 'client').length)}</div>` +
+    panel(null, `<div class="seg">${[['actifs', 'Actifs'], ['a_relancer', 'À relancer'], ['client', 'Clients'], ['perdu', 'Sans suite'], ['tous', 'Tous']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="pfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
+      vis.length ? `<div class="scroll"><table><thead><tr><th>Établissement</th><th>Contact</th><th>Besoins</th><th>Source</th><th>Relance</th><th>Statut</th></tr></thead><tbody>
+      ${vis.map(x => `<tr class="clickable" data-a="prospect" data-id="${x.id}" tabindex="0"><td><b>${esc(x.etablissement)}</b><div class="small muted">${esc(x.type_etab || '')}${x.adresse ? ' · ' + esc(x.adresse) : ''}</div></td>
+        <td>${esc(x.repondant || '—')}<div class="small muted">${esc([x.telephone, x.email].filter(Boolean).join(' · '))}</div></td>
+        <td class="small">${esc(x.reponses.frequence || '—')}${x.reponses.postes ? `<div class="muted">${esc(x.reponses.postes.join(', '))}</div>` : ''}</td>
+        <td>${x.source === 'site' ? badge('pris', 'Site') : badge('off', 'Visite')}<div class="small muted">${fdate((x.date_visite || x.created_at).slice(0, 10), 'num')}</div></td>
+        <td>${x.date_relance ? (x.date_relance <= t && !['client', 'perdu'].includes(x.statut) ? badge('danger', fdate(x.date_relance, 'num')) : fdate(x.date_relance, 'num')) : '<span class="muted">—</span>'}</td>
+        <td>${badge(...P_ST[x.statut])}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucun prospect dans cette liste.'));
+};
+async function prospectModal(id) {
+  const [L, d] = await Promise.all([GET('/prospects'), GET('/public/questionnaire')]);
+  const x = L.find(p => p.id === id); if (!x) return;
+  const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
+  const secs = d.questionnaire.map(sec => { const L2 = sec.champs.map(c => [c.l, val(c)]).filter(([, v]) => v); return L2.length ? `<h3 class="q-titre">${esc(sec.titre)}</h3><dl class="kv">${L2.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''; }).join('');
+  openModal(`${modalHead(ic('target') + esc(x.etablissement), `${x.source === 'site' ? 'Demande reçue par le site' : `Visite terrain${x.enqueteur ? ' par ' + esc(x.enqueteur) : ''}`} le ${fdate((x.date_visite || x.created_at).slice(0, 10), 'num')} · accord ${x.accord === 'en_ligne' ? 'donné en ligne' : esc(x.accord || '—')}`)}
+    <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${secs}</div>
+    <form data-f="psuivi" data-id="${x.id}" class="panel-b form" style="border-top:1px solid var(--line)"><h3 class="q-titre full">Suivi commercial</h3>
+      <label class="f">Statut<select name="statut">${Object.entries(P_ST).map(([k, [, l]]) => `<option value="${k}" ${k === x.statut ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="f">Date de relance / prochain contact<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
+      <label class="f full">Notes de l'agence<textarea name="notes_agence" maxlength="3000">${esc(x.notes_agence || '')}</textarea></label>
+      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${x.client_id ? badge('libre', 'Fiche client créée') : btn('Créer la fiche client', 'building', `data-a="pclient" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="pdel" data-id="${x.id}"`, 'sm danger')}</div>
+      <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
+}
+async function visiteModal() {
+  const d = await GET('/public/questionnaire'), t = S.cfg?.aujourdhui || '';
+  openModal(`${modalHead(ic('target') + 'Visite terrain', 'Questionnaire étude de marché · intérim et extras HCR · 5 à 7 minutes')}<form data-f="visite" novalidate><div class="panel-b">
+    <div class="form"><label class="f">Date de la visite<input type="date" name="date_visite" value="${t}" required></label><label class="f">Enquêteur<input type="text" name="enqueteur" value="${esc(S.me.nom)}"></label></div>
+    ${questionnaireHtml(d.questionnaire)}
+    <section class="q-sec"><h2>Suivi</h2><div class="form">
+      <fieldset class="q full"><legend>Accord pour conserver les coordonnées et recontacter</legend><div class="choix"><label><input type="radio" name="accord" value="ecrit" required><span>Écrit (signature)</span></label><label><input type="radio" name="accord" value="oral"><span>Oral</span></label></div></fieldset>
+      <label class="f">Date de relance / prochain contact convenu<input type="date" name="date_relance" min="${t}"></label>
+      <label class="f full">Notes et observations<textarea name="notes_agence" maxlength="3000"></textarea></label></div></section>
+    <div class="err" hidden></div></div>${modalFoot('Enregistrer la visite', 'type="submit"')}</form>`);
+}
+
 /* ---------------- Formulaires en fenêtre ---------------- */
 async function missionForm() {
   const cs = (await GET('/clients')).filter(c => !c.suspendu);
@@ -887,8 +1077,14 @@ async function missionForm() {
     <label class="f full">Client<select name="client_id" required>${cs.map(c => `<option value="${c.id}">${esc(c.nom)}</option>`).join('')}</select></label>
     <label class="f">Poste<input type="text" name="poste" required list="postes-liste"></label>${listePostes()}<label class="f">Date<input type="date" name="date" min="${t}" value="${addDays(t, 7)}" required></label>
     <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
-    <label class="f">Nombre de postes<input type="number" name="nb_postes" min="1" max="30" value="1" required></label><label class="f">Taux horaire brut (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="12.50" required></label>
-    <label class="f full">Motif de recours (figure sur le contrat)<select name="motif">${opt(S.cfg?.motifs || [])}</select></label>${simLive()}</div>
+    <label class="f">Nombre de postes<input type="number" name="nb_postes" min="1" max="30" value="1" required></label><label class="f">Taux horaire brut (€)<input type="number" name="taux_horaire" step="0.01" min="${S.cfg?.smic || 10}" max="60" value="${(S.cfg?.smic || 12).toFixed(2)}" required><span class="hint" data-taux-aide>Minimum HCR du poste, jamais sous le SMIC.</span></label>
+    <label class="f full">Motif de recours (figure sur le contrat)<select name="motif" data-motif>${opt(S.cfg?.motifs || [])}</select></label>
+    <div class="full form" data-remplace hidden><label class="f">Salarié remplacé (nom et prénom)<input type="text" name="remplace_nom" maxlength="120"></label><label class="f">Poste du salarié remplacé<input type="text" name="remplace_poste" maxlength="120"></label></div>
+    <details class="full guide"><summary><b>Précisions du contrat de mission</b> <span class="small muted">(facultatif : sinon, valeurs habituelles du poste)</span></summary><div class="form" style="margin-top:10px">
+      <label class="f full">Tâches principales<textarea name="taches" maxlength="600" placeholder="Service en salle, dressage des tables, accueil de la clientèle…"></textarea></label>
+      <label class="f full">Risques particuliers<input type="text" name="risques" maxlength="600" placeholder="Sols glissants, port de charges…"></label>
+      <label class="f full">Équipements de protection fournis<input type="text" name="epi" maxlength="600" placeholder="Chaussures antidérapantes, tablier…"></label></div></details>
+    ${simLive()}</div>
     ${modalFoot('Créer la mission', 'type="submit"')}</form>`);
   majSimulation($('form[data-f="mission"]'));
 }
@@ -905,8 +1101,8 @@ async function diffuseModal(id) {
   openModal(`${modalHead(ic('send') + 'Valider et diffuser la mission', `${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)} · ${fdate(m.date)} · ${m.debut}–${m.fin}`)}
     <form data-f="diffuser" data-id="${m.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:14px">
     <div><div class="small muted" style="margin-bottom:6px;font-weight:500">Moyen d'envoi</div><div class="statusline">${Object.entries(CANAUX).map(([k, [i, l]]) => `<label class="check" style="border:1px solid var(--line);border-radius:7px;padding:6px 10px"><input type="checkbox" name="canal" value="${k}" ${k !== 'mail' ? 'checked' : ''}>${ic(i)}${l}${c[k] ? '' : ' <span class="hint">(simulé)</span>'}</label>`).join('')}</div></div>
-    <label class="f" style="max-width:200px">Taux horaire brut (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="${m.taux_horaire}"></label>
-    ${simLive({ client_id: m.client_id, debut: m.debut, fin: m.fin, nb_postes: m.nb_postes, motif: m.motif })}
+    <label class="f" style="max-width:260px">Taux horaire brut (€)<input type="number" name="taux_horaire" step="0.01" min="${S.cfg?.smic || 10}" max="60" value="${m.taux_horaire}"><span class="hint">Minimum HCR du poste : ${eur(tauxPoste(m.poste))}</span></label>
+    ${simLive({ client_id: m.client_id, date: m.date, poste: m.poste, debut: m.debut, fin: m.fin, nb_postes: m.nb_postes, motif: m.motif })}
     <div><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="small muted" style="font-weight:500">Intérimaires destinataires</span>${deja.size ? `<span class="small muted">${deja.size} déjà contacté(s)</span>` : ''}</div>
     <div style="border:1px solid var(--line);border-radius:8px;max-height:280px;overflow:auto">${L.map(i => `<label class="li clickable" style="padding:9px 12px"><span class="person"><input type="checkbox" name="interim" value="${i.id}" style="width:16px;height:16px;accent-color:var(--accent)"><span class="avatar">${initials(i.prenom + ' ' + i.nom)}</span><span><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)}${i.telephone ? '' : ' · pas de téléphone'}${i.email ? '' : ' · pas d\'e-mail'}</span></span></span>${match(i) ? badge('libre', 'Profil correspondant') : ''}</label>`).join('') || empty('Tous les intérimaires ont déjà été contactés.')}</div></div>
     <div class="err" hidden></div></div>${modalFoot(ic('send') + 'Valider et envoyer', 'type="submit"')}</form>`);
@@ -919,17 +1115,22 @@ async function interimForm(id) {
     ${f('prenom', 'Prénom', 'text', 'required')}${f('nom', 'Nom', 'text', 'required')}${f('poste', 'Poste principal', 'text', 'required list="postes-liste"')}${listePostes()}
     <label class="f">Secteur<select name="secteur">${opt(SECTEURS, i.secteur)}</select></label>${f('telephone', 'Téléphone (SMS, WhatsApp)', 'tel')}${f('email', 'E-mail', 'email')}${f('ville', 'Ville')}
     ${f('taux_horaire', 'Taux horaire brut (€)', 'number', 'step="0.01" min="10" max="60"')}${f('date_naissance', 'Date de naissance', 'date')}
-    <label class="f">Nationalité<select name="nationalite">${opt(S.cfg?.nationalites || ['Française'], i.nationalite || 'Française')}</select></label><label class="f full">Compétences<input type="text" name="competences" value="${esc(i.competences || '')}"></label>
-    <p class="hint full">La date de naissance et la nationalité déterminent les pièces exigées (autorisation parentale, titre de séjour). Le dossier passe « complet » quand l'agence a validé toutes les pièces exigées.</p></div>
+    ${f('lieu_naissance', 'Lieu de naissance (ville, pays)')}<label class="f">Nationalité<select name="nationalite">${opt(S.cfg?.nationalites || ['Française'], i.nationalite || 'Française')}</select></label>
+    ${f('nir', 'N° de sécurité sociale', 'text', 'inputmode="numeric" maxlength="21" autocomplete="off" placeholder="1 85 05 69 123 456 78"')}${f('adresse', 'Adresse du domicile')}${f('code_postal', 'Code postal', 'text', 'inputmode="numeric" maxlength="5"')}
+    <label class="f full">Compétences<input type="text" name="competences" value="${esc(i.competences || '')}"></label>
+    <p class="hint full">Ces informations remplissent automatiquement le contrat de mission. L'employeur ne voit jamais la date et le lieu de naissance, le n° de sécurité sociale ni l'adresse du domicile. La date de naissance et la nationalité déterminent les pièces exigées (autorisation parentale, titre de séjour). Le dossier passe « complet » quand l'agence a validé toutes les pièces exigées.</p></div>
     ${modalFoot(id ? 'Enregistrer' : 'Créer la fiche', 'type="submit"')}</form>`);
 }
 async function clientForm(id) {
-  const c = id ? (await GET('/clients')).find(x => x.id === id) : { coefficient: 2, delai_paiement: 15, convention: 'HCR (IDCC 1979)' };
+  const min = S.cfg?.coefficient_minimum || 1.45;
+  const c = id ? (await GET('/clients')).find(x => x.id === id) : { coefficient: min, delai_paiement: 15, convention: 'HCR (IDCC 1979)' };
+  const signe = id ? (await GET('/contrats-clients?client_id=' + id)).contrats.find(k => k.statut === 'signe') : null;
   const f = (n, l, t = 'text', extra = '') => `<label class="f">${l}<input type="${t}" name="${n}" value="${esc(c[n] ?? '')}" ${extra}></label>`;
   openModal(`${modalHead(ic(id ? 'edit' : 'plus') + (id ? 'Modifier le client' : 'Nouveau client'))}<form data-f="client" data-id="${id || ''}"><div class="panel-b form">
     ${f('nom', 'Raison sociale', 'text', 'required')}${f('siret', 'SIRET')}<label class="f">Secteur<select name="secteur">${opt(SECTEURS, c.secteur)}</select></label>${f('contact', 'Interlocuteur')}
     ${f('email', 'E-mail', 'email')}${f('telephone', 'Téléphone', 'tel')}${f('adresse', 'Adresse')}${f('ville', 'Ville')}
-    ${f('coefficient', 'Coefficient de facturation', 'number', 'step="0.01" min="1" max="5" required')}${f('delai_paiement', 'Délai de paiement (jours)', 'number', 'min="0" max="90" required')}${f('convention', 'Convention collective')}</div>
+    ${signe ? `<div class="f"><span>Coefficient et délai de paiement</span><b>${num(c.coefficient)} · ${c.delai_paiement} jours</b><span class="hint">Fixés par le contrat ${esc(signe.numero)} signé. Établissez un nouveau contrat pour les modifier.</span></div>`
+      : f('coefficient', 'Coefficient de facturation', 'number', `step="0.01" min="${min}" max="5" required`) + f('delai_paiement', 'Délai de paiement (jours)', 'number', 'min="0" max="60" required')}${f('convention', 'Convention collective')}</div>
     ${modalFoot(id ? 'Enregistrer' : 'Créer la fiche', 'type="submit"')}</form>`);
 }
 function pwModal() {
@@ -965,10 +1166,11 @@ const A = {
   pstat: el => act(async () => { await POST(`/pieces/${el.dataset.id}/statut`, { statut: el.dataset.s }); toast('Document validé'); reload(); }, el),
   prefus: el => openModal(`${modalHead('Refuser le document')}<form data-f="prefus" data-id="${el.dataset.id}"><div class="panel-b"><label class="f">Raison du refus (visible par l'intérimaire)<input type="text" name="commentaire" required maxlength="300" placeholder="Document illisible, expiré, recto manquant…"></label></div>${modalFoot('Refuser', 'type="submit"')}</form>`),
   pdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.append(' Confirmer'); return; } await DEL(`/pieces/${el.dataset.id}`); toast('Document retiré'); reload(); }, el),
-  signer: el => openModal(`${modalHead(ic('edit') + 'Signer le contrat', 'N° ' + esc(el.dataset.n))}<form data-f="signer" data-id="${el.dataset.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+  signer: el => openModal(`${modalHead(ic('edit') + 'Signer le contrat de mission', 'N° ' + esc(el.dataset.n))}<form data-f="signer" data-id="${el.dataset.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
     <a class="btn" href="/api/contrats/${el.dataset.id}/document" target="_blank" rel="noopener" style="align-self:flex-start">${ic('file')}Lire le contrat</a>
-    <label class="check"><input type="checkbox" name="accepte" required> J'ai lu le contrat de mission et j'en accepte les conditions.</label>
-    <label class="f">Pour signer, saisissez votre prénom et votre nom<input type="text" name="nom" required autocomplete="name" value=""></label>
+    <label class="check"><input type="checkbox" name="accepte" required> J'ai lu le contrat de mission et j'en accepte les conditions${S.me.profil === 'client' ? ', et je suis habilité(e) à signer pour l\'entreprise' : ''}.</label>
+    <label class="f">Recopiez la mention « Lu et approuvé »<input type="text" name="mention" required autocomplete="off" placeholder="Lu et approuvé"></label>
+    <label class="f">${S.me.profil === 'client' ? 'Votre nom et votre fonction' : 'Votre prénom et votre nom'}<input type="text" name="nom" required autocomplete="name" value="" placeholder="${S.me.profil === 'client' ? 'Jean Dupont, gérant' : esc(S.me.nom)}"></label>
     <p class="hint">Signature électronique simple : la date, l'heure et votre adresse de connexion sont enregistrées.</p><div class="err" hidden></div></div>${modalFoot('Signer le contrat', 'type="submit"')}</form>`),
   bgen: el => act(async () => { const r = await POST('/bulletins/generer', { debut: el.dataset.d, fin: el.dataset.f }); toast(r.crees ? `${r.crees} fiche(s) de paie créée(s)` : 'Aucune heure validée à mettre en paie sur cette période.'); reload(); }, el),
   bpay: el => act(async () => { await POST(`/bulletins/${el.dataset.id}/payer`); toast('Fiche marquée payée. L\'intérimaire est prévenu.'); reload(); }, el),
@@ -1001,6 +1203,16 @@ const A = {
   csel: el => { S.p.csel = Number(el.dataset.id); reload(); },
   interimform: el => act(() => interimForm(Number(el.dataset.id) || null), el),
   clientform: el => act(() => clientForm(Number(el.dataset.id) || null), el),
+  ccnew: el => ccModal(el),
+  krelance: el => act(async () => { const r = await POST(`/contrats/${el.dataset.id}/relancer`); toast(`Relance envoyée : ${r.envoyes.join(' et ')}.`); reload(); }, el),
+  frelance: el => act(async () => { await POST(`/factures/${el.dataset.id}/relancer`); toast('Relance envoyée au client.'); reload(); }, el),
+  prospect: el => act(() => prospectModal(Number(el.dataset.id)), el),
+  visite: () => visiteModal(),
+  pfiltre: el => go('prospects', { pf: el.dataset.f }),
+  pclient: el => act(async () => { const r = await POST(`/prospects/${el.dataset.id}/client`); closeModal(); S.p.csel = r.client_id; toast('Fiche client créée, avec le coefficient par défaut. Établissez ensuite le contrat commercial.'); go('clients'); }, el),
+  pdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.innerHTML = 'Confirmer la suppression'; el.classList.add('primary'); return; } await DEL(`/prospects/${el.dataset.id}`); closeModal(); toast('Prospect supprimé'); reload(); }, el),
+  ccsign: el => ccSignModal(Number(el.dataset.id)),
+  ccannul: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.innerHTML = 'Confirmer l\'annulation'; el.classList.add('primary'); return; } await POST(`/contrats-clients/${el.dataset.id}/annuler`); toast('Contrat annulé'); reload(); }, el),
   mkacc: el => act(async () => { const c = await POST('/acces', { type: el.dataset.type, id: Number(el.dataset.id) }); await reload(); credModal(c, 'Accès créé'); }, el),
   reset: el => act(async () => { const c = await POST(`/acces/${el.dataset.id}/reset`); await reload(); credModal(c, 'Mot de passe réinitialisé'); }, el),
   toggle: el => act(async () => { const r = await POST(`/acces/${el.dataset.id}/toggle`); toast(r.actif ? 'Compte réactivé' : 'Compte désactivé'); reload(); }, el),
@@ -1045,8 +1257,8 @@ const F = {
   prefus: (fd, f) => act(async () => { await POST(`/pieces/${f.dataset.id}/statut`, { statut: 'refuse', commentaire: fd.get('commentaire') }); closeModal(); toast('Document refusé. L\'intérimaire est prévenu.'); reload(); }),
   signer: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;
-    try { await POST(`/contrats/${f.dataset.id}/signer`, { accepte: fd.has('accepte'), nom: fd.get('nom') }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
-    closeModal(); toast('Contrat signé'); reload();
+    let r; try { r = await POST(`/contrats/${f.dataset.id}/signer`, { accepte: fd.has('accepte'), mention: fd.get('mention'), nom: fd.get('nom') }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    closeModal(); toast(r.mission_validee ? 'Contrat signé : la mission est validée.' : r.contrat_signe ? 'Contrat signé par les deux parties.' : 'Signature enregistrée. En attente de l\'autre partie.'); reload();
   }),
   bpdf: (fd, f) => act(async () => { await api('POST', `/bulletins/${f.dataset.id}/fichier`, fd); toast('Fiche de paie déposée'); reload(); }),
   login: (fd, f) => act(async () => {
@@ -1079,6 +1291,20 @@ const F = {
     const r = f.dataset.id ? await PUT(`/interimaires/${f.dataset.id}`, b) : await POST('/interimaires', b);
     S.p.isel = r.id; closeModal(); toast('Fiche enregistrée'); go('interimaires');
   }),
+  psuivi: (fd, f) => act(async () => { await PUT(`/prospects/${f.dataset.id}`, Object.fromEntries(fd)); closeModal(); toast('Suivi enregistré'); reload(); }),
+  visite: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    try { await POST('/prospects', lireQuestionnaire(fd)); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'nearest' }); return; }
+    closeModal(); toast('Visite enregistrée'); go('prospects');
+  }),
+  contact: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    try { await POST('/public/contact', lireQuestionnaire(fd)); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'center' }); return; }
+    f.closest('.contact-card').innerHTML = contactMerci();
+    window.scrollTo(0, 0);
+  }),
+  ccnew: (fd, f) => act(async () => { await POST('/contrats-clients', { ...Object.fromEntries(fd), client_id: Number(f.dataset.id) }); closeModal(); toast('Contrat enregistré. L\'entreprise est invitée à le signer dans son espace.'); reload(); }),
+  ccsign: (fd, f) => act(async () => { const k = await POST(`/contrats-clients/${f.dataset.id}/signer`, { nom: fd.get('nom'), accepte: fd.get('accepte') === '1' }); closeModal(); toast(`Contrat signé : coefficient ${num(k.coefficient)} appliqué.`); S.cfg = await GET('/config').catch(() => S.cfg); reload(); }),
   client: (fd, f) => act(async () => { const b = Object.fromEntries(fd); const r = f.dataset.id ? await PUT(`/clients/${f.dataset.id}`, b) : await POST('/clients', b); S.p.csel = r.id; closeModal(); toast('Fiche enregistrée'); go('clients'); }),
   upload: fd => act(async () => { await api('POST', '/documents', fd); toast('Document déposé'); reload(); }),
   demande: fd => act(async () => { await POST('/missions', Object.fromEntries(fd)); toast('Demande envoyée. L\'agence va la valider et la diffuser.'); reload(); }),
@@ -1100,6 +1326,25 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => { const el = e.target; if (el.dataset?.a === 'toggleextra') A.toggleextra(el); });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || (e.key === ' ' && e.target.matches('.cs-jour'))) && e.target.matches('[data-a="isel"],[data-a="csel"],.cs-jour')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape') closeModal(); });
+/** Minimum HCR d'un poste (Paramètres › Convention HCR), SMIC pour un poste hors liste. */
+function tauxPoste(poste) { const T = S.cfg?.taux_postes || {}, k = Object.keys(T).find(p => p.toLowerCase() === String(poste || '').trim().toLowerCase()); return k ? T[k] : (S.cfg?.smic || 0); }
+document.addEventListener('input', e => {
+  const f = e.target.closest?.('form[data-f="mission"]');
+  if (f && e.target.name === 'poste') {
+    const t = f.querySelector('[name="taux_horaire"]'), min = tauxPoste(e.target.value);
+    if (t) { t.value = min.toFixed(2); f.querySelector('[data-taux-aide]').textContent = `Minimum HCR du poste : ${eur(min)}. Modifiable à la hausse.`; }
+  }
+});
+document.addEventListener('input', e => { if (e.target.matches?.('[data-coef-saisie]')) margeCoef(); });
+document.addEventListener('change', e => {
+  // Motif « remplacement » : nom et poste du salarié remplacé (mentions obligatoires)
+  if (e.target.matches?.('[data-motif]')) { const z = e.target.form.querySelector('[data-remplace]'); z.hidden = !/remplacement/i.test(e.target.value); z.querySelector('input').required = !z.hidden; }
+  // Questionnaire : « Rarement / jamais » saute les questions sur les renforts actuels
+  if (e.target.name === 'frequence') e.target.form.querySelectorAll('[data-skip]').forEach(x => { x.hidden = e.target.value === 'Rarement / jamais'; });
+  // « Autre » coché : champ de précision
+  const t = e.target.form?.querySelector(`[name="${e.target.name}_autre"]`);
+  if (t && (e.target.type === 'radio' || e.target.value === 'Autre')) { t.hidden = !(e.target.value === 'Autre' && e.target.checked); if (!t.hidden) t.focus(); }
+});
 document.addEventListener('input', e => { const f = e.target.closest?.('form[data-f="mission"],form[data-f="demande"],form[data-f="diffuser"]'); if (f && e.target.name !== 'interim' && e.target.name !== 'canal') majSimulation(f); });
 document.addEventListener('input', e => { if (e.target.dataset && 'rules' in e.target.dataset) { const r = $('#rules'); if (r) r.innerHTML = rulesHtml(e.target.value); } });
 document.addEventListener('submit', e => {

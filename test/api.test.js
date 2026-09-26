@@ -110,6 +110,13 @@ test('circuit complet : accès, mission, verrou, documents, heures, facture', as
   const dl = async a => (await fetch(`${base}/documents/${docId}/fichier`, { headers: { Cookie: a.cookie } })).status;
   assert.equal(await dl(lu), 404, 'pas de documents avant confirmation');
   assert.equal((await cl.post(`/missions/${m.id}/decision`, { interim_id: i2.id, accepte: true })).data.verrouillee, true);
+  // Places pourvues : contrat à signer par l'intérimaire et l'employeur, la mission n'est validée qu'ensuite.
+  assert.equal(await etat(lu), 'signature');
+  const kLu = (await lu.get('/contrats')).data.find(x => x.mission_id === m.id);
+  assert.equal((await lu.post(`/contrats/${kLu.id}/signer`, { accepte: true, mention: 'Lu et approuvé', nom: `${kLu.prenom} ${kLu.interim_nom}` })).data.mission_validee, false);
+  assert.equal(await etat(lu), 'signature', 'employeur pas encore signé');
+  assert.equal((await cl.post(`/contrats/${kLu.id}/signer`, { accepte: true, mention: 'lu et approuve', nom: 'Marc Leroy, gérant' })).data.mission_validee, true);
+  assert.ok((await cl.get('/missions')).data.find(x => x.id === m.id).validee_le);
   assert.equal(await etat(lu), 'confirmee');
   assert.equal(await etat(y), 'non_retenu');
   assert.equal(await etat(ines), 'pourvue');

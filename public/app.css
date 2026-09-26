@@ -541,3 +541,42 @@ button.cell:hover{filter:brightness(.96)}
 .sim-vide{display:flex;align-items:center;gap:6px}
 .sim-vide svg{width:15px;height:15px}
 @media (max-width:640px){.sim-dl{grid-template-columns:minmax(0,1fr)}.sim-dl dd{text-align:left;padding-bottom:3px}.sim-dl .tot+dd,.sim-dl dd.tot{border-top:0}}
+
+/* ---------- Contrats de mission : état des signatures ---------- */
+.sig-ligne{display:inline-flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:5px}
+.sig-etat{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;padding:2px 8px;border-radius:10px;background:var(--attente-bg);color:var(--attente-fg);white-space:nowrap}
+.sig-etat svg{width:12px;height:12px}
+.sig-etat.ok{background:var(--libre-bg);color:var(--libre-fg)}
+
+/* ---------- Page publique « Besoin de renforts ? » et questionnaire ---------- */
+.auth-contact{display:flex;align-items:center;gap:12px;width:min(430px,calc(100% - 32px));padding:14px 16px;border-radius:12px;background:rgba(255,255,255,.08);border:1px solid rgba(201,153,72,.55);color:#fff;text-decoration:none;font-size:13.5px;line-height:1.4}
+.auth-contact:hover{background:rgba(255,255,255,.14)}
+.auth-contact b{color:#E7C98F;display:block}
+.auth-contact svg{width:20px;height:20px;flex:none;color:#C99948}
+.auth.contact{justify-content:flex-start}
+.contact-card{width:min(760px,calc(100% - 32px))}
+.contact-card h1{font-size:24px}
+.q-sec{border-top:1px solid var(--line);padding-top:16px;margin-top:16px}
+.q-sec:first-child{border-top:0;margin-top:0;padding-top:0}
+.q-sec h2{font-size:15px;margin:0 0 10px;color:var(--ink);display:flex;align-items:center;gap:8px}
+.q-sec h2::before{content:'';width:4px;height:16px;border-radius:2px;background:#C99948}
+fieldset.q{border:0;padding:0;margin:0;min-width:0;display:flex;flex-direction:column;gap:8px}
+fieldset.q legend{font-size:13px;font-weight:600;color:var(--ink-2);padding:0;margin-bottom:6px}
+.choix{display:flex;flex-wrap:wrap;gap:6px}
+.choix label{position:relative;cursor:pointer}
+.choix input{position:absolute;opacity:0;pointer-events:none}
+.choix span{display:inline-block;padding:7px 12px;border:1px solid var(--line-strong,var(--line));border-radius:18px;font-size:13px;background:var(--surface);transition:background .12s,border-color .12s}
+.choix input:checked+span{background:#112233;border-color:#112233;color:#fff}
+.choix input:focus-visible+span{outline:2px solid #C99948;outline-offset:2px}
+.choix label:hover span{border-color:#C99948}
+fieldset.q input[type=text]{max-width:420px}
+.req{color:var(--danger-fg)}
+.piege{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+.consent{align-items:flex-start;font-size:12.5px;line-height:1.45;margin-top:16px;padding:12px;border-radius:8px;background:var(--surface-2)}
+.consent input{margin-top:2px;flex:none}
+.contact-card form>.btn{margin-top:14px;width:100%}
+.contact-card .err{margin-top:10px}
+.merci-ic{width:56px;height:56px;border-radius:50%;background:var(--libre-bg);color:var(--libre-fg);display:grid;place-items:center}
+.merci-ic svg{width:28px;height:28px}
+.q-titre{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#7E5F24;margin:10px 0 4px}
+@media (max-width:600px){.contact-card{width:calc(100% - 24px)}.contact-card h1{font-size:20px}.choix span{font-size:12.5px;padding:6px 10px}.auth-contact{width:calc(100% - 32px)}}

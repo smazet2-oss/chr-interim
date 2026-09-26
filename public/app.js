@@ -96,10 +96,13 @@ const NAV = {
   agence: [['accueil', 'Tableau de bord', 'dash'], ['missions', 'Missions', 'briefcase'], ['planning', 'Planning', 'cal'], ['interimaires', 'Intérimaires', 'users'],
     ['clients', 'Clients', 'building'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
     ['paie', 'Paie', 'wallet'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
-  client: [['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes demandes', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
-    ['interimaires', 'Intérimaires', 'users'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file'], ['documents', 'Documents', 'folder']],
-  interim: [['accueil', 'Accueil', 'dash'], ['missions', 'Missions proposées', 'send'], ['dispo', 'Disponibilités', 'cal'], ['heures', 'Mes heures', 'clock'],
-    ['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser', 'upload'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star']],
+  // Employeur et intérimaire : par ordre d'importance, l'administratif et le social en dernier. ['-', titre] = intertitre.
+  client: [['-', 'Activité'], ['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
+    ['-', 'Suivi'], ['interimaires', 'Intérimaires', 'users'],
+    ['-', 'Administratif et social'], ['documents', 'Documents', 'folder'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']],
+  interim: [['-', 'Activité'], ['accueil', 'Accueil', 'dash'], ['missions', 'Missions proposées', 'send'], ['dispo', 'Mon planning', 'cal'], ['heures', 'Mes heures', 'clock'],
+    ['-', 'Suivi'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star'],
+    ['-', 'Administratif et social'], ['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']],
 };
 const SPACE = { agence: 'Espace agence', client: 'Espace employeur', interim: 'Espace intérimaire' };
 const BANNER = {
@@ -191,7 +194,7 @@ function etiqueterTableaux(root) {
 async function renderApp() {
   const me = S.me, prof = me.profil;
   $('#space').textContent = SPACE[prof];
-  $('#nav').innerHTML = NAV[prof].map(([k, l, i]) => `<button data-a="nav" data-v="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span><span class="count" data-count="${k}" hidden></span></button>`).join('');
+  $('#nav').innerHTML = NAV[prof].map(([k, l, i]) => k === '-' ? `<div class="nav-sep" role="presentation">${l}</div>` : `<button data-a="nav" data-v="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span><span class="count" data-count="${k}" hidden></span></button>`).join('');
   const sub = prof === 'client' ? me.client?.nom : prof === 'interim' ? me.interim?.poste : 'Agence';
   $('#me').innerHTML = `<div class="avatar">${initials(me.nom)}</div><div style="min-width:0"><b>${esc(me.nom)}</b><span>${esc(sub || '')} · ${esc(me.username)}</span></div><button class="logout" data-a="logout" title="Se déconnecter" aria-label="Se déconnecter">${ic('out')}</button>`;
   $('#banner').className = 'demo' + (prof === 'agence' ? '' : ' agency');
@@ -636,12 +639,12 @@ V.client.accueil = async () => {
   return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.client?.nom || ''), btn('Nouvelle demande', 'plus', 'data-a="nav" data-v="demandes"', 'primary')) +
     `<div class="kpis">${kpi('Intérimaires aujourd\'hui', 'users', jour.length)}${kpi('Candidats à confirmer', 'check', cand.reduce((a, m) => a + m.candidats.filter(c => c.etat === 'accepte').length, 0))}${kpi('Heures à valider', 'clock', hA.length)}${kpi('Factures à régler', 'receipt', eur(du.reduce((a, f) => a + f.montant_ttc, 0)))}</div>
     <div class="grid2">${panel('Aujourd\'hui', btn('Planning du jour', 'chev', 'data-a="nav" data-v="jour"', 'sm'), jour.length ? jour.map(j => `<div class="shift"><div class="time"><b>${j.debut}</b>${j.fin}</div><div class="person"><div class="avatar">${initials(j.prenom + ' ' + j.nom)}</div><div><b>${esc(j.prenom)} ${esc(j.nom)}</b><span>${esc(j.poste)}</span></div></div><div></div></div>`).join('') : empty('Personne n\'est prévu aujourd\'hui.'))}
-    ${panel('Candidats en attente de votre décision', btn('Mes demandes', 'chev', 'data-a="nav" data-v="demandes"', 'sm'), cand.length ? `<div class="list">${cand.map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)} · ${m.candidats.filter(c => c.etat === 'accepte').length} candidat(s)</div></div>${btn('Décider', 'chev', 'data-a="nav" data-v="demandes"', 'sm primary')}</div>`).join('')}</div>` : empty('Aucun candidat en attente.'))}</div>`;
+    ${panel('Candidats en attente de votre décision', btn('Mes missions', 'chev', 'data-a="nav" data-v="demandes"', 'sm'), cand.length ? `<div class="list">${cand.map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)} · ${m.candidats.filter(c => c.etat === 'accepte').length} candidat(s)</div></div>${btn('Décider', 'chev', 'data-a="nav" data-v="demandes"', 'sm primary')}</div>`).join('')}</div>` : empty('Aucun candidat en attente.'))}</div>`;
 };
 V.client.demandes = async () => {
   const ms = await GET('/missions'), t = S.cfg?.aujourdhui || '';
   const actives = ms.filter(m => m.statut !== 'annulee' && m.date >= t), passees = ms.filter(m => m.date < t || m.statut === 'annulee');
-  return head('Mes demandes', 'Envoyez vos besoins. L\'agence les valide et les diffuse, puis vous acceptez ou refusez les intérimaires qui ont accepté la mission.') +
+  return head('Mes missions', 'Envoyez vos besoins. L\'agence les valide et les diffuse, puis vous acceptez ou refusez les intérimaires qui ont accepté la mission.') +
     `<div class="grid-main"><div style="display:flex;flex-direction:column;gap:18px;min-width:0">${actives.map(m => missionCard(m, 'client')).join('') || panel(null, '', empty('Aucune demande en cours.'))}
     ${passees.length ? panel('Historique', '', `<div class="list">${passees.slice(-10).reverse().map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)}</div></div>${badge(...missionStatut(m))}</div>`).join('')}</div>`) : ''}</div>
     ${panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f">Date<input type="date" name="date" min="${t}" required value="${S.p.dem_date || addDays(t || new Date().toISOString().slice(0, 10), 7)}"></label>
@@ -737,7 +740,7 @@ V.interim.dispo = async () => {
     }
     return `<section class="panel"><div class="panel-h"><h2>${d0.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2></div><div class="panel-b">${h}</div></section>`;
   };
-  return head('Disponibilités', 'Cliquez sur un jour libre pour le passer en disponible, puis indisponible, puis non renseigné. Cliquez sur un jour de mission pour en voir tous les détails.',
+  return head('Mon planning', 'Vos missions et vos disponibilités. Cliquez sur un jour libre pour le passer en disponible, puis indisponible, puis non renseigné. Cliquez sur un jour de mission pour en voir tous les détails.',
     btn('Mois précédents', 'left', 'data-a="mois" data-d="-1"', 'sm') + btn('Mois suivants', 'chev', 'data-a="mois" data-d="1"', 'sm')) +
     `<div class="legend">${badge('libre', 'Disponible')}${badge('off', 'Indisponible')}${badge('attente', 'Mission proposée')}${badge('pris', 'Mission confirmée')}</div><div class="grid2">${cal(0)}${cal(1)}</div>`;
 };

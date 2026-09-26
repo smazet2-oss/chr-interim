@@ -471,3 +471,8 @@ button.cell:hover{filter:brightness(.96)}
 .guide summary{cursor:pointer;font-size:13.5px}
 .guide ol{margin:8px 0 2px;padding-left:20px;font-size:13px;line-height:1.55;color:var(--ink-2)}
 .guide li{margin-bottom:4px}
+
+/* ---- intertitres du menu ---- */
+.nav-sep{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;color:var(--side-ink);opacity:.65;padding:12px 10px 4px}
+.nav-sep:first-child{padding-top:2px}
+@media (max-width:900px){.nav-sep{grid-column:1/-1;padding:10px 4px 2px}}

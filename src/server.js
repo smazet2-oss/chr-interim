@@ -474,7 +474,7 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
     run('UPDATE missions SET statut = \'diffusee\' WHERE id = ?', m.id);
   });
   const d = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const texte = `${P.get('raison_sociale')} : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h, soit environ ${simulation.pourMission(m, 'interim').total_brut.toFixed(2).replace('.', ',')} € brut avec fin de mission et congés payés (estimation). Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`;
+  const texte = `${P.get('raison_sociale')} : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, taux horaire brut ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h, soit environ ${simulation.pourMission(m, 'interim').total_brut.toFixed(2).replace('.', ',')} € brut avec fin de mission et congés payés (estimation). Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`;
   for (const i of dest) for (const c of canaux) envoyer(c, i, `Nouvelle mission — ${m.poste} le ${d}`, texte, { titre: 'Nouvelle mission disponible', bouton: 'Voir la mission' });
   res.json({ envoyes: dest.length, canaux, simules: canaux.filter(c => !canalConfigure(c)).map(c => CANAL_LABEL[c]) });
 }));
@@ -776,7 +776,7 @@ api.post('/parametres/test', role('agence'), wrap(async (req, res) => {
 /** Aperçu de l'e-mail type dans le navigateur. */
 api.get('/parametres/apercu-email', role('agence'), (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8');
-  res.send(gabaritEmail({ titre: 'Nouvelle mission disponible', texte: `${P.get('raison_sociale')} : nouvelle mission Serveur chez Brasserie Le Comptoir, samedi 3 octobre, 18:00–23:30, 12,20 €/h. Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`, lien: siteUrl(), bouton: 'Voir la mission' }, '/img/bandeau-horizontal.png'));
+  res.send(gabaritEmail({ titre: 'Nouvelle mission disponible', texte: `${P.get('raison_sociale')} : nouvelle mission Serveur chez Brasserie Le Comptoir, samedi 3 octobre, 18:00–23:30, taux horaire brut 12,20 €/h. Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`, lien: siteUrl(), bouton: 'Voir la mission' }, '/img/bandeau-horizontal.png'));
 });
 
 /** Facture lisible et imprimable (agence, ou client destinataire). */

@@ -262,7 +262,7 @@ function credModal(c, titre) {
 }
 function notifModal(list) {
   return `${modalHead(ic('bell') + (list.length > 1 ? 'Nouvelles missions en attente de validation' : 'Nouvelle mission en attente de validation'))}
-    <div class="list">${list.map(m => `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:min(100%,240px)"><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b><div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div>${simBloc(m.simulation, 'interim', list.length === 1)}</div>${m.etat === 'complet' ? badge('off', 'Complet pour l\'instant') : badge('attente', 'À traiter')}</div>`).join('')}</div>
+    <div class="list">${list.map(m => `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:min(100%,240px)"><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b><div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h</div>${simBloc(m.simulation, 'interim', list.length === 1)}</div>${m.etat === 'complet' ? badge('off', 'Complet pour l\'instant') : badge('attente', 'À traiter')}</div>`).join('')}</div>
     <div class="panel-f" style="justify-content:flex-end">${btn('Plus tard', '', 'data-a="close"')}${btn('Voir mes missions', 'chev', 'data-a="close" data-go="missions"', 'primary')}</div>`;
 }
 
@@ -288,7 +288,7 @@ function missionCard(m, mode) {
       <div class="row">${badge(...REP[r.etat ?? 'null'])}${r.etat === 'accepte' && !locked ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="1"`, 'sm primary') : ''}</div></div>`).join('')}</div>`
       : empty(mode === 'agence' ? 'Aucun intérimaire contacté.' : 'Diffusée. En attente de réponses des intérimaires.');
   return `<section class="panel"><div class="panel-h"><div><h2>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)}${mode === 'agence' ? ` <span class="muted" style="font-weight:400">· ${esc(m.client_nom)}</span>` : ''}</h2>
-    <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div><div class="row">${badge(sc, sl)}${actions}${locked ? ro('Mission verrouillée') : ''}</div></div>
+    <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h</div></div><div class="row">${badge(sc, sl)}${actions}${locked ? ro('Mission verrouillée') : ''}</div></div>
     ${m.statut !== 'annulee' ? `<div class="panel-b sim-zone">${simBloc(m.simulation, mode)}</div>` : ''}${body}${locked && m.documents?.length ? `<div class="panel-f"><span class="row">${ic('file')}Documents envoyés : ${docLinks(m.documents)}</span></div>` : ''}</section>`;
 }
 function missionInterim(m) {
@@ -300,7 +300,7 @@ function missionInterim(m) {
     a_repondre: btn('Refuser', '', `data-a="repondre" data-id="${m.id}" data-ok="0"`, 'sm') + btn('Accepter la mission', 'check', `data-a="repondre" data-id="${m.id}" data-ok="1"`, 'sm primary'),
   };
   return `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px;flex:1"><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b>
-    <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${m.nb_postes} poste${m.nb_postes > 1 ? 's' : ''}</div>
+    <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h · ${m.nb_postes} poste${m.nb_postes > 1 ? 's' : ''}</div>
     ${m.etat === 'complet' ? '<div class="hint" style="margin-top:4px">Toutes les places sont prises. Le bouton se réactive si une place se libère.</div>' : ''}
     ${['a_repondre', 'en_attente', 'confirmee', 'complet'].includes(m.etat) ? simBloc(m.simulation, 'interim') : ''}
     ${m.etat === 'confirmee' && m.documents.length ? `<div class="small" style="margin-top:6px">${ic('file', 'style="vertical-align:-3px;color:var(--ink-3)"')} Documents : ${docLinks(m.documents)}</div>` : ''}</div>
@@ -314,14 +314,14 @@ const simLignes = L => `<dl class="sim-dl">${L.filter(Boolean).map(([k, v, cls])
 function simDetail(s, profil) {
   if (!s) return '';
   if (profil === 'interim') return simLignes([
-    [`Salaire de base (${hh(s.heures)} × ${eur(s.taux_horaire)})`, eur(s.brut)],
+    [`Salaire de base (${hh(s.heures)} × taux horaire brut ${eur(s.taux_horaire)}/h)`, eur(s.brut)],
     [`Indemnité de fin de mission`, s.ifm_due ? '+ ' + eur(s.ifm) : 'non due (emploi d\'usage ou saisonnier)'],
     ['Indemnité de congés payés', '+ ' + eur(s.iccp)],
     ['Total brut', eur(s.total_brut), 'tot'],
     ['Net estimé avant impôt', '≈ ' + eur(s.net), 'net'],
   ]);
   const client = [
-    [`${hh(s.heures)} × ${s.nb_postes} pers. × ${eur(s.taux_facture)}/h facturé`, eur(s.ht) + ' HT'],
+    [`${hh(s.heures)} × ${s.nb_postes} pers. × ${eur(s.taux_facture)}/h facturé HT (taux horaire brut × coefficient)`, eur(s.ht) + ' HT'],
     ['TVA', eur(s.tva)],
     [profil === 'agence' ? 'Facturé au client' : 'Coût total estimé', eur(s.ttc) + ' TTC', 'tot'],
   ];
@@ -486,7 +486,7 @@ async function openJour(date) {
     corps = d.missions.map(m => {
       const I = m.intervenants, par = e => I.filter(x => x.etat === e);
       const canaux = x => x.canaux.map(c => CANAUX[c]?.[1]).join(', ');
-      return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${esc(m.motif || '')}</div></div>${badge(...missionStatut({ ...m, actifs: I.filter(x => ['accepte', 'retenu'].includes(x.etat)).length, retenus: par('retenu').length }))}</div>
+      return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h · ${esc(m.motif || '')}</div></div>${badge(...missionStatut({ ...m, actifs: I.filter(x => ['accepte', 'retenu'].includes(x.etat)).length, retenus: par('retenu').length }))}</div>
         ${simBloc(m.simulation, 'agence')}<dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc([m.client_adresse, m.client_ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc([m.client_contact, m.client_telephone].filter(Boolean).join(' · ') || '—')}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}<dt>Postes pourvus</dt><dd>${par('retenu').length} / ${m.nb_postes}</dd></dl>
         ${m.statut === 'nouvelle' ? `<div class="row" style="margin-top:8px">${btn('Valider et diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary')}</div>` : ''}
         ${groupe('Validés', 'libre', par('retenu'), x => ligne(x, suiviIntervenant(x, m.date), ` · ${canaux(x)}`))}
@@ -513,7 +513,7 @@ async function openJour(date) {
     }).join('');
   } else {
     const ET = { confirmee: ['libre', 'Mission confirmée'], en_attente: ['attente', 'En attente de confirmation'], a_repondre: ['pris', 'À traiter'], complet: ['off', 'Complet'], non_retenu: ['off', 'Non retenu'], pourvue: ['off', 'Mission pourvue'], decline: ['off', 'Vous avez décliné'], annulee: ['off', 'Annulée'] };
-    corps = d.missions.map(m => `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir({ ...m, statut: m.etat === 'annulee' ? 'annulee' : '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${badge(...ET[m.etat])}</div>
+    corps = d.missions.map(m => `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir({ ...m, statut: m.etat === 'annulee' ? 'annulee' : '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h</div></div>${badge(...ET[m.etat])}</div>
       ${['a_repondre', 'en_attente', 'confirmee', 'complet'].includes(m.etat) ? simBloc(m.simulation, 'interim', true) : ''}<dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc(m.lieu || '—')}</dd><dt>Nombre de postes</dt><dd>${m.nb_postes}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}
       ${m.contact ? `<dt>Sur place</dt><dd>${esc(m.contact.nom || '—')}${m.contact.telephone ? ` · <a class="link" href="tel:${esc(m.contact.telephone.replace(/\s/g, ''))}">${esc(m.contact.telephone)}</a>` : ''}</dd>` : ''}
       ${m.collegues?.length ? `<dt>Avec vous</dt><dd>${esc(m.collegues.join(', '))}</dd>` : ''}
@@ -602,7 +602,7 @@ V.agence.interimaires = async () => {
       <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}${gestionProfil('interimaires', s)}</div></div>
       <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
       <dt>Date de naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
-      <dt>Taux horaire</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>
+      <dt>Taux horaire brut</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>
       <dt>Dossier administratif</dt><dd>${s.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd><dt>Note moyenne</dt><dd>${stars(s.note)}</dd></dl>
       ${accessBox('interim', s.id, s.acces)}</div></section>
       ${piecesPanel(s.id, dos, types)}${experiencesPanel(s.id, xp)}${panel('Contrats de mission', '', contratsPanel(ks))}</div></div>`);
@@ -658,7 +658,7 @@ function quinzaine() {
 V.agence.facturation = async () => {
   const fs = await GET('/factures');
   const [d, f] = quinzaine();
-  return head('Facturation et débiteurs', 'Les factures sont calculées à partir des heures validées par les deux parties : heures × taux horaire × coefficient du client.') +
+  return head('Facturation et débiteurs', 'Les factures sont calculées à partir des heures validées par les deux parties : heures × taux horaire brut × coefficient du client.') +
     panel('Générer les factures', '', `<form data-f="facturer" class="panel-b inline-form"><label class="f">Du<input type="date" name="debut" value="${d}" required></label><label class="f">Au<input type="date" name="fin" value="${f}" required></label><button class="btn primary" type="submit">${ic('receipt')}Générer</button></form>`) +
     panel('Factures', '', fs.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Client</th><th>Période</th><th class="r">HT</th><th class="r">TTC</th><th>Échéance</th><th>Statut</th><th></th></tr></thead><tbody>
     ${fs.map(x => `<tr><td class="mono">${x.numero}</td><td>${esc(x.client_nom)}</td><td>${fdate(x.debut, 'num')} – ${fdate(x.fin, 'num')}</td><td class="r num">${eur(x.montant_ht)}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${fdate(x.echeance, 'num')}</td>
@@ -847,7 +847,7 @@ V.interim.heures = async () => {
 V.interim.profil = async () => {
   const [[i], xp] = await Promise.all([GET('/interimaires'), GET(`/interimaires/${S.me.interim.id}/experiences`)]);
   return head('Profil et CV', 'Ajoutez vos expériences passées. Chaque mission validée avec l\'agence s\'ajoute toute seule à votre CV.') +
-    `<div class="grid2">${panel(`${esc(i.prenom)} ${esc(i.nom)}`, ro(), `<div class="panel-b"><dl class="kv"><dt>Poste</dt><dd>${esc(i.poste)}</dd><dt>Secteur</dt><dd>${esc(i.secteur)}</dd><dt>Ville</dt><dd>${esc(i.ville || '—')}</dd><dt>Téléphone</dt><dd>${esc(i.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(i.email || '—')}</dd><dt>Taux horaire</dt><dd>${eur(i.taux_horaire)}</dd><dt>Note moyenne</dt><dd>${stars(i.note)}</dd><dt>Compétences</dt><dd>${esc(i.competences || '—')}</dd><dt>Dossier</dt><dd>${i.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd></dl></div>`)}
+    `<div class="grid2">${panel(`${esc(i.prenom)} ${esc(i.nom)}`, ro(), `<div class="panel-b"><dl class="kv"><dt>Poste</dt><dd>${esc(i.poste)}</dd><dt>Secteur</dt><dd>${esc(i.secteur)}</dd><dt>Ville</dt><dd>${esc(i.ville || '—')}</dd><dt>Téléphone</dt><dd>${esc(i.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(i.email || '—')}</dd><dt>Taux horaire brut</dt><dd>${eur(i.taux_horaire)}</dd><dt>Note moyenne</dt><dd>${stars(i.note)}</dd><dt>Compétences</dt><dd>${esc(i.competences || '—')}</dd><dt>Dossier</dt><dd>${i.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd></dl></div>`)}
     ${experiencesPanel(S.me.interim.id, xp)}</div>`;
 };
 V.interim.contrats = async () => {
@@ -887,7 +887,7 @@ async function missionForm() {
     <label class="f full">Client<select name="client_id" required>${cs.map(c => `<option value="${c.id}">${esc(c.nom)}</option>`).join('')}</select></label>
     <label class="f">Poste<input type="text" name="poste" required list="postes-liste"></label>${listePostes()}<label class="f">Date<input type="date" name="date" min="${t}" value="${addDays(t, 7)}" required></label>
     <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
-    <label class="f">Nombre de postes<input type="number" name="nb_postes" min="1" max="30" value="1" required></label><label class="f">Taux horaire (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="12.50" required></label>
+    <label class="f">Nombre de postes<input type="number" name="nb_postes" min="1" max="30" value="1" required></label><label class="f">Taux horaire brut (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="12.50" required></label>
     <label class="f full">Motif de recours (figure sur le contrat)<select name="motif">${opt(S.cfg?.motifs || [])}</select></label>${simLive()}</div>
     ${modalFoot('Créer la mission', 'type="submit"')}</form>`);
   majSimulation($('form[data-f="mission"]'));
@@ -905,7 +905,7 @@ async function diffuseModal(id) {
   openModal(`${modalHead(ic('send') + 'Valider et diffuser la mission', `${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)} · ${fdate(m.date)} · ${m.debut}–${m.fin}`)}
     <form data-f="diffuser" data-id="${m.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:14px">
     <div><div class="small muted" style="margin-bottom:6px;font-weight:500">Moyen d'envoi</div><div class="statusline">${Object.entries(CANAUX).map(([k, [i, l]]) => `<label class="check" style="border:1px solid var(--line);border-radius:7px;padding:6px 10px"><input type="checkbox" name="canal" value="${k}" ${k !== 'mail' ? 'checked' : ''}>${ic(i)}${l}${c[k] ? '' : ' <span class="hint">(simulé)</span>'}</label>`).join('')}</div></div>
-    <label class="f" style="max-width:200px">Taux horaire (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="${m.taux_horaire}"></label>
+    <label class="f" style="max-width:200px">Taux horaire brut (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="${m.taux_horaire}"></label>
     ${simLive({ client_id: m.client_id, debut: m.debut, fin: m.fin, nb_postes: m.nb_postes, motif: m.motif })}
     <div><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="small muted" style="font-weight:500">Intérimaires destinataires</span>${deja.size ? `<span class="small muted">${deja.size} déjà contacté(s)</span>` : ''}</div>
     <div style="border:1px solid var(--line);border-radius:8px;max-height:280px;overflow:auto">${L.map(i => `<label class="li clickable" style="padding:9px 12px"><span class="person"><input type="checkbox" name="interim" value="${i.id}" style="width:16px;height:16px;accent-color:var(--accent)"><span class="avatar">${initials(i.prenom + ' ' + i.nom)}</span><span><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)}${i.telephone ? '' : ' · pas de téléphone'}${i.email ? '' : ' · pas d\'e-mail'}</span></span></span>${match(i) ? badge('libre', 'Profil correspondant') : ''}</label>`).join('') || empty('Tous les intérimaires ont déjà été contactés.')}</div></div>
@@ -918,7 +918,7 @@ async function interimForm(id) {
   openModal(`${modalHead(ic(id ? 'edit' : 'plus') + (id ? 'Modifier la fiche' : 'Nouvel intérimaire'))}<form data-f="interim" data-id="${id || ''}"><div class="panel-b form">
     ${f('prenom', 'Prénom', 'text', 'required')}${f('nom', 'Nom', 'text', 'required')}${f('poste', 'Poste principal', 'text', 'required list="postes-liste"')}${listePostes()}
     <label class="f">Secteur<select name="secteur">${opt(SECTEURS, i.secteur)}</select></label>${f('telephone', 'Téléphone (SMS, WhatsApp)', 'tel')}${f('email', 'E-mail', 'email')}${f('ville', 'Ville')}
-    ${f('taux_horaire', 'Taux horaire (€)', 'number', 'step="0.01" min="10" max="60"')}${f('date_naissance', 'Date de naissance', 'date')}
+    ${f('taux_horaire', 'Taux horaire brut (€)', 'number', 'step="0.01" min="10" max="60"')}${f('date_naissance', 'Date de naissance', 'date')}
     <label class="f">Nationalité<select name="nationalite">${opt(S.cfg?.nationalites || ['Française'], i.nationalite || 'Française')}</select></label><label class="f full">Compétences<input type="text" name="competences" value="${esc(i.competences || '')}"></label>
     <p class="hint full">La date de naissance et la nationalité déterminent les pièces exigées (autorisation parentale, titre de séjour). Le dossier passe « complet » quand l'agence a validé toutes les pièces exigées.</p></div>
     ${modalFoot(id ? 'Enregistrer' : 'Créer la fiche', 'type="submit"')}</form>`);

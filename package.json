@@ -1,0 +1,24 @@
+{
+  "name": "chr-interim",
+  "version": "1.0.0",
+  "description": "Plateforme de gestion d'intérim hôtellerie-restauration : agence, employeurs, intérimaires.",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "demo": "node src/seed-demo.js",
+    "demo:reset": "node -e \"require('fs').rmSync('data',{recursive:true,force:true})\" && node src/seed-demo.js",
+    "test": "node --test test/*.test.js"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "express": "^4.22.3",
+    "multer": "^2.4.0",
+    "nodemailer": "^10.0.10"
+  },
+  "private": true,
+  "engines": {
+    "node": ">=22.13"
+  }
+}

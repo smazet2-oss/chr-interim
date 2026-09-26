@@ -1,0 +1,23 @@
+# Déploiement sur Render (https://render.com) : « New > Blueprint » puis choisir ce dépôt.
+services:
+  - type: web
+    name: chr-interim
+    runtime: node
+    plan: starter            # le disque persistant nécessite une offre payante
+    buildCommand: npm ci --omit=dev
+    startCommand: node src/server.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATA_DIR
+        value: /var/data
+      - key: ADMIN_USERNAME
+        value: admin
+      - key: ADMIN_PASSWORD
+        generateValue: true  # visible dans l'onglet Environment de Render
+      - key: APP_URL
+        sync: false          # adresse publique, ex. https://chr-interim.onrender.com
+    disk:
+      name: donnees
+      mountPath: /var/data
+      sizeGB: 1

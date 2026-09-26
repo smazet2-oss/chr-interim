@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>CHR Intérim</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="/app.css">
+</head>
+<body>
+<div id="auth" hidden></div>
+<div class="shell" id="app" hidden>
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V10M20 21V10M2 10h20M6 10a6 6 0 0 1 12 0M12 4V2"/></svg></div>
+      <div><b>CHR Intérim</b><span>Intérim hôtellerie · restauration</span></div>
+    </div>
+    <div class="space" id="space"></div>
+    <nav class="nav" id="nav" aria-label="Rubriques"></nav>
+    <div class="me" id="me"></div>
+  </aside>
+  <div class="content">
+    <header class="appbar">
+      <div class="spacer"></div>
+      <button class="btn sm" data-a="motdepasse">Changer mon mot de passe</button>
+      <button class="btn sm mobile-only" data-a="logout">Se déconnecter</button>
+      <button class="iconbtn" data-a="notifs" aria-label="Notifications" id="bell"></button>
+    </header>
+    <div class="demo" id="banner"></div>
+    <main id="main"><div class="loading">Chargement…</div></main>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+<div id="modal"></div>
+<script src="/app.js"></script>
+</body>
+</html>

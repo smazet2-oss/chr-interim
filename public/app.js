@@ -1,0 +1,693 @@
+'use strict';
+/* CHR Intérim — interface (agence, employeur, intérimaire). Toutes les règles sont vérifiées par le serveur. */
+
+/* ---------------- Outils ---------------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const initials = n => String(n || '?').split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+const eur = n => (Number(n) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+const num = n => (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 2 });
+const fdate = (iso, style = 'court') => !iso ? '—' : new Date(iso.slice(0, 10) + 'T12:00').toLocaleDateString('fr-FR',
+  style === 'long' ? { weekday: 'long', day: 'numeric', month: 'long' } : style === 'num' ? { day: '2-digit', month: '2-digit', year: 'numeric' } : { weekday: 'short', day: 'numeric', month: 'short' });
+const addDays = (iso, n) => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+const lundi = iso => { const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d.toISOString().slice(0, 10); };
+
+const P = {
+  dash: '<rect x="3" y="3" width="7" height="9" rx="1"/><rect x="14" y="3" width="7" height="5" rx="1"/><rect x="14" y="12" width="7" height="9" rx="1"/><rect x="3" y="16" width="7" height="5" rx="1"/>',
+  cal: '<rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+  building: '<rect x="4" y="2" width="16" height="20" rx="2"/><path d="M9 22v-4h6v4M8 6h.01M12 6h.01M16 6h.01M8 10h.01M12 10h.01M16 10h.01M8 14h.01M12 14h.01M16 14h.01"/>',
+  star: '<path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>',
+  receipt: '<path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1Z"/><path d="M16 8h-6M16 12H8M13 16H8"/>',
+  clock: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>',
+  wallet: '<path d="M21 12V7H5a2 2 0 0 1 0-4h14v4"/><path d="M3 5v14a2 2 0 0 0 2 2h16v-5"/><path d="M18 12a2 2 0 0 0 0 4h4v-4Z"/>',
+  file: '<path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',
+  idcard: '<rect x="2" y="5" width="20" height="14" rx="2"/><circle cx="8" cy="12" r="2"/><path d="M14 10h4M14 14h4"/>',
+  folder: '<path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/>',
+  briefcase: '<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+  msg: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+  lock: '<rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>',
+  upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  chev: '<path d="m9 18 6-6-6-6"/>',
+  left: '<path d="m15 18-6-6 6-6"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
+  send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>',
+  phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
+  bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
+  out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  edit: '<path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+};
+const ic = (n, attrs = '') => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true" ${attrs}>${P[n] || ''}</svg>`;
+const badge = (cls, txt) => `<span class="badge s-${cls}">${txt}</span>`;
+const btn = (label, icon, attrs = '', cls = '') => `<button type="button" class="btn ${cls}" ${attrs}>${icon ? ic(icon) : ''}${label}</button>`;
+const stars = n => { if (!n) return '<span class="muted small">Pas encore noté</span>'; const f = Math.round(n); return `<span class="stars" title="${num(n)} / 5">${'★'.repeat(f)}<span class="e">${'★'.repeat(5 - f)}</span></span>`; };
+const kpi = (t, icon, v, d = '', cls = '') => `<div class="kpi"><div class="t">${t}${ic(icon)}</div><div class="v">${v}</div>${d ? `<div class="d ${cls}">${d}</div>` : ''}</div>`;
+const ro = (t = 'Modifiable uniquement par l\'agence') => `<span class="ro">${ic('lock')}${t}</span>`;
+const empty = t => `<div class="empty">${t}</div>`;
+const CANAUX = { whatsapp: ['msg', 'WhatsApp'], sms: ['phone', 'SMS'], mail: ['mail', 'E-mail'] };
+const SECTEURS = ['Restauration', 'Cuisine', 'Bar', 'Hôtellerie'];
+const opt = (list, v) => list.map(x => `<option ${x === v ? 'selected' : ''}>${esc(x)}</option>`).join('');
+
+let toastT;
+function toast(msg, err) {
+  const t = $('#toast'); t.innerHTML = (err ? ic('alert', 'style="color:var(--danger-dot)"') : ic('check')) + esc(msg);
+  t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), err ? 5000 : 3000);
+}
+
+/* ---------------- API ---------------- */
+async function api(method, url, body) {
+  const form = body instanceof FormData;
+  const res = await fetch('/api' + url, {
+    method, credentials: 'same-origin',
+    headers: form ? { 'X-CHR': '1' } : { 'Content-Type': 'application/json', 'X-CHR': '1' },
+    body: form ? body : body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  let data = null; try { data = await res.json(); } catch { /* réponse vide */ }
+  if (res.status === 401 && url !== '/login') { S.me = null; renderAuth(); throw new Error(data?.error || 'Connexion requise.'); }
+  if (res.status === 403 && data?.error === 'must_change') { S.me.must_change = true; renderAuth(); throw new Error('Changez d\'abord votre mot de passe.'); }
+  if (!res.ok) throw new Error(data?.error || 'Une erreur est survenue.');
+  return data;
+}
+const GET = u => api('GET', u), POST = (u, b = {}) => api('POST', u, b), PUT = (u, b) => api('PUT', u, b), DEL = u => api('DELETE', u);
+
+/* ---------------- État et navigation ---------------- */
+const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, busy: false };
+const NAV = {
+  agence: [['accueil', 'Tableau de bord', 'dash'], ['missions', 'Missions', 'briefcase'], ['planning', 'Planning', 'cal'], ['interimaires', 'Intérimaires', 'users'],
+    ['clients', 'Clients', 'building'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
+    ['paie', 'Paie', 'wallet'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list']],
+  client: [['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes demandes', 'briefcase'], ['jour', 'Planning du jour', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
+    ['interimaires', 'Intérimaires', 'users'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file'], ['documents', 'Documents', 'folder']],
+  interim: [['accueil', 'Accueil', 'dash'], ['missions', 'Missions proposées', 'send'], ['dispo', 'Disponibilités', 'cal'], ['heures', 'Mes heures', 'clock'],
+    ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star']],
+};
+const SPACE = { agence: 'Espace agence', client: 'Espace employeur', interim: 'Espace intérimaire' };
+const BANNER = {
+  agence: 'Profil agence : contrôle complet sur tous les espaces.',
+  client: 'Vous pouvez modifier le planning, les heures et les notes de fin de service, et déposer vos documents. Le reste est géré par l\'agence.',
+  interim: 'Vous pouvez modifier vos disponibilités, vos heures et vos notes de fin de service. Le reste est géré par l\'agence.',
+};
+
+function go(view, params) {
+  S.view = view; if (params) Object.assign(S.p, params);
+  try { history.replaceState(null, '', '#' + view); } catch { /* ignoré */ }
+  renderApp();
+}
+
+async function boot() {
+  try { S.me = await GET('/me'); } catch { S.me = null; }
+  if (S.me && !S.me.must_change) S.cfg = await GET('/config').catch(() => null);
+  renderAuth();
+}
+
+/* ---------------- Connexion ---------------- */
+function renderAuth() {
+  closeModal();
+  const logged = S.me && !S.me.must_change;
+  $('#app').hidden = !logged; $('#auth').hidden = logged;
+  if (logged) {
+    const v = location.hash.slice(1);
+    S.view = NAV[S.me.profil].some(n => n[0] === v) ? v : 'accueil';
+    renderApp(); return;
+  }
+  const brand = `<div class="auth-brand"><div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V10M20 21V10M2 10h20M6 10a6 6 0 0 1 12 0M12 4V2"/></svg></div><div><b>CHR Intérim</b><span class="small muted">Intérim hôtellerie · restauration</span></div></div>`;
+  if (!S.me) {
+    $('#auth').innerHTML = `<div class="auth"><div class="auth-card">${brand}
+      <div><h1>Connexion</h1><p class="muted small" style="margin-top:4px">L'espace qui s'ouvre (agence, employeur ou intérimaire) dépend du profil attribué par l'agence.</p></div>
+      <form data-f="login"><label class="f">Identifiant<input type="text" name="username" autocomplete="username" required autofocus></label>
+      <label class="f">Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
+      <div class="err" role="alert" hidden></div><button class="btn primary" type="submit">Se connecter</button>
+      <p class="small muted">Mot de passe oublié ? Demandez à votre agence de le réinitialiser.</p></form></div></div>`;
+    return;
+  }
+  $('#auth').innerHTML = `<div class="auth"><div class="auth-card">${brand}
+    <div><h1>Première connexion</h1><p class="muted small" style="margin-top:4px">Bienvenue ${esc(S.me.nom)}. Remplacez le mot de passe provisoire fourni par l'agence.</p></div>
+    <form data-f="firstpw">${S.pwTemp ? '' : '<label class="f">Mot de passe provisoire<input type="password" name="actuel" autocomplete="current-password" required></label>'}
+    <label class="f">Nouveau mot de passe<input type="password" name="nouveau" autocomplete="new-password" required data-rules></label>
+    <label class="f">Confirmer le mot de passe<input type="password" name="confirm" autocomplete="new-password" required></label>
+    <div class="rules" id="rules">${rulesHtml('')}</div><div class="err" role="alert" hidden></div>
+    <button class="btn primary" type="submit">Enregistrer et accéder à mon espace</button>
+    <button class="btn ghost" type="button" data-a="logout" style="justify-content:center">Se déconnecter</button></form></div></div>`;
+}
+const rulesHtml = v => [[v.length >= 8, '8 caractères minimum'], [/[A-Z]/.test(v), 'Une majuscule'], [/[0-9]/.test(v), 'Un chiffre']]
+  .map(([ok, t]) => `<span class="${ok ? 'ok' : ''}">${ok ? '✓' : '○'} ${t}</span>`).join('');
+
+async function afterLogin() {
+  if (S.me.must_change) { renderAuth(); return; }
+  S.cfg = await GET('/config').catch(() => null);
+  renderAuth();
+  if (S.me.profil === 'interim') {
+    const ms = await GET('/missions').catch(() => []);
+    const pend = ms.filter(m => m.etat === 'a_repondre' || m.etat === 'complet');
+    if (pend.length) openModal(notifModal(pend));
+  }
+}
+
+/* ---------------- Coquille ---------------- */
+async function renderApp() {
+  const me = S.me, prof = me.profil;
+  $('#space').textContent = SPACE[prof];
+  $('#nav').innerHTML = NAV[prof].map(([k, l, i]) => `<button data-a="nav" data-v="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span><span class="count" data-count="${k}" hidden></span></button>`).join('');
+  const sub = prof === 'client' ? me.client?.nom : prof === 'interim' ? me.interim?.poste : 'Agence';
+  $('#me').innerHTML = `<div class="avatar">${initials(me.nom)}</div><div style="min-width:0"><b>${esc(me.nom)}</b><span>${esc(sub || '')} · ${esc(me.username)}</span></div><button class="logout" data-a="logout" title="Se déconnecter" aria-label="Se déconnecter">${ic('out')}</button>`;
+  $('#banner').className = 'demo' + (prof === 'agence' ? '' : ' agency');
+  $('#banner').innerHTML = ic(prof === 'agence' ? 'check' : 'lock') + BANNER[prof];
+  $('#bell').innerHTML = ic('bell');
+  const main = $('#main');
+  main.innerHTML = '<div class="loading">Chargement…</div>';
+  const view = S.view;
+  try {
+    const html = await V[prof][view]();
+    if (S.view === view) main.innerHTML = html;
+  } catch (e) { if (S.me) main.innerHTML = `<div class="panel">${empty('Impossible de charger cette page : ' + esc(e.message))}</div>`; }
+  refreshCounts();
+}
+async function refreshCounts() {
+  const prof = S.me?.profil; if (!prof) return;
+  const set = (k, n) => { const el = document.querySelector(`[data-count="${k}"]`); if (el) { el.hidden = !n; el.textContent = n; } };
+  try {
+    if (prof === 'agence') {
+      const [ms, hs] = await Promise.all([GET('/missions'), GET('/heures')]);
+      set('missions', ms.filter(m => m.statut === 'nouvelle' || (m.statut === 'diffusee' && m.envois.some(e => e.etat === 'accepte'))).length);
+      set('heures', hs.filter(h => h.ouvert && !(h.valide_interim && h.valide_client)).length);
+    } else if (prof === 'client') {
+      const [ms, hs] = await Promise.all([GET('/missions'), GET('/heures')]);
+      set('demandes', ms.reduce((a, m) => a + (m.statut === 'diffusee' ? m.candidats.filter(c => c.etat === 'accepte').length : 0), 0));
+      set('heures', hs.filter(h => h.ouvert && (!h.valide_client || !h.note_client)).length);
+    } else {
+      const [ms, hs] = await Promise.all([GET('/missions'), GET('/heures')]);
+      set('missions', ms.filter(m => m.etat === 'a_repondre').length);
+      set('heures', hs.filter(h => h.ouvert && (!h.valide_interim || !h.note_interim)).length);
+    }
+    const n = prof === 'agence' ? [] : await GET('/notifications');
+    $('#bell').innerHTML = ic('bell') + (n.length ? '<span class="dot"></span>' : '');
+  } catch { /* compteurs non essentiels */ }
+}
+const head = (t, p, right = '') => `<div class="head"><div><div class="crumbs">${SPACE[S.me.profil]}${ic('chev')}${NAV[S.me.profil].find(n => n[0] === S.view)?.[1] || ''}</div><h1>${t}</h1>${p ? `<p>${p}</p>` : ''}</div>${right ? `<div class="actions">${right}</div>` : ''}</div>`;
+const panel = (title, right, body, foot = '') => `<section class="panel">${title !== null ? `<div class="panel-h"><h2>${title}</h2>${right || ''}</div>` : ''}${body}${foot ? `<div class="panel-f">${foot}</div>` : ''}</section>`;
+const tabs = (key, opts) => `<div class="tabs">${opts.map(([v, l]) => `<button class="tab" data-a="tab" data-k="${key}" data-v="${v}" aria-pressed="${S.p[key] === v}">${l}</button>`).join('')}</div>`;
+
+/* ---------------- Fenêtres ---------------- */
+function openModal(html) { $('#modal').innerHTML = `<div class="modal-bg" data-a="modalbg"><div class="modal panel" role="dialog" aria-modal="true">${html}</div></div>`; const f = $('#modal input, #modal select, #modal textarea'); if (f) f.focus(); }
+function closeModal() { $('#modal').innerHTML = ''; S.modal = null; }
+const modalHead = (t, sub = '') => `<div class="panel-h"><div><h2>${t}</h2>${sub ? `<div class="small muted">${sub}</div>` : ''}</div></div>`;
+const modalFoot = (primary, attrs = '') => `<div class="panel-f" style="justify-content:flex-end">${btn('Annuler', '', 'data-a="close"')}<button class="btn primary" ${attrs}>${primary}</button></div>`;
+
+function credModal(c, titre) {
+  const lib = { agence: 'Agence', client: 'Employeur', interim: 'Intérimaire' }[c.profil];
+  openModal(`${modalHead(ic('lock') + titre, `${esc(c.nom)} · profil ${lib}`)}<div class="panel-b" style="display:flex;flex-direction:column;gap:14px">
+    <div class="cred"><div class="line"><div><div class="small muted">Identifiant</div><code>${esc(c.username)}</code></div>${btn('Copier', 'file', `data-a="copy" data-t="${esc(c.username)}"`, 'sm')}</div>
+    <div class="line"><div><div class="small muted">Mot de passe provisoire</div><code>${esc(c.password)}</code></div>${btn('Copier', 'file', `data-a="copy" data-t="${esc(c.password)}"`, 'sm')}</div></div>
+    <p class="small">Notez-le maintenant : il ne sera plus affiché. Transmettez ces informations à l'utilisateur. Il devra choisir son propre mot de passe à la première connexion.</p>
+    <div class="perm">${c.profil === 'agence' ? `<span class="y">${ic('check')}Contrôle complet</span>` : `<span class="y">${ic('check')}Planning</span><span class="y">${ic('check')}Heures</span><span class="y">${ic('check')}Notes de fin de service</span>${c.profil === 'client' ? `<span class="y">${ic('check')}Dépôt de documents</span>` : ''}<span class="n">${ic('lock')}Le reste en lecture seule</span>`}</div></div>
+    <div class="panel-f" style="justify-content:flex-end">${btn('Terminé', 'check', 'data-a="close"', 'primary')}</div>`);
+}
+function notifModal(list) {
+  return `${modalHead(ic('bell') + (list.length > 1 ? 'Nouvelles missions en attente de validation' : 'Nouvelle mission en attente de validation'))}
+    <div class="list">${list.map(m => `<div class="li"><div><b>${esc(m.poste)} · ${esc(m.client_nom)}</b><div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${m.etat === 'complet' ? badge('off', 'Complet pour l\'instant') : badge('attente', 'À traiter')}</div>`).join('')}</div>
+    <div class="panel-f" style="justify-content:flex-end">${btn('Plus tard', '', 'data-a="close"')}${btn('Voir mes missions', 'chev', 'data-a="close" data-go="missions"', 'primary')}</div>`;
+}
+
+/* ---------------- Missions : affichage partagé ---------------- */
+function missionStatut(m) {
+  if (m.statut === 'nouvelle') return ['attente', 'À valider par l\'agence'];
+  if (m.statut === 'annulee') return ['off', 'Annulée'];
+  if (m.statut === 'verrouillee') return ['libre', 'Validée et verrouillée'];
+  if (m.actifs >= m.nb_postes) return ['pris', `Complète · ${m.retenus}/${m.nb_postes} confirmé${m.nb_postes > 1 ? 's' : ''} par l'employeur`];
+  return ['pris', `Diffusée · ${m.actifs}/${m.nb_postes} acceptation${m.nb_postes > 1 ? 's' : ''}`];
+}
+const REP = { null: ['off', 'Envoyée, sans réponse'], accepte: ['attente', 'A accepté · attente employeur'], retenu: ['libre', 'Retenu'], refuse_client: ['danger', 'Refusé par l\'employeur'], decline: ['off', 'A décliné'], non_retenu: ['off', 'Non retenu'] };
+const docLinks = docs => docs.map(d => d.id ? `<a class="link" href="/api/documents/${d.id}/fichier">${esc(d.nom)}</a>` : esc(d.nom)).join(' · ');
+
+function missionCard(m, mode) {
+  const [sc, sl] = missionStatut(m), locked = m.statut === 'verrouillee';
+  const rows = mode === 'agence' ? m.envois.map(e => ({ id: e.interim_id, nom: e.nom, poste: e.poste, etat: e.etat, canaux: e.canaux }))
+    : m.candidats.map(c => ({ id: c.interim_id, nom: `${c.prenom} ${c.nom}`, poste: c.poste, etat: c.etat, note: c.note, comp: c.competences }));
+  const actions = mode === 'agence' && !locked && m.statut !== 'annulee'
+    ? btn(m.statut === 'nouvelle' ? 'Valider et diffuser' : 'Envoyer à d\'autres', 'send', `data-a="diffuser" data-id="${m.id}"`, m.statut === 'nouvelle' ? 'sm primary' : 'sm') + btn('Annuler', '', `data-a="annuler" data-id="${m.id}"`, 'sm ghost') : '';
+  const body = m.statut === 'nouvelle' ? empty(mode === 'agence' ? 'Choisissez les intérimaires et le moyen d\'envoi pour diffuser cette mission.' : 'Votre demande est en cours de validation par l\'agence.')
+    : rows.length ? `<div class="list">${rows.map(r => `<div class="li" style="flex-wrap:wrap"><div class="person"><div class="avatar">${initials(r.nom)}</div><div><b>${esc(r.nom)}</b><span>${esc(r.poste)}${r.canaux ? ' · envoyé par ' + r.canaux.map(c => CANAUX[c]?.[1]).join(', ') : ''}${r.note !== undefined ? ' · ' + stars(r.note) : ''}</span></div></div>
+      <div class="row">${badge(...REP[r.etat ?? 'null'])}${r.etat === 'accepte' && !locked ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="1"`, 'sm primary') : ''}</div></div>`).join('')}</div>`
+      : empty(mode === 'agence' ? 'Aucun intérimaire contacté.' : 'Diffusée. En attente de réponses des intérimaires.');
+  return `<section class="panel"><div class="panel-h"><div><h2>${m.nb_postes} × ${esc(m.poste)}${mode === 'agence' ? ` <span class="muted" style="font-weight:400">· ${esc(m.client_nom)}</span>` : ''}</h2>
+    <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div><div class="row">${badge(sc, sl)}${actions}${locked ? ro('Mission verrouillée') : ''}</div></div>
+    ${body}${locked && m.documents?.length ? `<div class="panel-f"><span class="row">${ic('file')}Documents envoyés : ${docLinks(m.documents)}</span></div>` : ''}</section>`;
+}
+function missionInterim(m) {
+  const E = {
+    confirmee: badge('libre', 'Mission confirmée'), non_retenu: badge('off', 'Non retenu · mission pourvue'), pourvue: badge('off', 'Mission pourvue'),
+    decline: badge('off', 'Vous avez décliné'), annulee: badge('off', 'Mission annulée'),
+    en_attente: `<button class="btn sm" disabled>${ic('clock')}En attente de confirmation</button>`,
+    complet: `<button class="btn sm" disabled>${ic('lock')}Complet</button>`,
+    a_repondre: btn('Refuser', '', `data-a="repondre" data-id="${m.id}" data-ok="0"`, 'sm') + btn('Accepter la mission', 'check', `data-a="repondre" data-id="${m.id}" data-ok="1"`, 'sm primary'),
+  };
+  return `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px;flex:1"><b>${esc(m.poste)} · ${esc(m.client_nom)}</b>
+    <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${m.nb_postes} poste${m.nb_postes > 1 ? 's' : ''}</div>
+    ${m.etat === 'complet' ? '<div class="hint" style="margin-top:4px">Toutes les places sont prises. Le bouton se réactive si une place se libère.</div>' : ''}
+    ${m.etat === 'confirmee' && m.documents.length ? `<div class="small" style="margin-top:6px">${ic('file', 'style="vertical-align:-3px;color:var(--ink-3)"')} Documents : ${docLinks(m.documents)}</div>` : ''}</div>
+    <div class="row">${E[m.etat] || ''}</div></div>`;
+}
+
+/* ---------------- Vues ---------------- */
+const V = { agence: {}, client: {}, interim: {} };
+
+/* ===== Agence ===== */
+V.agence.accueil = async () => {
+  const [ms, hs, fs] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures')]);
+  const nouvelles = ms.filter(m => m.statut === 'nouvelle'), decisions = ms.filter(m => m.statut === 'diffusee' && m.envois.some(e => e.etat === 'accepte'));
+  const hAttente = hs.filter(h => h.ouvert && !(h.valide_interim && h.valide_client));
+  const du = fs.filter(f => !f.payee_le), retard = du.filter(f => f.en_retard);
+  const enCours = ms.filter(m => ['nouvelle', 'diffusee'].includes(m.statut));
+  const tasks = [
+    ...nouvelles.map(m => ['w', 'send', `Mission à diffuser : ${m.nb_postes} × ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
+    ...decisions.map(m => ['n', 'users', `Candidats en attente de l'employeur : ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
+    ...retard.map(f => ['e', 'alert', `Facture ${f.numero} en retard`, `${f.client_nom} · ${eur(f.montant_ttc)} TTC`, 'facturation']),
+    ...(hAttente.length ? [['w', 'clock', `${hAttente.length} relevé${hAttente.length > 1 ? 's' : ''} d'heures à finaliser`, 'Confirmation intérimaire ou validation employeur manquante', 'heures']] : []),
+  ];
+  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), 'Activité de l\'agence.', btn('Nouvelle mission', 'plus', 'data-a="newmission"', 'primary')) +
+    `<div class="kpis">${kpi('Missions à diffuser', 'send', nouvelles.length, 'Demandes à valider')}${kpi('Missions en cours', 'briefcase', ms.filter(m => m.statut === 'diffusee').length, 'Diffusées, non verrouillées')}
+    ${kpi('Heures à finaliser', 'clock', hAttente.length, 'Missions terminées')}${kpi('Encours clients TTC', 'receipt', eur(du.reduce((a, f) => a + f.montant_ttc, 0)), retard.length ? `${retard.length} en retard` : 'Aucun retard', retard.length ? 'down' : '')}</div>
+    <div class="grid-main">${panel('Missions en cours', btn('Toutes les missions', 'chev', 'data-a="nav" data-v="missions"', 'sm'), enCours.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Client</th><th>Poste</th><th>Statut</th><th></th></tr></thead><tbody>
+      ${enCours.map(m => `<tr><td>${fdate(m.date)}</td><td>${esc(m.client_nom)}</td><td>${m.nb_postes} × ${esc(m.poste)}</td><td>${badge(...missionStatut(m))}</td><td class="r">${m.statut === 'nouvelle' ? btn('Diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary') : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune mission en cours.'))}
+    ${panel('À traiter', tasks.length ? badge('danger', tasks.length) : '', tasks.length ? tasks.map(([c, i, t, d, v]) => `<div class="task"><div class="ic ${c}">${ic(i)}</div><div><b>${esc(t)}</b><div class="small muted">${esc(d)}</div></div><button class="btn sm ghost" data-a="nav" data-v="${v}" aria-label="Ouvrir">${ic('chev')}</button></div>`).join('') : empty('Rien à traiter.'))}</div>`;
+};
+
+V.agence.missions = async () => {
+  const ms = await GET('/missions');
+  S.p.mf = S.p.mf || 'actives';
+  const f = { actives: m => ['nouvelle', 'diffusee'].includes(m.statut), verrouillees: m => m.statut === 'verrouillee', toutes: () => true }[S.p.mf];
+  const L = ms.filter(f).sort((a, b) => (a.statut === 'nouvelle' ? 0 : 1) - (b.statut === 'nouvelle' ? 0 : 1) || a.date.localeCompare(b.date));
+  return head('Missions', 'Validez chaque nouvelle mission, choisissez les intérimaires et le moyen d\'envoi. L\'employeur confirme ensuite ceux qui ont accepté ; l\'agence peut aussi décider à sa place.', btn('Nouvelle mission', 'plus', 'data-a="newmission"', 'primary')) +
+    `<div class="panel" style="padding:10px 14px">${tabs('mf', [['actives', 'En cours'], ['verrouillees', 'Validées'], ['toutes', 'Toutes']])}</div>` +
+    (L.map(m => missionCard(m, 'agence')).join('') || panel(null, '', empty('Aucune mission.')));
+};
+
+V.agence.planning = async () => {
+  S.p.sem = S.p.sem || lundi(S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10));
+  const d = await GET('/planning?debut=' + S.p.sem);
+  const lib = { pris: 'En mission', attente: 'Proposée', off: 'Indisponible', libre: 'Disponible', inconnu: 'Non renseigné' };
+  return head('Planning des intérimaires', `Semaine du ${fdate(d.jours[0], 'num')} au ${fdate(d.jours[6], 'num')}.`,
+    btn('Semaine précédente', 'left', `data-a="sem" data-d="-7"`, 'sm') + btn('Cette semaine', '', 'data-a="sem" data-d="0"', 'sm') + btn('Semaine suivante', 'chev', 'data-a="sem" data-d="7"', 'sm')) +
+    panel('', `<div class="legend">${badge('libre', 'Disponible')}${badge('pris', 'En mission')}${badge('attente', 'Proposée')}${badge('off', 'Indisponible')}</div>`,
+      d.lignes.length ? `<div class="scroll"><table class="plan"><thead><tr><th>Intérimaire</th>${d.jours.map(j => `<th class="${j === S.cfg?.aujourdhui ? 'today' : ''}">${fdate(j)}</th>`).join('')}</tr></thead><tbody>
+      ${d.lignes.map(l => `<tr><td><div class="person"><div class="avatar">${initials(l.prenom + ' ' + l.nom)}</div><div><b>${esc(l.prenom)} ${esc(l.nom)}</b><span>${esc(l.poste)}</span></div></div></td>
+      ${l.cases.map(c => `<td><div class="cell ${c.statut}"><b>${lib[c.statut]}</b>${c.client ? `<span>${esc(c.client)}</span>` : ''}</div></td>`).join('')}</tr>`).join('')}</tbody></table></div>` : empty('Aucun intérimaire.'));
+};
+
+V.agence.interimaires = async () => {
+  const L = await GET('/interimaires');
+  const s = L.find(i => i.id === S.p.isel) || L[0];
+  return head('Intérimaires', 'Fiches candidats, dossier et accès à l\'espace intérimaire.', btn('Nouvel intérimaire', 'plus', 'data-a="interimform"', 'primary')) +
+    (!L.length ? panel(null, '', empty('Aucun intérimaire. Créez la première fiche.')) :
+      `<div class="grid-main" style="grid-template-columns:minmax(260px,1fr) minmax(0,1.5fr)">
+      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${esc(i.ville || '')}</span></div></div><div style="text-align:right">${stars(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
+      <section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div>${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}</div>
+      <div class="panel-b" style="display:flex;flex-direction:column;gap:16px"><dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
+      <dt>Taux horaire</dt><dd>${eur(s.taux_horaire)}</dd><dt>Expérience</dt><dd>${esc(s.experience || '—')}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>
+      <dt>Dossier administratif</dt><dd>${s.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd><dt>Note moyenne</dt><dd>${stars(s.note)}</dd></dl>
+      ${accessBox('interim', s.id, s.acces)}</div></section></div>`);
+};
+V.agence.clients = async () => {
+  const L = await GET('/clients');
+  const s = L.find(c => c.id === S.p.csel) || L[0];
+  const docs = s ? await GET('/documents?client_id=' + s.id) : [];
+  return head('Clients', 'Fiches entreprises, conditions, documents et accès à l\'espace employeur.', btn('Nouveau client', 'plus', 'data-a="clientform"', 'primary')) +
+    (!L.length ? panel(null, '', empty('Aucun client. Créez la première fiche.')) :
+      panel(`${L.length} client${L.length > 1 ? 's' : ''}`, '', `<div class="scroll"><table><thead><tr><th>Client</th><th>Secteur</th><th class="r">Missions</th><th class="r">Pourvues</th><th>Note des intérimaires</th><th>Accès</th></tr></thead><tbody>
+      ${L.map(c => `<tr class="clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0"><td><b>${esc(c.nom)}</b><div class="small muted">${esc(c.ville || '')}</div></td><td>${esc(c.secteur)}</td><td class="r num">${c.nb_missions}</td><td class="r num">${c.nb_pourvues}</td><td>${stars(c.note)}</td><td>${c.acces ? `<span class="mono">${esc(c.acces)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>`) +
+      `<div class="grid2"><section class="panel"><div class="panel-h"><h2>${esc(s.nom)}</h2>${btn('Modifier', 'edit', `data-a="clientform" data-id="${s.id}"`, 'sm')}</div><div class="panel-b" style="display:flex;flex-direction:column;gap:16px">
+      <dl class="kv"><dt>SIRET</dt><dd>${esc(s.siret || '—')}</dd><dt>Adresse</dt><dd>${esc([s.adresse, s.ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc(s.contact || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd>
+      <dt>Coefficient</dt><dd>${num(s.coefficient)}</dd><dt>Paiement</dt><dd>${s.delai_paiement} jours</dd><dt>Convention</dt><dd>${esc(s.convention)}</dd></dl>${accessBox('client', s.id, s.acces)}</div></section>
+      ${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div>`);
+};
+function accessBox(type, id, acces) {
+  return `<div class="access"><div><div class="small muted">Accès à l'espace ${type === 'client' ? 'employeur' : 'intérimaire'}</div>${acces ? `<span class="mono">${esc(acces)}</span>` : '<b>Aucun accès créé</b>'}</div>
+    ${acces ? btn('Gérer dans Accès utilisateurs', 'chev', 'data-a="nav" data-v="acces"', 'sm') : btn('Créer l\'identifiant et le mot de passe', 'lock', `data-a="mkacc" data-type="${type}" data-id="${id}"`, 'sm primary')}</div>`;
+}
+function docsTable(docs, canDelete) {
+  return docs.length ? `<div class="scroll"><table><thead><tr><th>Document</th><th>Catégorie</th><th>Déposé le</th><th></th></tr></thead><tbody>${docs.map(d => `<tr><td><a class="link" href="/api/documents/${d.id}/fichier">${esc(d.nom)}</a></td><td>${esc(d.categorie)}</td><td>${fdate(d.created_at, 'num')}</td><td class="r">${canDelete ? btn('Supprimer', 'trash', `data-a="deldoc" data-id="${d.id}"`, 'sm ghost') : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucun document.');
+}
+function uploadForm(clientId) {
+  return `<form data-f="upload" class="panel-b inline-form" style="border-top:1px solid var(--line)">${clientId ? `<input type="hidden" name="client_id" value="${clientId}">` : ''}
+    <label class="f">Catégorie<select name="categorie">${opt(['Prise de poste', 'Règlement intérieur', 'Charte qualité'])}</select></label>
+    <label class="f">Fichier (PDF, image ou Word, 10 Mo max.)<input type="file" name="fichier" required accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx"></label>
+    <button class="btn primary" type="submit">${ic('upload')}Déposer</button></form>`;
+}
+
+V.agence.heures = async () => {
+  const hs = await GET('/heures');
+  return head('Heures', 'Relevés créés automatiquement à la validation des missions. L\'agence peut confirmer, valider ou corriger à la place de chacun.') +
+    panel(null, '', hs.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Intérimaire</th><th>Client</th><th class="r">Prévues</th><th class="r">Extra</th><th>Intérimaire</th><th>Employeur</th><th></th></tr></thead><tbody>
+    ${hs.map(h => `<tr><td>${fdate(h.date)}</td><td><b>${esc(h.prenom)} ${esc(h.interim_nom)}</b><div class="small muted">${esc(h.poste)} · ${h.debut}–${h.fin}</div></td><td>${esc(h.client_nom)}</td><td class="r num">${num(h.heures_prevues)} h</td>
+    <td class="r">${h.extra ? `+${num(h.extra)} h ${badge(...{ attente: ['attente', 'à accepter'], accepte: ['libre', 'accepté'], refuse: ['off', 'refusé'] }[h.extra_statut] || ['off', ''])}<div class="small muted">${esc(h.justification || '')}</div>` : '—'}</td>
+    <td>${h.valide_interim ? badge('libre', 'Confirmé') : h.ouvert ? badge('attente', 'À confirmer') : badge('off', 'Mission à venir')}</td><td>${h.valide_client ? badge('libre', 'Validé') : h.ouvert ? badge('attente', 'À valider') : badge('off', '—')}</td>
+    <td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${h.ouvert && !h.valide_interim ? btn('Confirmer', 'check', `data-a="hconf" data-id="${h.id}"`, 'sm') : ''}${h.ouvert && !h.valide_client ? (h.extra_statut === 'attente' ? btn('Refuser l\'extra', '', `data-a="hval" data-id="${h.id}" data-x="0"`, 'sm') + btn('Accepter', 'check', `data-a="hval" data-id="${h.id}" data-x="1"`, 'sm primary') : btn('Valider', 'check', `data-a="hval" data-id="${h.id}"`, 'sm primary')) : ''}${btn('', 'edit', `data-a="hedit" data-id="${h.id}" data-v="${h.heures_prevues}" aria-label="Corriger les heures"`, 'sm ghost')}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucun relevé pour le moment. Ils apparaissent quand une mission est validée.'));
+};
+V.agence.evaluations = async () => {
+  const L = await GET('/evaluations');
+  return head('Évaluations', 'Notes de fin de service données par les employeurs et par les intérimaires.') +
+    panel(null, '', L.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Sens</th><th>Intérimaire</th><th>Client</th><th>Note</th><th>Commentaire</th><th>Axe d'amélioration</th></tr></thead><tbody>
+    ${L.map(e => `<tr><td>${fdate(e.date)}</td><td>${e.sens === 'client_vers_interim' ? 'Employeur → intérimaire' : 'Intérimaire → employeur'}</td><td>${esc(e.prenom)} ${esc(e.interim_nom)}</td><td>${esc(e.client_nom)}</td><td>${stars(e.note)}</td><td>${esc(e.commentaire || '—')}</td><td>${e.axe ? badge('attente', esc(e.axe)) : '—'}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune évaluation.'));
+};
+function quinzaine() {
+  const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10), m = t.slice(0, 8);
+  if (Number(t.slice(8, 10)) <= 15) return [m + '01', m + '15'];
+  const fin = new Date(Number(t.slice(0, 4)), Number(t.slice(5, 7)), 0).getDate();
+  return [m + '16', m + String(fin).padStart(2, '0')];
+}
+V.agence.facturation = async () => {
+  const fs = await GET('/factures');
+  const [d, f] = quinzaine();
+  return head('Facturation et débiteurs', 'Les factures sont calculées à partir des heures validées par les deux parties : heures × taux horaire × coefficient du client.') +
+    panel('Générer les factures', '', `<form data-f="facturer" class="panel-b inline-form"><label class="f">Du<input type="date" name="debut" value="${d}" required></label><label class="f">Au<input type="date" name="fin" value="${f}" required></label><button class="btn primary" type="submit">${ic('receipt')}Générer</button></form>`) +
+    panel('Factures', '', fs.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Client</th><th>Période</th><th class="r">HT</th><th class="r">TTC</th><th>Échéance</th><th>Statut</th><th></th></tr></thead><tbody>
+    ${fs.map(x => `<tr><td class="mono">${x.numero}</td><td>${esc(x.client_nom)}</td><td>${fdate(x.debut, 'num')} – ${fdate(x.fin, 'num')}</td><td class="r num">${eur(x.montant_ht)}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${fdate(x.echeance, 'num')}</td>
+    <td>${x.payee_le ? badge('libre', 'Payée le ' + fdate(x.payee_le, 'num')) : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À échéance')}</td><td class="r">${x.payee_le ? '' : btn('Marquer payée', 'check', `data-a="payee" data-id="${x.id}"`, 'sm')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
+};
+V.agence.paie = async () => {
+  const [d0, f0] = quinzaine(); S.p.pd = S.p.pd || d0; S.p.pf = S.p.pf || f0;
+  const L = await GET(`/paie?debut=${S.p.pd}&fin=${S.p.pf}`);
+  const tot = L.reduce((a, r) => a + r.total, 0);
+  return head('Paie des intérimaires', 'Calcul à partir des heures validées par les deux parties. IFM et ICCP de 10 % chacune ; calcul indicatif à contrôler par votre gestionnaire de paie.') +
+    panel('Période', '', `<form data-f="paie" class="panel-b inline-form"><label class="f">Du<input type="date" name="debut" value="${S.p.pd}" required></label><label class="f">Au<input type="date" name="fin" value="${S.p.pf}" required></label><button class="btn primary" type="submit">Calculer</button></form>`) +
+    panel(`Total brut : ${eur(tot)}`, '', L.length ? `<div class="scroll"><table><thead><tr><th>Intérimaire</th><th class="r">Heures</th><th class="r">Brut</th><th class="r">IFM</th><th class="r">ICCP</th><th class="r">Total brut</th></tr></thead><tbody>
+    ${L.map(r => `<tr><td><b>${esc(r.prenom)} ${esc(r.nom)}</b></td><td class="r num">${num(r.heures)}</td><td class="r num">${eur(r.brut)}</td><td class="r num">${eur(r.ifm)}</td><td class="r num">${eur(r.iccp)}</td><td class="r num"><b>${eur(r.total)}</b></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune heure validée sur cette période.'));
+};
+V.agence.acces = async () => {
+  const L = await GET('/acces');
+  const P2 = { agence: ['pris', 'Agence'], client: ['libre', 'Employeur'], interim: ['attente', 'Intérimaire'] };
+  return head('Accès utilisateurs', 'Le profil de chaque compte, attribué par l\'agence, détermine l\'espace ouvert à la connexion. Les accès employeur et intérimaire se créent depuis leur fiche.') +
+    panel('Ajouter un collaborateur de l\'agence', '', `<form data-f="accagence" class="panel-b inline-form"><label class="f">Nom complet<input type="text" name="nom" required placeholder="Prénom Nom"></label><button class="btn primary" type="submit">${ic('lock')}Créer l'accès agence</button></form>`) +
+    panel('Comptes', '', `<div class="scroll"><table><thead><tr><th>Identifiant</th><th>Titulaire</th><th>Profil</th><th>Statut</th><th>Dernière connexion</th><th></th></tr></thead><tbody>
+    ${L.map(u => `<tr><td class="mono">${esc(u.username)}</td><td><b>${esc(u.nom)}</b><div class="small muted">${esc(u.client_nom || u.interim_poste || '')}</div></td><td>${badge(...P2[u.profil])}</td>
+    <td>${!u.actif ? badge('off', 'Désactivé') : u.must_change ? badge('attente', 'Première connexion en attente') : badge('libre', 'Actif')}</td><td>${u.last_login ? fdate(u.last_login, 'num') : '—'}</td>
+    <td class="r">${u.id === S.me.id ? '<span class="small muted">Vous</span>' : `<div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${btn('Réinitialiser', 'lock', `data-a="reset" data-id="${u.id}"`, 'sm')}${btn(u.actif ? 'Désactiver' : 'Réactiver', '', `data-a="toggle" data-id="${u.id}"`, 'sm')}</div>`}</td></tr>`).join('')}</tbody></table></div>`);
+};
+V.agence.journal = async () => {
+  const L = await GET('/journal'), c = S.cfg?.canaux || {};
+  const conf = Object.entries(CANAUX).map(([k, [i, l]]) => `<span class="row">${ic(i)}${l} : ${c[k] ? badge('libre', 'configuré') : badge('attente', 'non configuré (simulé)')}</span>`).join('');
+  const st = { envoye: ['libre', 'Envoyé'], simule: ['attente', 'Simulé'], echec: ['danger', 'Échec'] };
+  return head('Journal des envois', 'Tous les messages WhatsApp, SMS et e-mail envoyés par la plateforme. Un canal non configuré est simulé : le message est enregistré ici sans être envoyé.') +
+    panel('Canaux', '', `<div class="panel-b statusline" style="gap:18px">${conf}</div>`) +
+    panel('200 derniers messages', '', L.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Canal</th><th>Destinataire</th><th>Message</th><th>Statut</th></tr></thead><tbody>
+    ${L.map(x => `<tr><td class="num">${esc(x.created_at)}</td><td>${CANAUX[x.canal]?.[1] || x.canal}</td><td class="mono">${esc(x.destinataire)}</td><td style="min-width:260px">${esc(x.contenu)}</td><td>${badge(...st[x.statut])}${x.detail ? `<div class="small muted">${esc(x.detail)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucun message envoyé.'));
+};
+
+/* ===== Employeur ===== */
+V.client.accueil = async () => {
+  const [ms, hs, fs, jour] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures'), GET('/planning/jour')]);
+  const cand = ms.filter(m => m.statut === 'diffusee' && m.candidats.some(c => c.etat === 'accepte'));
+  const hA = hs.filter(h => h.ouvert && !h.valide_client), du = fs.filter(f => !f.payee_le);
+  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.client?.nom || ''), btn('Nouvelle demande', 'plus', 'data-a="nav" data-v="demandes"', 'primary')) +
+    `<div class="kpis">${kpi('Intérimaires aujourd\'hui', 'users', jour.length)}${kpi('Candidats à confirmer', 'check', cand.reduce((a, m) => a + m.candidats.filter(c => c.etat === 'accepte').length, 0))}${kpi('Heures à valider', 'clock', hA.length)}${kpi('Factures à régler', 'receipt', eur(du.reduce((a, f) => a + f.montant_ttc, 0)))}</div>
+    <div class="grid2">${panel('Aujourd\'hui', btn('Planning du jour', 'chev', 'data-a="nav" data-v="jour"', 'sm'), jour.length ? jour.map(j => `<div class="shift"><div class="time"><b>${j.debut}</b>${j.fin}</div><div class="person"><div class="avatar">${initials(j.prenom + ' ' + j.nom)}</div><div><b>${esc(j.prenom)} ${esc(j.nom)}</b><span>${esc(j.poste)}</span></div></div><div></div></div>`).join('') : empty('Personne n\'est prévu aujourd\'hui.'))}
+    ${panel('Candidats en attente de votre décision', btn('Mes demandes', 'chev', 'data-a="nav" data-v="demandes"', 'sm'), cand.length ? `<div class="list">${cand.map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)} · ${m.candidats.filter(c => c.etat === 'accepte').length} candidat(s)</div></div>${btn('Décider', 'chev', 'data-a="nav" data-v="demandes"', 'sm primary')}</div>`).join('')}</div>` : empty('Aucun candidat en attente.'))}</div>`;
+};
+V.client.demandes = async () => {
+  const ms = await GET('/missions'), t = S.cfg?.aujourdhui || '';
+  const actives = ms.filter(m => m.statut !== 'annulee' && m.date >= t), passees = ms.filter(m => m.date < t || m.statut === 'annulee');
+  return head('Mes demandes', 'Envoyez vos besoins. L\'agence les valide et les diffuse, puis vous acceptez ou refusez les intérimaires qui ont accepté la mission.') +
+    `<div class="grid-main"><div style="display:flex;flex-direction:column;gap:18px;min-width:0">${actives.map(m => missionCard(m, 'client')).join('') || panel(null, '', empty('Aucune demande en cours.'))}
+    ${passees.length ? panel('Historique', '', `<div class="list">${passees.slice(-10).reverse().map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)}</div></div>${badge(...missionStatut(m))}</div>`).join('')}</div>`) : ''}</div>
+    ${panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f">Date<input type="date" name="date" min="${t}" required value="${addDays(t || new Date().toISOString().slice(0, 10), 7)}"></label>
+      <label class="f">Poste<input type="text" name="poste" required list="postes" placeholder="Serveur"></label><datalist id="postes">${['Serveur', 'Chef de rang', 'Commis de cuisine', 'Cuisinier', 'Plongeur', 'Barman', 'Réceptionniste', 'Femme de chambre'].map(p => `<option value="${p}">`).join('')}</datalist>
+      <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
+      <label class="f">Nombre de personnes<input type="number" name="nb_postes" value="1" min="1" max="30" required></label><label class="f full">Précisions pour l'agence<textarea name="commentaire" placeholder="Tenue, lieu de rendez-vous…"></textarea></label>
+      <div class="full"><button class="btn primary" type="submit">${ic('send')}Envoyer la demande</button></div></form>`)}</div>`;
+};
+V.client.jour = async () => {
+  S.p.jd = S.p.jd || S.cfg?.aujourdhui;
+  const L = await GET('/planning/jour?date=' + S.p.jd);
+  return head('Planning du jour', 'Seuls les intérimaires affectés à votre établissement apparaissent ici.') +
+    panel(fdate(S.p.jd, 'long'), `<form data-f="jour" class="inline-form"><input type="date" name="date" value="${S.p.jd}" aria-label="Date"><button class="btn sm" type="submit">Afficher</button></form>`,
+      L.length ? L.map(j => `<div class="shift"><div class="time"><b>${j.debut}</b>${j.fin}</div><div class="person"><div class="avatar">${initials(j.prenom + ' ' + j.nom)}</div><div><b>${esc(j.prenom)} ${esc(j.nom)}</b><span>${esc(j.poste)}</span></div></div><div>${badge('pris', 'Confirmé')}</div></div>`).join('') : empty('Aucun intérimaire prévu ce jour-là.'));
+};
+function rateForm(id, withAxe) {
+  return `<form data-f="evaluer" data-id="${id}" class="inline-form" style="margin-top:10px;width:100%"><div><div class="small muted">Note de fin de service</div><div class="rate" data-rate>${[1, 2, 3, 4, 5].map(n => `<button type="button" data-a="star" data-n="${n}" aria-label="${n} étoile${n > 1 ? 's' : ''}">★</button>`).join('')}</div><input type="hidden" name="note"></div>
+    <label class="f" style="flex:2 1 200px">Commentaire<input type="text" name="commentaire" maxlength="1000"></label>${withAxe ? '<label class="f">Axe d\'amélioration<input type="text" name="axe" maxlength="200"></label>' : ''}<button class="btn primary" type="submit">Enregistrer la note</button></form>`;
+}
+V.client.heures = async () => {
+  const hs = await GET('/heures');
+  return head('Heures et évaluations', 'Validez les heures de chaque intérimaire après la mission, acceptez ou refusez les heures supplémentaires déclarées, puis notez le service.') +
+    panel(null, '', hs.length ? hs.map(h => `<div class="shift"><div class="time"><b>${h.debut}</b>${h.fin}</div><div><div class="person"><div class="avatar">${initials(h.prenom + ' ' + h.interim_nom)}</div><div><b>${esc(h.prenom)} ${esc(h.interim_nom)}</b><span>${fdate(h.date)} · ${esc(h.poste)} · ${num(h.heures_prevues)} h prévues${h.extra ? ` · +${num(h.extra)} h déclarées` : ''}</span></div></div>
+    ${h.extra_statut === 'attente' ? `<div class="extra" style="grid-template-columns:1fr"><div class="small"><b>Justification :</b> ${esc(h.justification)}</div></div>` : ''}
+    ${h.valide_client && !h.note_client ? rateForm(h.id, true) : h.note_client ? `<div class="row small" style="margin-top:6px">Votre note : ${stars(h.note_client)}</div>` : ''}</div>
+    <div class="row">${!h.ouvert ? badge('off', 'Mission à venir') : h.valide_client ? badge('libre', 'Heures validées') : h.extra_statut === 'attente' ? btn('Refuser l\'extra', '', `data-a="hval" data-id="${h.id}" data-x="0"`, 'sm') + btn('Accepter et valider', 'check', `data-a="hval" data-id="${h.id}" data-x="1"`, 'sm primary') : btn('Valider les heures', 'check', `data-a="hval" data-id="${h.id}"`, 'sm primary')}</div></div>`).join('') : empty('Aucune mission terminée pour le moment.'));
+};
+V.client.interimaires = async () => {
+  const L = await GET('/interimaires');
+  const K = { deja: ['libre', 'Déjà venu chez vous', 'k-deja'], voir: ['attente', 'Candidat à voir', 'k-voir'], nouveau: ['pris', 'Nouvel inscrit', 'k-nouveau'] };
+  return head('Intérimaires', 'Intérimaires déjà venus chez vous, candidats à vos missions et nouveaux inscrits de votre secteur. Vos notes privées ne sont visibles que par vous.') +
+    (L.length ? `<div class="grid3">${L.map(i => `<article class="card ${K[i.categorie][2]}"><div class="row" style="justify-content:space-between;align-items:flex-start"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)}</span></div></div>${badge(K[i.categorie][0], K[i.categorie][1])}</div>
+    <div class="small">${esc(i.competences || '')}</div><div class="row" style="justify-content:space-between">${stars(i.note)}<span class="small muted">${i.nb_chez_vous} mission${i.nb_chez_vous > 1 ? 's' : ''} chez vous</span></div>
+    <form data-f="noteprivee" data-id="${i.id}" style="display:flex;flex-direction:column;gap:6px"><label class="private"><span class="h">${ic('lock')}Note privée</span><textarea name="texte" rows="2" maxlength="2000" placeholder="Visible uniquement par vous">${esc(i.note_privee)}</textarea></label><button class="btn sm" type="submit">Enregistrer la note</button></form></article>`).join('')}</div>` : panel(null, '', empty('Aucun intérimaire pour le moment.')));
+};
+V.client.factures = async () => {
+  const fs = await GET('/factures');
+  return head('Factures', 'Calculées à partir des heures que vous avez validées.', ro('Consultation uniquement')) +
+    panel(null, '', fs.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Période</th><th>Échéance</th><th class="r">TTC</th><th>Statut</th></tr></thead><tbody>${fs.map(x => `<tr><td class="mono">${x.numero}</td><td>${fdate(x.debut, 'num')} – ${fdate(x.fin, 'num')}</td><td>${fdate(x.echeance, 'num')}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${x.payee_le ? badge('libre', 'Payée') : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À régler')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
+};
+V.client.contrat = async () => {
+  const [c] = await GET('/clients');
+  return head('Mon contrat', 'Conditions convenues avec l\'agence.', ro()) +
+    panel('Conditions', '', `<div class="panel-b"><dl class="kv"><dt>Raison sociale</dt><dd>${esc(c.nom)}</dd><dt>SIRET</dt><dd>${esc(c.siret || '—')}</dd><dt>Secteur</dt><dd>${esc(c.secteur)}</dd><dt>Convention collective</dt><dd>${esc(c.convention)}</dd><dt>Coefficient de facturation</dt><dd>${num(c.coefficient)}</dd><dt>Délai de paiement</dt><dd>${c.delai_paiement} jours</dd><dt>Facturation</dt><dd>Par quinzaine, sur heures validées</dd></dl></div>`);
+};
+V.client.documents = async () => {
+  const docs = await GET('/documents');
+  return head('Documents de prise de poste', 'Règlement intérieur, charte qualité, consignes… Les intérimaires confirmés sur vos missions les reçoivent automatiquement.') +
+    panel('Documents en ligne', '', docsTable(docs, true) + uploadForm(null));
+};
+
+/* ===== Intérimaire ===== */
+V.interim.accueil = async () => {
+  const [ms, hs] = await Promise.all([GET('/missions'), GET('/heures')]);
+  const t = S.cfg?.aujourdhui || '', pend = ms.filter(m => m.etat === 'a_repondre');
+  const next = ms.filter(m => m.etat === 'confirmee' && m.date >= t)[0];
+  const aConf = hs.filter(h => h.ouvert && !h.valide_interim);
+  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.interim?.poste || '')) +
+    (pend.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('bell')}</div><div><b>${pend.length} nouvelle${pend.length > 1 ? 's' : ''} mission${pend.length > 1 ? 's' : ''} en attente de votre réponse</b><div class="small muted">Les places sont attribuées aux premiers qui acceptent.</div></div>${btn('Voir', 'chev', 'data-a="nav" data-v="missions"', 'sm primary')}</div></section>` : '') +
+    (next ? `<section class="panel"><div class="hero"><div class="when"><span>${fdate(next.date).split(' ')[0]}</span><b>${Number(next.date.slice(8))}</b><span>${new Date(next.date + 'T12:00').toLocaleDateString('fr-FR', { month: 'short' })}</span></div><div style="flex:1;min-width:200px"><div class="small muted">Prochaine mission</div><h2 style="font-size:17px">${esc(next.poste)} · ${esc(next.client_nom)}</h2><div class="row small muted">${ic('clock')}${next.debut} – ${next.fin}</div></div>${badge('libre', 'Confirmée')}</div></section>` : '') +
+    `<div class="grid2">${panel('Missions proposées', btn('Tout voir', 'chev', 'data-a="nav" data-v="missions"', 'sm'), ms.length ? `<div class="list">${ms.filter(m => m.date >= t).slice(0, 4).map(missionInterim).join('') || empty('Aucune mission à venir.')}</div>` : empty('Aucune proposition pour le moment.'))}
+    ${panel('Heures à confirmer', btn('Mes heures', 'chev', 'data-a="nav" data-v="heures"', 'sm'), aConf.length ? `<div class="list">${aConf.map(h => `<div class="li"><div><b>${esc(h.client_nom)}</b><div class="small muted">${fdate(h.date)} · ${h.debut}–${h.fin}</div></div>${btn('Confirmer', 'chev', 'data-a="nav" data-v="heures"', 'sm primary')}</div>`).join('')}</div>` : empty('Tout est à jour.'))}</div>`;
+};
+V.interim.missions = async () => {
+  const ms = await GET('/missions'), t = S.cfg?.aujourdhui || '';
+  const a = ms.filter(m => m.date >= t), p = ms.filter(m => m.date < t);
+  return head('Missions proposées', 'Acceptez ou refusez les missions envoyées par l\'agence. Après votre acceptation, l\'employeur confirme votre venue ; vous recevez alors les documents.') +
+    panel('À venir', '', a.length ? `<div class="list">${a.map(missionInterim).join('')}</div>` : empty('Aucune mission proposée pour le moment.')) +
+    (p.length ? panel('Passées', '', `<div class="list">${p.slice(-10).reverse().map(missionInterim).join('')}</div>`) : '');
+};
+V.interim.dispo = async () => {
+  const [ds, ms] = await Promise.all([GET('/disponibilites'), GET('/missions')]);
+  const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10);
+  const D = Object.fromEntries(ds.map(d => [d.date, d.etat]));
+  const M = {}; ms.forEach(m => { if (m.etat === 'confirmee') M[m.date] = ['pris', m.client_nom]; else if (['a_repondre', 'en_attente'].includes(m.etat) && !M[m.date]) M[m.date] = ['attente', 'Proposée']; });
+  S.p.mo = S.p.mo || 0;
+  const base = new Date(t.slice(0, 7) + '-01T12:00'); base.setMonth(base.getMonth() + S.p.mo);
+  const cal = off => {
+    const d0 = new Date(base); d0.setMonth(d0.getMonth() + off);
+    const y = d0.getFullYear(), mo = d0.getMonth(), nb = new Date(y, mo + 1, 0).getDate(), pad = (new Date(y, mo, 1).getDay() + 6) % 7;
+    let h = `<div class="cal">${['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(x => `<div class="dow">${x}</div>`).join('')}${'<div class="day blank"></div>'.repeat(pad)}`;
+    for (let k = 1; k <= nb; k++) {
+      const iso = `${y}-${String(mo + 1).padStart(2, '0')}-${String(k).padStart(2, '0')}`, m = M[iso], e = D[iso];
+      const cls = m ? m[0] : e === 'disponible' ? 'libre' : e === 'indisponible' ? 'off' : '', lab = m ? m[1] : e === 'disponible' ? 'Disponible' : e === 'indisponible' ? 'Indisponible' : '';
+      h += m || iso < t ? `<div class="day ${cls} ${iso < t ? 'past' : ''} ${iso === t ? 'today' : ''}"><span class="d">${k}</span><span class="lbl">${esc(lab)}</span></div>`
+        : `<button class="day ${cls} ${iso === t ? 'today' : ''}" data-a="dispo" data-d="${iso}" data-e="${e || ''}" aria-label="${k} : ${lab || 'non renseigné'}"><span class="d">${k}</span><span class="lbl">${lab}</span></button>`;
+    }
+    return `<section class="panel"><div class="panel-h"><h2>${d0.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2></div><div class="panel-b">${h}</div></section>`;
+  };
+  return head('Disponibilités', 'Cliquez sur un jour pour le passer en disponible, puis indisponible, puis non renseigné. L\'agence s\'en sert pour vous proposer des missions.',
+    btn('Mois précédents', 'left', 'data-a="mois" data-d="-1"', 'sm') + btn('Mois suivants', 'chev', 'data-a="mois" data-d="1"', 'sm')) +
+    `<div class="legend">${badge('libre', 'Disponible')}${badge('off', 'Indisponible')}${badge('attente', 'Mission proposée')}${badge('pris', 'Mission confirmée')}</div><div class="grid2">${cal(0)}${cal(1)}</div>`;
+};
+V.interim.heures = async () => {
+  const hs = await GET('/heures');
+  return head('Mes heures', 'Vos horaires sont ceux prévus par l\'employeur. Si vous avez fait des heures en plus, déclarez-les avec une justification : elles sont payées après accord de l\'employeur.') +
+    panel(null, '', hs.length ? hs.map(h => `<div class="shift"><div class="time"><b>${h.debut}</b>${h.fin}</div><div><b>${esc(h.client_nom)}</b><div class="small muted">${fdate(h.date)} · ${esc(h.poste)} · ${num(h.heures_prevues)} h prévues${h.extra ? ` · +${num(h.extra)} h déclarées` : ''}</div>
+    ${h.ouvert && !h.valide_interim ? `<form data-f="confirmer" data-id="${h.id}" style="margin-top:8px;display:flex;flex-direction:column;gap:8px"><label class="check"><input type="checkbox" name="avec_extra" data-a="toggleextra"> J'ai fait des heures en plus</label>
+      <div class="extra" hidden><label class="f">Heures supplémentaires<input type="number" name="extra" step="0.25" min="0.25" max="8" value="1"></label><label class="f full">Justification<textarea name="justification" maxlength="500"></textarea></label></div>
+      <div><button class="btn primary sm" type="submit">${ic('check')}Confirmer mes heures</button></div></form>` : ''}
+    ${h.valide_interim && !h.note_interim ? rateForm(h.id, false) : h.note_interim ? `<div class="row small" style="margin-top:6px">Votre note pour l'établissement : ${stars(h.note_interim)}</div>` : ''}</div>
+    <div class="row">${!h.ouvert ? badge('off', 'Mission à venir') : !h.valide_interim ? badge('attente', 'À confirmer') : h.extra_statut === 'attente' ? badge('attente', 'Extra en attente de l\'employeur') : h.valide_client ? badge('libre', 'Validé') : badge('pris', 'Confirmé, attente employeur')}</div></div>`).join('') : empty('Aucune mission confirmée pour le moment.'));
+};
+V.interim.profil = async () => {
+  const [[i], ms] = await Promise.all([GET('/interimaires'), GET('/missions')]);
+  const t = S.cfg?.aujourdhui || '';
+  const faites = ms.filter(m => m.etat === 'confirmee' && m.date < t).reverse();
+  return head('Profil et CV', 'Votre CV s\'enrichit automatiquement de chaque mission réalisée.', ro()) +
+    `<div class="grid2">${panel(`${esc(i.prenom)} ${esc(i.nom)}`, '', `<div class="panel-b"><dl class="kv"><dt>Poste</dt><dd>${esc(i.poste)}</dd><dt>Secteur</dt><dd>${esc(i.secteur)}</dd><dt>Ville</dt><dd>${esc(i.ville || '—')}</dd><dt>Téléphone</dt><dd>${esc(i.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(i.email || '—')}</dd><dt>Taux horaire</dt><dd>${eur(i.taux_horaire)}</dd><dt>Note moyenne</dt><dd>${stars(i.note)}</dd><dt>Compétences</dt><dd>${esc(i.competences || '—')}</dd></dl></div>`)}
+    ${panel('Mon CV', '', `<div class="panel-b"><div class="timeline">${faites.map(m => `<div class="tl new"><div class="small muted">${fdate(m.date, 'num')} · ajouté automatiquement</div><b>${esc(m.client_nom)}</b><div class="small">${esc(m.poste)}</div></div>`).join('')}${i.experience ? `<div class="tl"><div class="small muted">Expérience antérieure</div><div class="small">${esc(i.experience)}</div></div>` : ''}</div>${!faites.length && !i.experience ? empty('Votre CV se remplira après votre première mission.') : ''}</div>`)}</div>`;
+};
+V.interim.avis = async () => {
+  const L = await GET('/evaluations');
+  const recus = L.filter(e => e.sens === 'client_vers_interim'), donnes = L.filter(e => e.sens === 'interim_vers_client');
+  const moy = recus.length ? recus.reduce((a, e) => a + e.note, 0) / recus.length : 0;
+  return head('Avis', 'Les avis des employeurs vous parviennent de façon anonyme. Vos notes sur les établissements sont transmises à l\'agence.') +
+    `<div class="grid2">${panel('Avis reçus', recus.length ? `<span>${stars(moy)} <b class="num">${num(moy)}</b> / 5</span>` : '', recus.length ? `<div class="list">${recus.map(e => `<div class="li" style="align-items:flex-start"><div><div class="small muted">Employeur anonyme · ${esc(e.client_secteur)} · ${fdate(e.date, 'num')}</div><div>${esc(e.commentaire || '')}</div>${e.axe ? `<div style="margin-top:6px">${badge('attente', 'Axe de progrès : ' + esc(e.axe))}</div>` : ''}</div>${stars(e.note)}</div>`).join('')}</div>` : empty('Aucun avis pour le moment.'))}
+    ${panel('Mes notes sur les établissements', '', donnes.length ? `<div class="list">${donnes.map(e => `<div class="li"><div><b>${esc(e.client_nom)}</b><div class="small muted">${fdate(e.date, 'num')} · ${esc(e.commentaire || '')}</div></div>${stars(e.note)}</div>`).join('')}</div>` : empty('Notez un établissement depuis « Mes heures », après une mission.'))}</div>`;
+};
+
+/* ---------------- Formulaires en fenêtre ---------------- */
+async function missionForm() {
+  const cs = await GET('/clients');
+  if (!cs.length) return toast('Créez d\'abord une fiche client.', true);
+  const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10);
+  openModal(`${modalHead(ic('plus') + 'Nouvelle mission')}<form data-f="mission"><div class="panel-b form">
+    <label class="f full">Client<select name="client_id" required>${cs.map(c => `<option value="${c.id}">${esc(c.nom)}</option>`).join('')}</select></label>
+    <label class="f">Poste<input type="text" name="poste" required></label><label class="f">Date<input type="date" name="date" min="${t}" value="${addDays(t, 7)}" required></label>
+    <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
+    <label class="f">Nombre de postes<input type="number" name="nb_postes" min="1" max="30" value="1" required></label><label class="f">Taux horaire (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="12.50" required></label></div>
+    ${modalFoot('Créer la mission', 'type="submit"')}</form>`);
+}
+async function diffuseModal(id) {
+  const [ms, is] = await Promise.all([GET('/missions'), GET('/interimaires')]);
+  const m = ms.find(x => x.id === id); if (!m) return;
+  const deja = new Set(m.envois.map(e => e.interim_id));
+  const w = m.poste.toLowerCase().split(/\s+/)[0];
+  const match = i => i.poste.toLowerCase().includes(w) || i.secteur === m.client_secteur;
+  const L = is.filter(i => !deja.has(i.id)).sort((a, b) => match(b) - match(a) || (b.note || 0) - (a.note || 0));
+  const c = S.cfg?.canaux || {};
+  openModal(`${modalHead(ic('send') + 'Valider et diffuser la mission', `${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)} · ${fdate(m.date)} · ${m.debut}–${m.fin}`)}
+    <form data-f="diffuser" data-id="${m.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:14px">
+    <div><div class="small muted" style="margin-bottom:6px;font-weight:500">Moyen d'envoi</div><div class="statusline">${Object.entries(CANAUX).map(([k, [i, l]]) => `<label class="check" style="border:1px solid var(--line);border-radius:7px;padding:6px 10px"><input type="checkbox" name="canal" value="${k}" ${k !== 'mail' ? 'checked' : ''}>${ic(i)}${l}${c[k] ? '' : ' <span class="hint">(simulé)</span>'}</label>`).join('')}</div></div>
+    <label class="f" style="max-width:200px">Taux horaire (€)<input type="number" name="taux_horaire" step="0.01" min="10" max="60" value="${m.taux_horaire}"></label>
+    <div><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="small muted" style="font-weight:500">Intérimaires destinataires</span>${deja.size ? `<span class="small muted">${deja.size} déjà contacté(s)</span>` : ''}</div>
+    <div style="border:1px solid var(--line);border-radius:8px;max-height:280px;overflow:auto">${L.map(i => `<label class="li clickable" style="padding:9px 12px"><span class="person"><input type="checkbox" name="interim" value="${i.id}" style="width:16px;height:16px;accent-color:var(--accent)"><span class="avatar">${initials(i.prenom + ' ' + i.nom)}</span><span><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)}${i.telephone ? '' : ' · pas de téléphone'}${i.email ? '' : ' · pas d\'e-mail'}</span></span></span>${match(i) ? badge('libre', 'Profil correspondant') : ''}</label>`).join('') || empty('Tous les intérimaires ont déjà été contactés.')}</div></div>
+    <div class="err" hidden></div></div>${modalFoot(ic('send') + 'Valider et envoyer', 'type="submit"')}</form>`);
+}
+async function interimForm(id) {
+  const i = id ? (await GET('/interimaires')).find(x => x.id === id) : {};
+  const f = (n, l, t = 'text', extra = '') => `<label class="f">${l}<input type="${t}" name="${n}" value="${esc(i[n] ?? '')}" ${extra}></label>`;
+  openModal(`${modalHead(ic(id ? 'edit' : 'plus') + (id ? 'Modifier la fiche' : 'Nouvel intérimaire'))}<form data-f="interim" data-id="${id || ''}"><div class="panel-b form">
+    ${f('prenom', 'Prénom', 'text', 'required')}${f('nom', 'Nom', 'text', 'required')}${f('poste', 'Poste principal', 'text', 'required')}
+    <label class="f">Secteur<select name="secteur">${opt(SECTEURS, i.secteur)}</select></label>${f('telephone', 'Téléphone (SMS, WhatsApp)', 'tel')}${f('email', 'E-mail', 'email')}${f('ville', 'Ville')}
+    ${f('taux_horaire', 'Taux horaire (€)', 'number', 'step="0.01" min="10" max="60"')}<label class="f full">Compétences<input type="text" name="competences" value="${esc(i.competences || '')}"></label>
+    <label class="f full">Expérience<textarea name="experience">${esc(i.experience || '')}</textarea></label><label class="check full"><input type="checkbox" name="dossier_complet" ${i.dossier_complet ? 'checked' : ''}> Dossier administratif complet (pièce d'identité, carte Vitale, RIB)</label></div>
+    ${modalFoot(id ? 'Enregistrer' : 'Créer la fiche', 'type="submit"')}</form>`);
+}
+async function clientForm(id) {
+  const c = id ? (await GET('/clients')).find(x => x.id === id) : { coefficient: 2, delai_paiement: 15, convention: 'HCR (IDCC 1979)' };
+  const f = (n, l, t = 'text', extra = '') => `<label class="f">${l}<input type="${t}" name="${n}" value="${esc(c[n] ?? '')}" ${extra}></label>`;
+  openModal(`${modalHead(ic(id ? 'edit' : 'plus') + (id ? 'Modifier le client' : 'Nouveau client'))}<form data-f="client" data-id="${id || ''}"><div class="panel-b form">
+    ${f('nom', 'Raison sociale', 'text', 'required')}${f('siret', 'SIRET')}<label class="f">Secteur<select name="secteur">${opt(SECTEURS, c.secteur)}</select></label>${f('contact', 'Interlocuteur')}
+    ${f('email', 'E-mail', 'email')}${f('telephone', 'Téléphone', 'tel')}${f('adresse', 'Adresse')}${f('ville', 'Ville')}
+    ${f('coefficient', 'Coefficient de facturation', 'number', 'step="0.01" min="1" max="5" required')}${f('delai_paiement', 'Délai de paiement (jours)', 'number', 'min="0" max="90" required')}${f('convention', 'Convention collective')}</div>
+    ${modalFoot(id ? 'Enregistrer' : 'Créer la fiche', 'type="submit"')}</form>`);
+}
+function pwModal() {
+  openModal(`${modalHead(ic('lock') + 'Changer mon mot de passe')}<form data-f="pw"><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    <label class="f">Mot de passe actuel<input type="password" name="actuel" autocomplete="current-password" required></label><label class="f">Nouveau mot de passe<input type="password" name="nouveau" autocomplete="new-password" required data-rules></label>
+    <label class="f">Confirmer<input type="password" name="confirm" autocomplete="new-password" required></label><div class="rules" id="rules">${rulesHtml('')}</div><div class="err" hidden></div></div>${modalFoot('Enregistrer', 'type="submit"')}</form>`);
+}
+
+/* ---------------- Actions ---------------- */
+async function act(fn, el) {
+  if (S.busy) return; S.busy = true; if (el) el.disabled = true;
+  try { await fn(); } catch (e) { toast(e.message, true); } finally { S.busy = false; if (el && el.isConnected) el.disabled = false; }
+}
+const reload = () => renderApp();
+const A = {
+  nav: el => go(el.dataset.v),
+  tab: el => { S.p[el.dataset.k] = el.dataset.v; reload(); },
+  logout: () => act(async () => { await POST('/logout').catch(() => { }); S.me = null; S.pwTemp = null; renderAuth(); }),
+  close: el => { closeModal(); if (el.dataset.go) go(el.dataset.go); },
+  modalbg: (el, e) => { if (e.target === el) closeModal(); },
+  motdepasse: () => pwModal(),
+  notifs: () => act(async () => {
+    const n = S.me.profil === 'agence' ? [] : await GET('/notifications');
+    openModal(`${modalHead(ic('bell') + 'Notifications')}${n.length ? `<div class="list">${n.map(x => `<div class="li"><div>${esc(x.message)}<div class="small muted">${esc(x.created_at)}</div></div></div>`).join('')}</div>` : empty('Aucune notification.')}<div class="panel-f" style="justify-content:flex-end">${btn('Fermer', '', 'data-a="close"', 'primary')}</div>`);
+    await POST('/notifications/lu'); refreshCounts();
+  }),
+  copy: el => { const t = el.dataset.t; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Copié'), () => toast('Copie impossible : sélectionnez le texte.', true)); },
+  newmission: el => act(missionForm, el),
+  diffuser: el => act(() => diffuseModal(Number(el.dataset.id)), el),
+  annuler: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.innerHTML = 'Confirmer l\'annulation'; el.classList.add('primary'); return; } await POST(`/missions/${el.dataset.id}/annuler`); toast('Mission annulée'); reload(); }, el),
+  decision: el => act(async () => {
+    const r = await POST(`/missions/${el.dataset.m}/decision`, { interim_id: Number(el.dataset.i), accepte: el.dataset.ok === '1' });
+    toast(r.verrouillee ? 'Mission validée et verrouillée. Les documents ont été envoyés.' : el.dataset.ok === '1' ? 'Intérimaire retenu.' : 'Intérimaire refusé. La place est de nouveau ouverte.');
+    reload();
+  }, el),
+  repondre: el => act(async () => { await POST(`/missions/${el.dataset.id}/repondre`, { accepte: el.dataset.ok === '1' }); toast(el.dataset.ok === '1' ? 'Mission acceptée. En attente de confirmation de l\'employeur.' : 'Mission refusée.'); reload(); }, el),
+  isel: el => { S.p.isel = Number(el.dataset.id); reload(); },
+  csel: el => { S.p.csel = Number(el.dataset.id); reload(); },
+  interimform: el => act(() => interimForm(Number(el.dataset.id) || null), el),
+  clientform: el => act(() => clientForm(Number(el.dataset.id) || null), el),
+  mkacc: el => act(async () => { const c = await POST('/acces', { type: el.dataset.type, id: Number(el.dataset.id) }); await reload(); credModal(c, 'Accès créé'); }, el),
+  reset: el => act(async () => { const c = await POST(`/acces/${el.dataset.id}/reset`); await reload(); credModal(c, 'Mot de passe réinitialisé'); }, el),
+  toggle: el => act(async () => { const r = await POST(`/acces/${el.dataset.id}/toggle`); toast(r.actif ? 'Compte réactivé' : 'Compte désactivé'); reload(); }, el),
+  deldoc: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.lastChild.textContent = 'Confirmer'; return; } await DEL(`/documents/${el.dataset.id}`); toast('Document supprimé'); reload(); }, el),
+  hconf: el => act(async () => { await POST(`/heures/${el.dataset.id}/confirmer`, {}); toast('Heures confirmées'); reload(); }, el),
+  hval: el => act(async () => { const b = el.dataset.x === undefined ? {} : { extra_accepte: el.dataset.x === '1' }; await POST(`/heures/${el.dataset.id}/valider`, b); toast('Heures validées'); reload(); }, el),
+  hedit: el => openModal(`${modalHead(ic('edit') + 'Corriger les heures prévues')}<form data-f="hedit" data-id="${el.dataset.id}"><div class="panel-b"><label class="f">Heures prévues<input type="number" name="h" step="0.25" min="0.25" max="16" value="${el.dataset.v}" required></label></div>${modalFoot('Enregistrer', 'type="submit"')}</form>`),
+  payee: el => act(async () => { await POST(`/factures/${el.dataset.id}/payee`); toast('Facture marquée comme payée'); reload(); }, el),
+  sem: el => { const d = Number(el.dataset.d); S.p.sem = d ? addDays(S.p.sem, d) : lundi(S.cfg.aujourdhui); reload(); },
+  mois: el => { S.p.mo = (S.p.mo || 0) + Number(el.dataset.d); reload(); },
+  dispo: el => act(async () => { const nxt = { '': 'disponible', disponible: 'indisponible', indisponible: null }[el.dataset.e]; await PUT('/disponibilites', { date: el.dataset.d, etat: nxt }); reload(); }, el),
+  star: el => { const box = el.closest('[data-rate]'), n = Number(el.dataset.n); box.querySelectorAll('button').forEach((b, k) => b.classList.toggle('on', k < n)); el.closest('form').note.value = n; },
+  toggleextra: el => { el.closest('form').querySelector('.extra').hidden = !el.checked; },
+};
+const F = {
+  login: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    try { S.me = await POST('/login', { username: fd.get('username'), password: fd.get('password') }); }
+    catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    S.pwTemp = S.me.must_change ? fd.get('password') : null;
+    await afterLogin();
+  }),
+  firstpw: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    if (fd.get('nouveau') !== fd.get('confirm')) { err.textContent = 'Les deux mots de passe ne correspondent pas.'; err.hidden = false; return; }
+    try { S.me = await POST('/password', { actuel: S.pwTemp || fd.get('actuel'), nouveau: fd.get('nouveau') }); }
+    catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    S.pwTemp = null; toast('Mot de passe enregistré. Bienvenue !'); await afterLogin();
+  }),
+  pw: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    if (fd.get('nouveau') !== fd.get('confirm')) { err.textContent = 'Les deux mots de passe ne correspondent pas.'; err.hidden = false; return; }
+    try { await POST('/password', { actuel: fd.get('actuel'), nouveau: fd.get('nouveau') }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    closeModal(); toast('Mot de passe modifié');
+  }),
+  mission: fd => act(async () => { await POST('/missions', Object.fromEntries(fd)); closeModal(); toast('Mission créée. Diffusez-la aux intérimaires.'); go('missions'); }),
+  diffuser: (fd, f) => act(async () => {
+    const r = await POST(`/missions/${f.dataset.id}/diffuser`, { interims: fd.getAll('interim').map(Number), canaux: fd.getAll('canal'), taux_horaire: Number(fd.get('taux_horaire')) });
+    closeModal(); toast(`Mission envoyée à ${r.envoyes} intérimaire${r.envoyes > 1 ? 's' : ''}${r.simules.length ? ` (${r.simules.join(', ')} : simulé, voir le journal)` : ''}.`); reload();
+  }),
+  interim: (fd, f) => act(async () => {
+    const b = Object.fromEntries(fd); b.dossier_complet = fd.has('dossier_complet'); if (!b.taux_horaire) delete b.taux_horaire;
+    const r = f.dataset.id ? await PUT(`/interimaires/${f.dataset.id}`, b) : await POST('/interimaires', b);
+    S.p.isel = r.id; closeModal(); toast('Fiche enregistrée'); go('interimaires');
+  }),
+  client: (fd, f) => act(async () => { const b = Object.fromEntries(fd); const r = f.dataset.id ? await PUT(`/clients/${f.dataset.id}`, b) : await POST('/clients', b); S.p.csel = r.id; closeModal(); toast('Fiche enregistrée'); go('clients'); }),
+  upload: fd => act(async () => { await api('POST', '/documents', fd); toast('Document déposé'); reload(); }),
+  demande: fd => act(async () => { await POST('/missions', Object.fromEntries(fd)); toast('Demande envoyée. L\'agence va la valider et la diffuser.'); reload(); }),
+  jour: fd => { S.p.jd = fd.get('date'); reload(); },
+  evaluer: (fd, f) => act(async () => { if (!fd.get('note')) throw new Error('Choisissez une note de 1 à 5 étoiles.'); await POST(`/heures/${f.dataset.id}/evaluer`, Object.fromEntries(fd)); toast('Note enregistrée'); reload(); }),
+  confirmer: (fd, f) => act(async () => { const x = fd.has('avec_extra'); await POST(`/heures/${f.dataset.id}/confirmer`, x ? { extra: Number(fd.get('extra')), justification: fd.get('justification') } : {}); toast(x ? 'Heures envoyées. L\'employeur doit accepter les heures en plus.' : 'Heures confirmées'); reload(); }),
+  noteprivee: (fd, f) => act(async () => { await PUT(`/notes-privees/${f.dataset.id}`, { texte: fd.get('texte') }); toast('Note privée enregistrée'); }),
+  hedit: (fd, f) => act(async () => { await PUT(`/heures/${f.dataset.id}`, { heures_prevues: Number(fd.get('h')) }); closeModal(); toast('Heures corrigées'); reload(); }),
+  facturer: fd => act(async () => { const r = await POST('/factures/generer', Object.fromEntries(fd)); toast(r.creees.length ? `${r.creees.length} facture(s) créée(s) : ${r.creees.join(', ')}` : 'Aucune heure validée à facturer sur cette période.'); reload(); }),
+  paie: fd => { S.p.pd = fd.get('debut'); S.p.pf = fd.get('fin'); reload(); },
+  accagence: fd => act(async () => { const c = await POST('/acces', { type: 'agence', nom: fd.get('nom') }); await reload(); credModal(c, 'Accès agence créé'); }),
+};
+
+document.addEventListener('click', e => {
+  const el = e.target.closest('[data-a]'); if (!el) return;
+  const fn = A[el.dataset.a]; if (!fn) return;
+  if (el.type === 'checkbox') return; // géré par l'événement change
+  fn(el, e);
+});
+document.addEventListener('change', e => { const el = e.target; if (el.dataset?.a === 'toggleextra') A.toggleextra(el); });
+document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-a="isel"],[data-a="csel"]')) e.target.click(); if (e.key === 'Escape') closeModal(); });
+document.addEventListener('input', e => { if (e.target.dataset && 'rules' in e.target.dataset) { const r = $('#rules'); if (r) r.innerHTML = rulesHtml(e.target.value); } });
+document.addEventListener('submit', e => {
+  const f = e.target.closest('form[data-f]'); if (!f) return;
+  e.preventDefault(); const fn = F[f.dataset.f]; if (fn) fn(new FormData(f), f);
+});
+
+boot();

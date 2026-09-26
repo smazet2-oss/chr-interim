@@ -66,15 +66,15 @@ const STATUTS = ['nouveau', 'a_relancer', 'en_discussion', 'client', 'perdu'];
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 /** Valide les réponses contre le questionnaire : seules les options prévues sont acceptées. */
-function nettoyer(b, fail) {
+function nettoyer(b, fail, champs = CHAMPS) {
   const r = {};
-  for (const c of Object.values(CHAMPS)) {
+  for (const c of Object.values(champs)) {
     let v = b[c.k];
     if (c.type === 'checks') {
       v = (Array.isArray(v) ? v : v ? [v] : []).map(String).filter(x => c.options.includes(x) || (c.autre && x === 'Autre'));
       if (v.length) r[c.k] = [...new Set(v)];
     } else if (c.type === 'radio' || c.type === 'select') {
-      const opts = c.from ? [...CHAMPS[c.from].options, 'Autre'] : [...c.options, ...(c.autre ? ['Autre'] : [])];
+      const opts = c.from ? [...champs[c.from].options, 'Autre'] : [...c.options, ...(c.autre ? ['Autre'] : [])];
       if (v && !opts.includes(String(v))) fail(400, `« ${c.l} » : choix invalide.`);
       if (v) r[c.k] = String(v);
     } else if (c.type === 'number') {
@@ -112,9 +112,10 @@ function publiques(api, h) {
   api.post('/public/contact', wrap(async (req, res) => {
     const b = req.body || {};
     if (b.site_web) return res.status(201).json({ ok: true }); // champ piège : robot
-    if (!limite(req.ip)) fail(429, 'Trop d\'envois depuis cette connexion. Réessayez dans une heure ou appelez-nous.');
     if (!b.consentement) fail(400, 'Merci d\'accepter la conservation de vos coordonnées pour être recontacté.');
     const r = nettoyer(b, fail);
+    // Anti-abus : seules les demandes valides comptent (5 par heure et par connexion)
+    if (!limite(req.ip)) fail(429, 'Trop d\'envois depuis cette connexion. Réessayez dans une heure ou appelez-nous.');
     enregistrer(r, { source: 'site', accord: 'en_ligne' });
     // Alerte à l'agence (e-mail de contact des Paramètres)
     if (P.get('email')) {
@@ -168,4 +169,4 @@ function agence(api, h) {
   }));
 }
 
-module.exports = { publiques, agence, QUESTIONNAIRE };
+module.exports = { publiques, agence, QUESTIONNAIRE, nettoyer, limite };

@@ -89,6 +89,11 @@ Le contrat reprend le modèle HCR (IDCC 1979) en 9 articles : parties, motif de 
 - **Page publique** `/contact` (lien depuis la page de connexion) : les hôtels, cafés et restaurants remplissent le questionnaire de l'étude de marché (établissement, besoins, solutions actuelles, attentes, budget, suivi) avec leur accord pour être recontactés. L'agence reçoit un e-mail d'alerte.
 - **Espace agence › Prospects** : demandes du site et **visites terrain** saisies avec le même questionnaire (date, enquêteur, accord écrit ou oral), statut, date de relance, notes, conversion en fiche client (coefficient par défaut) et suppression à la demande de la personne. Les prospects à relancer apparaissent dans le tableau de bord.
 
+### Candidatures d'intérimaires
+
+- **Page publique** `/candidature`, deuxième onglet de la page de contact (« Je cherche des missions ») et lien depuis la page de connexion : identité, autorisation de travail, postes recherchés, expérience et formations, disponibilités, mobilité et tenue, attentes (taux souhaité, canal préféré), CV facultatif (PDF, Word ou photo, 5 Mo, contenu vérifié) et accord de conservation. L'agence reçoit un e-mail d'alerte.
+- **Espace agence › Candidatures** : réponses complètes, CV, statut (nouvelle, à rappeler, entretien, inscrit, sans suite), date de rappel, notes, création de la fiche intérimaire en un clic et suppression (CV compris) à la demande de la personne. Les candidatures nouvelles ou à rappeler apparaissent dans le tableau de bord.
+
 ### Calendriers et détail d'une journée
 
 Les trois espaces affichent le planning sous forme de **calendrier mensuel standard** (lundi → dimanche, numéro de semaine en colonne de gauche). La **semaine en cours** est repérée par une flèche ▶ et un liseré doré, le jour même par un cadre bleu nuit. Chaque mission apparaît dans sa case (heure, poste, postes pourvus), en couleur selon son état ; sur mobile, les missions deviennent des barres de couleur.
@@ -178,6 +183,7 @@ src/contrats-clients.js contrat commercial et coefficient de chaque entreprise
 src/hcr.js, src/hcr-grille.js  convention HCR : taux par poste, majorations, jours fériés
 src/relances.js   relances des contrats non signés et des factures échues
 src/prospects.js  page publique « Besoin de renforts ? » et suivi des prospects
+src/candidats.js  page publique « Je cherche des missions » et suivi des candidatures
 src/simulation.js simulation de paie, de coût et de marge
 src/seed-demo.js  données de démonstration
 public/           interface (HTML, CSS, JavaScript sans framework)

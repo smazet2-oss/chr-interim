@@ -165,8 +165,12 @@ const api = express.Router();
 // Page publique « Besoin de renforts ? » (questionnaire établissement), sans compte.
 const prospects = require('./prospects');
 prospects.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
+// Page publique « Je cherche des missions » (candidature d'intérimaire), sans compte.
+const candidats = require('./candidats');
+candidats.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), HttpError });
 api.use(auth);
 prospects.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
+candidats.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a) });
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
 const contratsClients = require('./contrats-clients')(api, { fail: (...a) => fail(...a), isDate: (...a) => isDate(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), str: (...a) => str(...a), today: () => today() });
 const relances = require('./relances')(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });

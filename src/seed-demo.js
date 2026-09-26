@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { one, all, run, tx } = require('./db');
 const dossier = require('./dossier');
 require('./prospects'); // crée la table des prospects
+require('./candidats'); // crée la table des candidatures
 
 if (one('SELECT 1 FROM clients LIMIT 1')) {
   console.log('La base contient déjà des données : démonstration non installée. (npm run demo:reset pour repartir de zéro)');
@@ -96,6 +97,12 @@ tx(() => {
     run('UPDATE contrats SET created_at = datetime(\'now\',\'-6 days\'), statut = \'signe\', signe_le = datetime(\'now\',\'-5 days\'), signe_nom = ?, client_signe_le = datetime(\'now\',\'-4 days\'), client_signe_nom = ? WHERE id = ?', `${k.prenom} ${k.nom}`, `${k.contact}, gérant`, k.id);
   }
   run('UPDATE missions SET validee_le = datetime(\'now\',\'-4 days\') WHERE statut = \'verrouillee\' AND date < ?', jour(0));
+
+  // Candidatures reçues par la page publique.
+  run('INSERT INTO candidats (prenom, nom, telephone, email, ville, poste, reponses, statut) VALUES (?,?,?,?,?,?,?,\'nouveau\')', 'Inès', 'Moreau', '06 22 33 44 55', 'ines.moreau@exemple.fr', 'Lyon 3e', 'Serveur',
+    JSON.stringify({ postes: ['Serveur', 'Chef de rang'], poste_principal: 'Serveur', experience: '1 à 3 ans', formations: ['Formation hygiène HACCP'], creneaux: ['Le soir', 'Le week-end'], type_mission: 'Extras ponctuels', prevenance: 'Sous 24 à 48 h', transport: ['Transports en commun'], rayon: '10 à 25 km', tenue: 'Oui, complète', canal: 'WhatsApp', autorisation: 'Nationalité française ou européenne' }));
+  run('INSERT INTO candidats (prenom, nom, telephone, ville, poste, reponses, statut, date_relance) VALUES (?,?,?,?,?,?,\'a_rappeler\',?)', 'Karim', 'Haddad', '06 33 44 55 66', 'Villeurbanne', 'Cuisinier',
+    JSON.stringify({ postes: ['Cuisinier', 'Chef de partie'], poste_principal: 'Cuisinier', experience: 'Plus de 3 ans', formations: ['CAP / BEP cuisine ou service'], creneaux: ['En semaine', 'Le soir'], type_mission: 'Missions régulières', canal: 'SMS' }), jour(0));
 
   // Prospects : une demande reçue par le site, une visite terrain à relancer aujourd'hui.
   run(`INSERT INTO prospects (source, etablissement, adresse, repondant, telephone, email, type_etab, reponses, accord, statut) VALUES ('site',?,?,?,?,?,?,?, 'en_ligne', 'nouveau')`,

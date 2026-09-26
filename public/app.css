@@ -580,3 +580,10 @@ fieldset.q input[type=text]{max-width:420px}
 .merci-ic svg{width:28px;height:28px}
 .q-titre{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:#7E5F24;margin:10px 0 4px}
 @media (max-width:600px){.contact-card{width:calc(100% - 24px)}.contact-card h1{font-size:20px}.choix span{font-size:12.5px;padding:6px 10px}.auth-contact{width:calc(100% - 32px)}}
+.contact-tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--surface-2);border:1px solid var(--line);border-radius:10px;padding:4px}
+.contact-tabs button{display:flex;align-items:center;justify-content:center;gap:8px;border:0;background:none;padding:10px 12px;border-radius:7px;font:inherit;font-size:13.5px;font-weight:600;color:var(--ink-2);cursor:pointer}
+.contact-tabs button svg{width:17px;height:17px;flex:none}
+.contact-tabs button[aria-selected="true"]{background:#112233;color:#fff;box-shadow:var(--shadow-sm)}
+.contact-tabs button[aria-selected="true"] svg{color:#C99948}
+.contact-tabs button:focus-visible{outline:2px solid #C99948;outline-offset:2px}
+@media (max-width:600px){.contact-tabs button{font-size:12.5px;padding:9px 6px;gap:6px}}

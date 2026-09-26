@@ -95,7 +95,7 @@ const GET = u => api('GET', u), POST = (u, b = {}) => api('POST', u, b), PUT = (
 const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, busy: false };
 const NAV = {
   agence: [['accueil', 'Tableau de bord', 'dash'], ['missions', 'Missions', 'briefcase'], ['planning', 'Planning', 'cal'], ['interimaires', 'Intérimaires', 'users'],
-    ['clients', 'Clients', 'building'], ['prospects', 'Prospects', 'target'], ['contrats', 'Contrats de mission', 'file'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
+    ['clients', 'Clients', 'building'], ['prospects', 'Prospects', 'target'], ['candidats', 'Candidatures', 'idcard'], ['contrats', 'Contrats de mission', 'file'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
     ['paie', 'Paie', 'wallet'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
   // Employeur et intérimaire : par ordre d'importance, l'administratif et le social en dernier. ['-', titre] = intertitre.
   client: [['-', 'Activité'], ['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
@@ -119,7 +119,8 @@ function go(view, params) {
 }
 
 async function boot() {
-  if (location.pathname === '/contact') return renderContact();
+  if (location.pathname === '/contact') return renderContact('etablissement');
+  if (location.pathname === '/candidature') return renderContact('candidat');
   try { S.me = await GET('/me'); } catch { S.me = null; }
   if (S.me && !S.me.must_change) S.cfg = await GET('/config').catch(() => null);
   renderAuth();
@@ -143,7 +144,8 @@ function renderAuth() {
       <label class="f">Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
       <div class="err" role="alert" hidden></div><button class="btn primary" type="submit">Se connecter</button>
       <p class="small muted">Mot de passe oublié ? Demandez à votre agence de le réinitialiser.</p></form></div>
-      <a class="auth-contact" href="/contact">${ic('building')}<span><b>Vous êtes un hôtel, un café ou un restaurant ?</b> Besoin de renforts : parlez-nous de vos besoins</span>${ic('chev')}</a></div>`;
+      <a class="auth-contact" href="/contact">${ic('building')}<span><b>Vous êtes un hôtel, un café ou un restaurant ?</b> Besoin de renforts : parlez-nous de vos besoins</span>${ic('chev')}</a>
+      <a class="auth-contact" href="/candidature">${ic('idcard')}<span><b>Vous cherchez des missions en hôtellerie-restauration ?</b> Rejoignez nos intérimaires : déposez votre candidature</span>${ic('chev')}</a></div>`;
     return;
   }
   $('#auth').innerHTML = `<div class="auth"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture><div class="auth-card">${brand}
@@ -564,7 +566,8 @@ const V = { agence: {}, client: {}, interim: {} };
 
 /* ===== Agence ===== */
 V.agence.accueil = async () => {
-  const [ms, hs, fs, ks, ps] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures'), GET('/contrats'), GET('/prospects')]);
+  const [ms, hs, fs, ks, ps, cs] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures'), GET('/contrats'), GET('/prospects'), GET('/candidats')]);
+  const cNouv = cs.filter(x => x.statut === 'nouveau'), cRel = cs.filter(x => x.date_relance && x.date_relance <= (S.cfg?.aujourdhui || '') && !['inscrit', 'refuse'].includes(x.statut));
   const kSig = ks.filter(k => k.statut === 'a_signer'), pRel = ps.filter(x => x.date_relance && x.date_relance <= (S.cfg?.aujourdhui || '') && !['client', 'perdu'].includes(x.statut));
   const pNouv = ps.filter(x => x.statut === 'nouveau' && x.source === 'site');
   const nouvelles = ms.filter(m => m.statut === 'nouvelle'), decisions = ms.filter(m => m.statut === 'diffusee' && m.envois.some(e => e.etat === 'accepte'));
@@ -580,6 +583,8 @@ V.agence.accueil = async () => {
     ...(kSig.length ? [['w', 'edit', `${kSig.length} contrat${kSig.length > 1 ? 's' : ''} de mission en attente de signature`, 'Relancez l\'intérimaire ou l\'employeur si besoin', 'contrats']] : []),
     ...pNouv.map(x => ['n', 'target', `Nouveau contact : ${x.etablissement}`, `Formulaire du site · ${x.repondant || ''}`, 'prospects']),
     ...pRel.map(x => ['w', 'target', `Prospect à relancer : ${x.etablissement}`, `Relance prévue le ${fdate(x.date_relance, 'num')}`, 'prospects']),
+    ...cNouv.map(x => ['n', 'idcard', `Nouvelle candidature : ${x.prenom} ${x.nom}`, `${x.poste || 'Poste non précisé'}${x.ville ? ' · ' + x.ville : ''}`, 'candidats']),
+    ...cRel.map(x => ['w', 'idcard', `Candidat à rappeler : ${x.prenom} ${x.nom}`, `Rappel prévu le ${fdate(x.date_relance, 'num')}`, 'candidats']),
     ...(hAttente.length ? [['w', 'clock', `${hAttente.length} relevé${hAttente.length > 1 ? 's' : ''} d'heures à finaliser`, 'Confirmation intérimaire ou validation employeur manquante', 'heures']] : []),
   ];
   return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), 'Activité de l\'agence.', btn('Nouvelle mission', 'plus', 'data-a="newmission"', 'primary')) +
@@ -1001,26 +1006,39 @@ function lireQuestionnaire(fd) {
   return o;
 }
 let AGENCE_PUB = null;
-async function renderContact() {
+/** Page publique de contact, deux onglets : établissement (besoin de renforts) ou intérimaire (candidature). */
+async function renderContact(onglet) {
   $('#app').hidden = true; $('#auth').hidden = false;
-  document.title = 'Besoin de renforts ? · CHR Intérim';
-  let d; try { d = await GET('/public/questionnaire'); } catch { d = null; }
+  const cand = onglet === 'candidat';
+  document.title = (cand ? 'Candidature intérimaire' : 'Besoin de renforts ?') + ' · CHR Intérim';
+  try { history.replaceState(null, '', cand ? '/candidature' : '/contact'); } catch { /* ignoré */ }
+  let d, q; try { [d, q] = await Promise.all([GET('/public/questionnaire'), cand ? GET('/public/candidature') : null]); } catch { d = null; }
   if (!d) { $('#auth').innerHTML = '<div class="auth"><div class="auth-card"><p>Page momentanément indisponible. Réessayez dans un instant.</p></div></div>'; return; }
-  AGENCE_PUB = d.agence;
+  AGENCE_PUB = { ...d.agence, cand };
   const a = d.agence, joindre = [a.telephone && `<a class="link" href="tel:${esc(a.telephone.replace(/\s/g, ''))}">${esc(a.telephone)}</a>`, a.email && `<a class="link" href="mailto:${esc(a.email)}">${esc(a.email)}</a>`].filter(Boolean).join(' · ');
+  const onglets = `<div class="contact-tabs" role="tablist"><button type="button" role="tab" aria-selected="${!cand}" data-a="contactonglet" data-o="etablissement">${ic('building')}Je suis un établissement</button><button type="button" role="tab" aria-selected="${cand}" data-a="contactonglet" data-o="candidat">${ic('idcard')}Je cherche des missions</button></div>`;
+  const intro = cand
+    ? `<h1>Rejoignez nos intérimaires</h1><p class="muted" style="margin-top:6px">Serveur, cuisinier, plongeur, barman, réceptionniste, femme de chambre… Trouvez des missions dans les hôtels, cafés et restaurants près de chez vous, au taux horaire de la convention HCR. <b>5 minutes</b> : seuls votre nom, votre téléphone et votre ville sont obligatoires.</p>`
+    : `<h1>Besoin de renforts ?</h1><p class="muted" style="margin-top:6px">Hôtels, cafés, restaurants, traiteurs : parlez-nous de votre établissement et de vos besoins en extras. Nous vous recontactons rapidement avec des profils qualifiés. <b>5 minutes</b>, seul le nom de l'établissement, le vôtre et un moyen de vous joindre sont obligatoires.</p>`;
+  const consent = cand
+    ? `J'accepte que mes informations et mon CV soient conservés par ${esc(a.nom)} pour me proposer des missions. Je peux à tout moment demander leur modification ou leur suppression${a.email ? ` à ${esc(a.email)}` : ''}.`
+    : `J'accepte que mes coordonnées et mes réponses soient conservées par ${esc(a.nom)} pour être recontacté(e) au sujet de mes besoins et de ses offres. Je peux à tout moment demander leur modification ou leur suppression${a.email ? ` à ${esc(a.email)}` : ''}.`;
   $('#auth').innerHTML = `<div class="auth contact"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="${esc(a.nom)}, spécialiste des métiers HCR" width="1200" height="267"></picture>
-    <div class="auth-card contact-card">
-      <div><h1>Besoin de renforts ?</h1><p class="muted" style="margin-top:6px">Hôtels, cafés, restaurants, traiteurs : parlez-nous de votre établissement et de vos besoins en extras. Nous vous recontactons rapidement avec des profils qualifiés. <b>5 minutes</b>, seul le nom de l'établissement, le vôtre et un moyen de vous joindre sont obligatoires.</p>
-      ${joindre ? `<p class="small" style="margin-top:8px">Une urgence ? Appelez-nous : ${joindre}</p>` : ''}</div>
-      <form data-f="contact" novalidate>${questionnaireHtml(d.questionnaire)}
+    <div class="auth-card contact-card">${onglets}
+      <div>${intro}${joindre ? `<p class="small" style="margin-top:8px">${cand ? 'Une question ? Appelez-nous' : 'Une urgence ? Appelez-nous'} : ${joindre}</p>` : ''}</div>
+      <form data-f="${cand ? 'candidature' : 'contact'}" novalidate>${questionnaireHtml(cand ? q.questionnaire : d.questionnaire)}
+        ${cand ? `<section class="q-sec"><h2>Votre CV</h2><label class="f">CV (facultatif : PDF, Word ou photo, 5 Mo maximum)<input type="file" name="cv" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"></label></section>` : ''}
         <input type="text" name="site_web" tabindex="-1" autocomplete="off" class="piege" aria-hidden="true">
-        <label class="check consent"><input type="checkbox" name="consentement" value="1" required> J'accepte que mes coordonnées et mes réponses soient conservées par ${esc(a.nom)} pour être recontacté(e) au sujet de mes besoins et de ses offres. Je peux à tout moment demander leur modification ou leur suppression${a.email ? ` à ${esc(a.email)}` : ''}.</label>
+        <label class="check consent"><input type="checkbox" name="consentement" value="1" required> ${consent}</label>
         <div class="err" role="alert" hidden></div>
-        <button class="btn primary" type="submit" style="justify-content:center">${ic('send')}Envoyer ma demande</button></form>
+        <button class="btn primary" type="submit" style="justify-content:center">${ic('send')}${cand ? 'Envoyer ma candidature' : 'Envoyer ma demande'}</button></form>
       <p class="small muted" style="text-align:center">Vous avez déjà un compte ? <a class="link" href="/">Accéder à votre espace</a></p></div></div>`;
 }
 function contactMerci() {
   const a = AGENCE_PUB || {};
+  if (a.cand) return `<div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center"><div class="merci-ic">${ic('check')}</div><h1>Merci, votre candidature est envoyée</h1>
+    <p class="muted">Notre équipe l'étudie et vous rappelle pour un court entretien. Préparez votre pièce d'identité, votre carte Vitale et un RIB : ils vous seront demandés pour votre inscription.</p>
+    <a class="btn" href="/">Retour à l'accueil</a></div>`;
   return `<div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center"><div class="merci-ic">${ic('check')}</div><h1>Merci, votre demande est envoyée</h1>
     <p class="muted">Notre équipe vous recontacte très vite pour préparer vos renforts.${a.telephone ? ` Pour une urgence : <a class="link" href="tel:${esc(a.telephone.replace(/\s/g, ''))}">${esc(a.telephone)}</a>.` : ''}</p>
     <a class="btn" href="/">Retour à l'accueil</a></div>`;
@@ -1066,6 +1084,37 @@ async function visiteModal() {
       <label class="f">Date de relance / prochain contact convenu<input type="date" name="date_relance" min="${t}"></label>
       <label class="f full">Notes et observations<textarea name="notes_agence" maxlength="3000"></textarea></label></div></section>
     <div class="err" hidden></div></div>${modalFoot('Enregistrer la visite', 'type="submit"')}</form>`);
+}
+
+const C_ST = { nouveau: ['pris', 'Nouvelle'], a_rappeler: ['attente', 'À rappeler'], entretien: ['pris', 'Entretien prévu'], inscrit: ['libre', 'Inscrit(e)'], refuse: ['off', 'Sans suite'] };
+V.agence.candidats = async () => {
+  const L = await GET('/candidats'), t = S.cfg?.aujourdhui || '';
+  const f = S.p.cf || 'actifs', vis = L.filter(x => f === 'tous' || (f === 'actifs' ? !['inscrit', 'refuse'].includes(x.statut) : x.statut === f));
+  const dus = L.filter(x => x.date_relance && x.date_relance <= t && !['inscrit', 'refuse'].includes(x.statut)).length;
+  return head('Candidatures', 'Personnes qui souhaitent travailler en intérim, reçues par la page publique <a class="link" href="/candidature" target="_blank" rel="noopener">/candidature</a>. Fixez une date de rappel, puis créez la fiche intérimaire.') +
+    `<div class="kpis">${kpi('Candidatures actives', 'idcard', L.filter(x => !['inscrit', 'refuse'].includes(x.statut)).length)}${kpi('À rappeler aujourd\'hui', 'clock', dus, dus ? 'Rappels en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Nouvelles', 'send', L.filter(x => x.statut === 'nouveau').length)}${kpi('Inscrits', 'users', L.filter(x => x.statut === 'inscrit').length)}</div>` +
+    panel(null, `<div class="seg">${[['actifs', 'Actives'], ['a_rappeler', 'À rappeler'], ['entretien', 'Entretien'], ['inscrit', 'Inscrits'], ['refuse', 'Sans suite'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
+      vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th></tr></thead><tbody>
+      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0"><td><b>${esc(x.prenom)} ${esc(x.nom)}</b><div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div></td>
+        <td class="small"><b>${esc(x.poste || '—')}</b>${x.reponses.experience ? `<div class="muted">${esc(x.reponses.experience)}</div>` : ''}</td>
+        <td class="small">${esc((x.reponses.creneaux || []).join(', ') || '—')}${x.reponses.type_mission ? `<div class="muted">${esc(x.reponses.type_mission)}</div>` : ''}</td>
+        <td>${fdate(x.created_at.slice(0, 10), 'num')}${x.cv_fichier ? `<div class="small muted">${ic('file', 'style="width:12px;height:12px;vertical-align:-2px"')} CV joint</div>` : ''}</td>
+        <td>${x.date_relance ? (x.date_relance <= t && !['inscrit', 'refuse'].includes(x.statut) ? badge('danger', fdate(x.date_relance, 'num')) : fdate(x.date_relance, 'num')) : '<span class="muted">—</span>'}</td>
+        <td>${badge(...C_ST[x.statut])}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune candidature dans cette liste.'));
+};
+async function candidatModal(id) {
+  const [L, d] = await Promise.all([GET('/candidats'), GET('/public/candidature')]);
+  const x = L.find(c => c.id === id); if (!x) return;
+  const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : c.type === 'date' ? fdate(v, 'num') : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
+  const secs = d.questionnaire.map(sec => { const L2 = sec.champs.map(c => [c.l, val(c)]).filter(([, v]) => v); return L2.length ? `<h3 class="q-titre">${esc(sec.titre)}</h3><dl class="kv">${L2.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''; }).join('');
+  openModal(`${modalHead(ic('idcard') + `${esc(x.prenom)} ${esc(x.nom)}`, `Candidature reçue le ${fdate(x.created_at.slice(0, 10), 'num')} · ${esc(x.poste || 'poste non précisé')}`)}
+    <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${x.cv_fichier ? `<a class="btn sm" style="align-self:flex-start" href="/api/candidats/${x.id}/cv">${ic('download')}Télécharger le CV</a>` : ''}${secs}</div>
+    <form data-f="csuivi" data-id="${x.id}" class="panel-b form" style="border-top:1px solid var(--line)"><h3 class="q-titre full">Suivi du recrutement</h3>
+      <label class="f">Statut<select name="statut">${Object.entries(C_ST).map(([k, [, l]]) => `<option value="${k}" ${k === x.statut ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="f">Date de rappel / d'entretien<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
+      <label class="f full">Notes de l'agence<textarea name="notes_agence" maxlength="3000">${esc(x.notes_agence || '')}</textarea></label>
+      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${x.interim_id ? badge('libre', 'Fiche intérimaire créée') : btn('Créer la fiche intérimaire', 'users', `data-a="cinterim" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="cdel" data-id="${x.id}"`, 'sm danger')}</div>
+      <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
 }
 
 /* ---------------- Formulaires en fenêtre ---------------- */
@@ -1209,6 +1258,11 @@ const A = {
   prospect: el => act(() => prospectModal(Number(el.dataset.id)), el),
   visite: () => visiteModal(),
   pfiltre: el => go('prospects', { pf: el.dataset.f }),
+  cfiltre: el => go('candidats', { cf: el.dataset.f }),
+  contactonglet: el => renderContact(el.dataset.o),
+  candidat: el => act(() => candidatModal(Number(el.dataset.id)), el),
+  cinterim: el => act(async () => { const r = await POST(`/candidats/${el.dataset.id}/interimaire`); closeModal(); S.p.isel = r.interim_id; toast('Fiche intérimaire créée. Complétez-la (n° de sécurité sociale, domicile) et créez son accès.'); go('interimaires'); }, el),
+  cdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.innerHTML = 'Confirmer la suppression'; el.classList.add('primary'); return; } await DEL(`/candidats/${el.dataset.id}`); closeModal(); toast('Candidature et CV supprimés'); reload(); }, el),
   pclient: el => act(async () => { const r = await POST(`/prospects/${el.dataset.id}/client`); closeModal(); S.p.csel = r.client_id; toast('Fiche client créée, avec le coefficient par défaut. Établissez ensuite le contrat commercial.'); go('clients'); }, el),
   pdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.innerHTML = 'Confirmer la suppression'; el.classList.add('primary'); return; } await DEL(`/prospects/${el.dataset.id}`); closeModal(); toast('Prospect supprimé'); reload(); }, el),
   ccsign: el => ccSignModal(Number(el.dataset.id)),
@@ -1296,6 +1350,14 @@ const F = {
     const err = f.querySelector('.err'); err.hidden = true;
     try { await POST('/prospects', lireQuestionnaire(fd)); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'nearest' }); return; }
     closeModal(); toast('Visite enregistrée'); go('prospects');
+  }),
+  csuivi: (fd, f) => act(async () => { await PUT(`/candidats/${f.dataset.id}`, Object.fromEntries(fd)); closeModal(); toast('Suivi enregistré'); reload(); }),
+  candidature: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    for (const [k, v] of [...fd]) if (v === '' || (v instanceof File && !v.size)) fd.delete(k);
+    try { await POST('/public/candidature', fd); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'center' }); return; }
+    f.closest('.contact-card').innerHTML = contactMerci();
+    window.scrollTo(0, 0);
   }),
   contact: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;

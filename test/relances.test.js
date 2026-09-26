@@ -110,3 +110,34 @@ test('prospects : page publique et visite terrain', async () => {
   L = (await ag.get('/prospects')).data;
   assert.equal(L.length, 1);
 });
+
+test('candidatures : page publique avec CV, suivi et inscription', async () => {
+  const envoi = async (champs, cv) => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries(champs)) for (const x of [].concat(v)) fd.append(k, x);
+    if (cv) fd.append('cv', new Blob([cv.contenu], { type: cv.type }), cv.nom);
+    const r = await fetch(base + '/public/candidature', { method: 'POST', headers: { 'X-CHR': '1' }, body: fd });
+    return { status: r.status, data: await r.json().catch(() => null) };
+  };
+  const pub = agent();
+  assert.ok((await pub.get('/public/candidature')).data.questionnaire.length >= 4);
+  const c = { prenom: 'Sarah', nom: 'Lopez', telephone: '0655443322', ville: 'Lyon 7e', postes: ['Serveur', 'Barman'], poste_principal: 'Barman', experience: 'Moins d\'un an', creneaux: ['Le soir', 'Le week-end'] };
+  assert.equal((await envoi(c)).status, 400, 'consentement obligatoire');
+  assert.equal((await envoi({ ...c, consentement: '1' }, { contenu: 'MZ exécutable', type: 'application/pdf', nom: 'cv.pdf' })).status, 400, 'faux PDF refusé');
+  assert.equal((await envoi({ ...c, consentement: '1', ville: '' })).status, 400, 'ville obligatoire');
+  assert.equal((await envoi({ ...c, consentement: '1' }, { contenu: '%PDF-1.4 cv', type: 'application/pdf', nom: 'CV Sarah.pdf' })).status, 201);
+  assert.equal((await pub.get('/candidats')).status, 401);
+
+  const ag = await agence();
+  const L = (await ag.get('/candidats')).data;
+  assert.equal(L.length, 1); assert.equal(L[0].poste, 'Barman'); assert.deepEqual(L[0].reponses.creneaux, ['Le soir', 'Le week-end']);
+  const cv = await fetch(`${base}/candidats/${L[0].id}/cv`, { headers: { Cookie: '' } });
+  assert.equal(cv.status, 401, 'CV réservé à l\'agence');
+  assert.equal((await ag.put(`/candidats/${L[0].id}`, { statut: 'entretien', date_relance: plusJours(1) })).data.statut, 'entretien');
+  const iid = (await ag.post(`/candidats/${L[0].id}/interimaire`)).data.interim_id;
+  const fiche = (await ag.get('/interimaires')).data.find(x => x.id === iid);
+  assert.equal(fiche.poste, 'Barman'); assert.equal(fiche.secteur, 'Bar'); assert.equal(fiche.ville, 'Lyon 7e');
+  assert.equal((await ag.get('/candidats')).data[0].statut, 'inscrit');
+  assert.equal((await ag.post(`/candidats/${L[0].id}/interimaire`)).status, 409);
+  assert.equal((await ag.del(`/candidats/${L[0].id}`)).status, 200);
+});

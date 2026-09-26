@@ -301,7 +301,7 @@ button.day:hover{border-color:var(--accent)}
 .perm .y svg{color:var(--libre-dot)} .perm .n{color:var(--ink-3)}
 @media (max-width:1000px){ .grid-main{grid-template-columns:minmax(0,1fr)} .gsearch{display:none} }
 @media (max-width:900px){
-  .shell{grid-template-columns:minmax(0,1fr)}
+  .shell{grid-template-columns:minmax(0,1fr);grid-template-rows:auto 1fr}
   .sidebar{position:static;height:auto;padding:12px 16px 8px;padding-top:calc(12px + env(safe-area-inset-top,0px))}
   .brand{padding:0 0 10px}
   .space,.me{display:none}
@@ -353,3 +353,20 @@ dialog{border:0;padding:0;background:none}
 .btn.danger:hover{background:var(--danger-bg)}
 .modal .btn.danger{background:var(--danger-dot);color:#FFFFFF;border-color:var(--danger-dot)}
 .panel-f .btn.danger:hover{filter:brightness(1.08)}
+
+/* ---- logos selon l'appareil ---- */
+.brand picture,.auth picture{display:block}
+.auth picture{width:min(460px,100%)}
+.auth-logo{width:100%}
+@media (max-width:900px){
+  .brand{display:flex;align-items:center;justify-content:space-between;padding:0 0 10px;margin-bottom:8px}
+  .brand-logo{width:auto;height:30px;max-width:70vw}
+}
+@media (max-width:600px){
+  .auth{justify-content:flex-start;padding-top:36px;gap:22px}
+  .auth picture{width:min(250px,70vw)}
+  .auth-card{padding:22px}
+}
+@media (min-width:1600px){
+  .brand-logo{max-width:236px}
+}

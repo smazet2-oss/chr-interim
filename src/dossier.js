@@ -220,8 +220,8 @@ h1{font-size:22px;text-align:center;margin-bottom:4px}p.sub{text-align:center;co
 dl{display:grid;grid-template-columns:220px 1fr;gap:4px 14px;margin:8px 0}dt{color:#555}dd{margin:0}mark{background:#fde68a}
 .sig{border:1px solid #999;padding:12px 14px;margin-top:10px}.ok{color:#166534;font-weight:bold}.wait{color:#92400e;font-weight:bold}
 .entete{background:#112233;margin:-24px -20px 22px;padding:18px 24px;border-bottom:5px solid #C99948;-webkit-print-color-adjust:exact;print-color-adjust:exact}.entete img{display:block;height:58px;width:auto;max-width:100%}h2{border-bottom-color:#C99948!important}
-@media print{body{margin:0}.entete{margin:0 0 22px}} @media (max-width:560px){dl{grid-template-columns:1fr}dt{margin-top:6px}}</style></head><body>
-<div class="entete"><img src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR"></div>
+@media print{body{margin:0}.entete{margin:0 0 22px}} @media (max-width:560px){.entete{padding:14px 20px}.entete img{height:30px}h1{font-size:19px}} @media (max-width:560px){dl{grid-template-columns:1fr}dt{margin-top:6px}}</style></head><body>
+<div class="entete"><picture><source media="(max-width: 560px)" srcset="/img/logo-compact.png"><img src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR"></picture></div>
 <h1>Contrat de mission (travail temporaire)</h1><p class="sub">N° ${e(k.numero)} · établi le ${new Date(k.created_at + 'Z').toLocaleDateString('fr-FR')}</p>
 <h2>Entreprise de travail temporaire</h2><dl><dt>Raison sociale</dt><dd>${process.env.AGENCE_RAISON_SOCIALE ? e(process.env.AGENCE_RAISON_SOCIALE) : 'CHR Intérim'}</dd><dt>Adresse</dt><dd>${cfg('AGENCE_ADRESSE')}</dd><dt>SIRET</dt><dd>${cfg('AGENCE_SIRET')}</dd><dt>Garantie financière</dt><dd>${cfg('AGENCE_GARANTIE_FINANCIERE')}</dd></dl>
 <h2>Salarié intérimaire</h2><dl><dt>Nom et prénom</dt><dd>${e(k.interim_nom.toUpperCase())} ${e(k.prenom)}</dd><dt>Date de naissance</dt><dd>${k.date_naissance ? new Date(k.date_naissance + 'T12:00').toLocaleDateString('fr-FR') : '<mark>[à compléter]</mark>'}</dd><dt>Nationalité</dt><dd>${e(k.nationalite)}</dd><dt>Ville</dt><dd>${e(k.interim_ville || '')}</dd></dl>

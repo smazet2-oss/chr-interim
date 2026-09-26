@@ -441,3 +441,27 @@ dialog{border:0;padding:0;background:none}
   .kpis{grid-template-columns:minmax(0,1fr)}
 }
 @media (min-width:1001px){.grid-main.side{grid-template-columns:minmax(260px,1fr) minmax(0,1.5fr)}}
+
+/* ---- calendrier cliquable et détail du jour ---- */
+button.day{cursor:pointer;font:inherit;color:inherit}
+button.day:hover,button.day:focus-visible{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent)}
+.day.danger{background:var(--danger-bg);color:var(--danger-fg);border-color:transparent}
+.day.passe{opacity:.62}
+.th-jour{border:0;background:none;padding:0;font:inherit;color:inherit;text-transform:inherit;letter-spacing:inherit;cursor:pointer;text-decoration:underline dotted;text-underline-offset:3px}
+button.cell{width:100%;border-top:0;border-right:0;border-bottom:0;text-align:left;font:inherit;cursor:pointer}
+button.cell:hover{filter:brightness(.96)}
+.modal.large{width:min(680px,100%)}
+.jour-corps{max-height:min(70vh,760px);overflow-y:auto}
+.jour-mission{padding:14px 16px;border-bottom:1px solid var(--line)}
+.jour-mission h3{font-size:14.5px}
+.jour-mission .kv{font-size:13px;grid-template-columns:minmax(110px,auto) 1fr;gap:6px 14px}
+.jour-groupe{margin-top:12px}
+.jour-titre{margin-bottom:2px}
+.jour-mission .li{padding:8px 0}
+@media (max-width:640px){
+  .jour-corps{max-height:none}
+  .jour-mission{padding:12px}
+  .jour-mission .kv{grid-template-columns:minmax(0,1fr)}
+}
+.lbl.l-court{display:none}
+@media (max-width:640px){.cal .lbl.l-long{display:none}.cal .lbl.l-court{display:block;font-weight:600;font-size:11px}}

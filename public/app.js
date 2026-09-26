@@ -83,7 +83,7 @@ const NAV = {
   agence: [['accueil', 'Tableau de bord', 'dash'], ['missions', 'Missions', 'briefcase'], ['planning', 'Planning', 'cal'], ['interimaires', 'Intérimaires', 'users'],
     ['clients', 'Clients', 'building'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
     ['paie', 'Paie', 'wallet'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
-  client: [['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes demandes', 'briefcase'], ['jour', 'Planning du jour', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
+  client: [['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes demandes', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
     ['interimaires', 'Intérimaires', 'users'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file'], ['documents', 'Documents', 'folder']],
   interim: [['accueil', 'Accueil', 'dash'], ['missions', 'Missions proposées', 'send'], ['dispo', 'Disponibilités', 'cal'], ['heures', 'Mes heures', 'clock'],
     ['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser', 'upload'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star']],
@@ -227,7 +227,7 @@ const tabs = (key, opts) => `<div class="tabs">${opts.map(([v, l]) => `<button c
 
 /* ---------------- Fenêtres ---------------- */
 function openModal(html) { $('#modal').innerHTML = `<div class="modal-bg" data-a="modalbg"><div class="modal panel" role="dialog" aria-modal="true">${html}</div></div>`; const f = $('#modal input, #modal select, #modal textarea'); if (f) f.focus(); }
-function closeModal() { $('#modal').innerHTML = ''; S.modal = null; }
+function closeModal() { $('#modal').innerHTML = ''; S.modal = null; S.jour = null; }
 const modalHead = (t, sub = '') => `<div class="panel-h"><div><h2>${t}</h2>${sub ? `<div class="small muted">${sub}</div>` : ''}</div></div>`;
 const modalFoot = (primary, attrs = '') => `<div class="panel-f" style="justify-content:flex-end">${btn('Annuler', '', 'data-a="close"')}<button class="btn primary" ${attrs}>${primary}</button></div>`;
 
@@ -334,6 +334,92 @@ function gestionProfil(type, r) {
 }
 const suspenduInfo = r => r.suspendu ? `<div class="extra" style="grid-template-columns:1fr;background:var(--off-bg);border-color:var(--line-strong);color:var(--ink-2)"><div class="small"><b>${ic('lock', 'style="vertical-align:-3px"')} Profil suspendu depuis le ${fdate(r.suspendu_le, 'num')}</b>${r.motif_suspension ? ` · ${esc(r.motif_suspension)}` : ''}<br>Connexion impossible${r.prenom ? ', aucune mission proposée' : ', aucune nouvelle mission'} tant que le profil n'est pas réactivé.</div></div>` : '';
 
+/* ---------------- Calendrier du mois et détail d'une journée ---------------- */
+const moisDe = (iso, delta = 0) => { const d = new Date(iso.slice(0, 7) + '-01T12:00'); d.setMonth(d.getMonth() + delta); return d.toISOString().slice(0, 7); };
+/** Grille d'un mois ; cellule(iso, jour) renvoie { cls, lignes[], clic } */
+function grilleMois(mois, cellule) {
+  const [y, m] = mois.split('-').map(Number), nb = new Date(y, m, 0).getDate(), pad = (new Date(y, m - 1, 1).getDay() + 6) % 7, t = S.cfg?.aujourdhui;
+  let h = `<div class="cal">${['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(x => `<div class="dow">${x}</div>`).join('')}${'<div class="day blank"></div>'.repeat(pad)}`;
+  for (let k = 1; k <= nb; k++) {
+    const iso = `${mois}-${String(k).padStart(2, '0')}`, c = cellule(iso, k);
+    const inner = `<span class="d">${k}</span>${c.lignes.map(l => `<span class="lbl l-long">${esc(l)}</span>`).join('')}${c.court ? `<span class="lbl l-court">${esc(c.court)}</span>` : ''}`;
+    h += `<button type="button" class="day ${c.cls || ''} ${iso === t ? 'today' : ''} ${iso < t ? 'passe' : ''}" data-a="jour" data-d="${iso}" aria-label="${fdate(iso, 'long')}${c.lignes.length ? ' : ' + esc(c.lignes.join(', ')) : ''}">${inner}</button>`;
+  }
+  return h + '</div>';
+}
+const navMois = (cle, mois) => `<div class="row">${btn('', 'left', `data-a="navmois" data-k="${cle}" data-d="-1" aria-label="Mois précédent"`, 'sm')}<b style="min-width:130px;text-align:center;text-transform:capitalize">${new Date(mois + '-01T12:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</b>${btn('', 'chev', `data-a="navmois" data-k="${cle}" data-d="1" aria-label="Mois suivant"`, 'sm')}</div>`;
+
+const ETAT_CONTRAT = { a_signer: ['attente', 'Contrat à signer'], signe: ['libre', 'Contrat signé'], annule: ['off', 'Contrat annulé'] };
+function etatHeures(h, date) {
+  if (!h) return '';
+  if (date > (S.cfg?.aujourdhui || '')) return badge('off', `${num(h.heures_prevues)} h prévues`);
+  const moi = S.me.profil;
+  if (!h.valide_interim) return badge('attente', moi === 'interim' ? 'Heures à confirmer' : 'Heures à confirmer par l\'intérimaire');
+  if (h.extra_statut === 'attente') return badge('attente', moi === 'client' ? 'Heures en plus à accepter' : 'Heures en plus en attente de l\'employeur');
+  if (!h.valide_client) return badge('attente', moi === 'client' ? 'Heures à valider' : 'Heures à valider par l\'employeur');
+  return badge('libre', `Heures validées (${num(h.heures_prevues + (h.extra_statut === 'accepte' ? h.extra : 0))} h)`);
+}
+const suiviIntervenant = (x, date) => [x.contrat ? badge(...ETAT_CONTRAT[x.contrat]) : '', etatHeures(x.heures, date)].join('');
+const ligne = (x, droite = '', extra = '') => `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div class="person"><div class="avatar">${initials(x.prenom + ' ' + x.nom)}</div><div><b>${esc(x.prenom)} ${esc(x.nom)}</b><span>${esc(x.poste || '')}${x.telephone ? ` · <a class="link" href="tel:${esc(String(x.telephone).replace(/\s/g, ''))}">${esc(x.telephone)}</a>` : ''}${extra}</span></div></div><div class="row">${droite}</div></div>`;
+function groupe(titre, cls, L, rendu) {
+  if (!L.length) return '';
+  return `<div class="jour-groupe"><div class="jour-titre">${badge(cls, `${titre} · ${L.length}`)}</div><div class="list">${L.map(rendu).join('')}</div></div>`;
+}
+
+async function openJour(date) {
+  const d = await GET('/jour/' + date);
+  S.jour = date;
+  const prof = d.profil;
+  let corps = '';
+  if (prof === 'agence') {
+    corps = d.missions.map(m => {
+      const I = m.intervenants, par = e => I.filter(x => x.etat === e);
+      const canaux = x => x.canaux.map(c => CANAUX[c]?.[1]).join(', ');
+      return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${esc(m.motif || '')}</div></div>${badge(...missionStatut({ ...m, actifs: I.filter(x => ['accepte', 'retenu'].includes(x.etat)).length, retenus: par('retenu').length }))}</div>
+        <dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc([m.client_adresse, m.client_ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc([m.client_contact, m.client_telephone].filter(Boolean).join(' · ') || '—')}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}<dt>Postes pourvus</dt><dd>${par('retenu').length} / ${m.nb_postes}</dd></dl>
+        ${m.statut === 'nouvelle' ? `<div class="row" style="margin-top:8px">${btn('Valider et diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary')}</div>` : ''}
+        ${groupe('Validés', 'libre', par('retenu'), x => ligne(x, suiviIntervenant(x, m.date), ` · ${canaux(x)}`))}
+        ${groupe('En attente de l\'employeur', 'attente', par('accepte'), x => ligne(x, m.statut === 'diffusee' ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${x.interim_id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${x.interim_id}" data-ok="1"`, 'sm primary') : ''))}
+        ${groupe('Refusés par l\'employeur', 'danger', par('refuse_client'), x => ligne(x))}
+        ${groupe('Non retenus', 'off', par('non_retenu'), x => ligne(x))}
+        ${groupe('Sans réponse', 'off', par(null), x => ligne(x, '', ` · envoyé par ${canaux(x)}`))}
+        ${groupe('Ont décliné', 'off', par('decline'), x => ligne(x))}
+        ${!I.length && m.statut !== 'nouvelle' ? empty('Aucun intérimaire contacté.') : ''}</section>`;
+    }).join('') + `<section class="jour-mission"><h3>Intérimaires ce jour-là</h3>
+      ${groupe('Disponibles', 'libre', d.disponibles, x => ligne(x))}${groupe('Indisponibles', 'off', d.indisponibles, x => ligne(x))}
+      ${!d.disponibles.length && !d.indisponibles.length ? '<p class="small muted">Aucune disponibilité renseignée pour cette date.</p>' : ''}</section>`;
+  } else if (prof === 'client') {
+    corps = d.missions.map(m => {
+      const C = m.candidats, par = (...e) => C.filter(x => e.includes(x.etat));
+      return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${m.nb_postes} × ${esc(m.poste)}</h3><div class="small muted">${m.debut}–${m.fin}${m.commentaire ? ' · ' + esc(m.commentaire) : ''}</div></div>${badge(...missionStatut({ ...m, actifs: par('accepte', 'retenu').length, retenus: par('retenu').length }))}</div>
+        <div class="small" style="margin:6px 0">Postes pourvus : <b>${par('retenu').length} / ${m.nb_postes}</b></div>
+        ${m.statut === 'nouvelle' ? empty('Demande en cours de validation par l\'agence.') : ''}
+        ${groupe('Validés', 'libre', par('retenu'), x => ligne(x, stars(x.note) + suiviIntervenant(x, m.date)))}
+        ${groupe('En attente de votre décision', 'attente', par('accepte'), x => ligne(x, stars(x.note) + (m.statut === 'diffusee' ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${x.interim_id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${x.interim_id}" data-ok="1"`, 'sm primary') : '')))}
+        ${groupe('Refusés', 'danger', par('refuse_client'), x => ligne(x))}
+        ${groupe('Non retenus', 'off', par('non_retenu'), x => ligne(x))}
+        ${m.statut === 'diffusee' && !C.length ? empty('Diffusée. En attente de réponses des intérimaires.') : ''}</section>`;
+    }).join('');
+  } else {
+    const ET = { confirmee: ['libre', 'Mission confirmée'], en_attente: ['attente', 'En attente de confirmation'], a_repondre: ['pris', 'À traiter'], complet: ['off', 'Complet'], non_retenu: ['off', 'Non retenu'], pourvue: ['off', 'Mission pourvue'], decline: ['off', 'Vous avez décliné'], annulee: ['off', 'Annulée'] };
+    corps = d.missions.map(m => `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${badge(...ET[m.etat])}</div>
+      <dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc(m.lieu || '—')}</dd><dt>Nombre de postes</dt><dd>${m.nb_postes}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}
+      ${m.contact ? `<dt>Sur place</dt><dd>${esc(m.contact.nom || '—')}${m.contact.telephone ? ` · <a class="link" href="tel:${esc(m.contact.telephone.replace(/\s/g, ''))}">${esc(m.contact.telephone)}</a>` : ''}</dd>` : ''}
+      ${m.collegues?.length ? `<dt>Avec vous</dt><dd>${esc(m.collegues.join(', '))}</dd>` : ''}
+      ${m.contrat ? `<dt>Contrat</dt><dd class="row">${badge(...ETAT_CONTRAT[m.contrat])}${m.contrat_id ? `<a class="link" href="/api/contrats/${m.contrat_id}/document" target="_blank" rel="noopener">Lire</a>` : ''}${m.contrat === 'a_signer' ? btn('Signer', 'edit', `data-a="signer" data-id="${m.contrat_id}" data-n=""`, 'sm primary') : ''}</dd>` : ''}
+      ${m.heures ? `<dt>Heures</dt><dd>${etatHeures(m.heures, m.date)}</dd>` : ''}
+      ${m.documents?.length ? `<dt>Documents</dt><dd>${docLinks(m.documents)}</dd>` : ''}</dl>
+      ${m.etat === 'a_repondre' ? `<div class="row" style="margin-top:8px">${btn('Refuser', '', `data-a="repondre" data-id="${m.id}" data-ok="0"`, 'sm')}${btn('Accepter la mission', 'check', `data-a="repondre" data-id="${m.id}" data-ok="1"`, 'sm primary')}</div>` : ''}</section>`).join('')
+      + `<p class="small muted" style="padding:0 16px 12px">Votre disponibilité ce jour-là : <b>${d.disponibilite === 'disponible' ? 'disponible' : d.disponibilite === 'indisponible' ? 'indisponible' : 'non renseignée'}</b>.</p>`;
+  }
+  const vide = !d.missions.length;
+  openModal(`<div data-jour="${date}">${modalHead(ic('cal') + fdate(date, 'long').replace(/^./, c => c.toUpperCase()), vide ? 'Aucune mission' : `${d.missions.length} mission${d.missions.length > 1 ? 's' : ''}`)}
+    <div class="jour-corps">${vide && prof !== 'agence' ? empty(prof === 'client' ? 'Aucune mission ce jour-là.' : 'Aucune mission ce jour-là.') : corps}</div>
+    <div class="panel-f" style="justify-content:flex-end">${prof === 'client' && date >= (S.cfg?.aujourdhui || '') ? btn('Demander du personnel ce jour-là', 'plus', `data-a="demjour" data-d="${date}"`, 'sm') : ''}${btn('Fermer', '', 'data-a="close"', 'primary')}</div></div>`);
+  document.querySelector('#modal .modal').classList.add('large');
+}
+const rafraichirJour = async () => { if (S.jour) await openJour(S.jour); };
+
 /* ---------------- Vues ---------------- */
 const V = { agence: {}, client: {}, interim: {} };
 
@@ -369,15 +455,25 @@ V.agence.missions = async () => {
 };
 
 V.agence.planning = async () => {
+  S.p.pv = S.p.pv || 'semaine';
+  const onglets = `<div class="panel" style="padding:10px 14px">${tabs('pv', [['semaine', 'Semaine par intérimaire'], ['mois', 'Mois : missions par date']])}</div>`;
+  if (S.p.pv === 'mois') {
+    S.p.am = S.p.am || (S.cfg?.aujourdhui || '').slice(0, 7);
+    const c = await GET('/calendrier?mois=' + S.p.am), J = Object.fromEntries(c.jours.map(x => [x.date, x]));
+    return head('Planning', 'Cliquez sur une date pour voir toutes les missions du jour, les intérimaires contactés et leur état, et les intérimaires disponibles.') + onglets +
+      panel('', navMois('am', S.p.am) + `<div class="legend">${badge('danger', 'À diffuser')}${badge('attente', 'En cours')}${badge('libre', 'Tout pourvu')}</div>`,
+        `<div class="panel-b">${grilleMois(S.p.am, iso => { const x = J[iso]; if (!x) return { lignes: [] };
+          return { cls: x.nouvelles ? 'danger' : x.verrouillees === x.missions ? 'libre' : 'attente', lignes: [`${x.missions} mission${x.missions > 1 ? 's' : ''}`, `${x.retenus}/${x.postes} pourvu${x.postes > 1 ? 's' : ''}`], court: `${x.retenus}/${x.postes}` }; })}</div>`);
+  }
   S.p.sem = S.p.sem || lundi(S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10));
   const d = await GET('/planning?debut=' + S.p.sem);
   const lib = { pris: 'En mission', attente: 'Proposée', off: 'Indisponible', libre: 'Disponible', inconnu: 'Non renseigné' };
-  return head('Planning des intérimaires', `Semaine du ${fdate(d.jours[0], 'num')} au ${fdate(d.jours[6], 'num')}.`,
-    btn('Semaine précédente', 'left', `data-a="sem" data-d="-7"`, 'sm') + btn('Cette semaine', '', 'data-a="sem" data-d="0"', 'sm') + btn('Semaine suivante', 'chev', 'data-a="sem" data-d="7"', 'sm')) +
+  return head('Planning', `Semaine du ${fdate(d.jours[0], 'num')} au ${fdate(d.jours[6], 'num')}. Cliquez sur un jour ou une case pour le détail.`,
+    btn('Semaine précédente', 'left', `data-a="sem" data-d="-7"`, 'sm') + btn('Cette semaine', '', 'data-a="sem" data-d="0"', 'sm') + btn('Semaine suivante', 'chev', 'data-a="sem" data-d="7"', 'sm')) + onglets +
     panel('', `<div class="legend">${badge('libre', 'Disponible')}${badge('pris', 'En mission')}${badge('attente', 'Proposée')}${badge('off', 'Indisponible')}</div>`,
-      d.lignes.length ? `<div class="scroll"><table class="plan"><thead><tr><th>Intérimaire</th>${d.jours.map(j => `<th class="${j === S.cfg?.aujourdhui ? 'today' : ''}">${fdate(j)}</th>`).join('')}</tr></thead><tbody>
+      d.lignes.length ? `<div class="scroll"><table class="plan"><thead><tr><th>Intérimaire</th>${d.jours.map(j => `<th class="${j === S.cfg?.aujourdhui ? 'today' : ''}"><button type="button" class="th-jour" data-a="jour" data-d="${j}">${fdate(j)}</button></th>`).join('')}</tr></thead><tbody>
       ${d.lignes.map(l => `<tr><td><div class="person"><div class="avatar">${initials(l.prenom + ' ' + l.nom)}</div><div><b>${esc(l.prenom)} ${esc(l.nom)}</b><span>${esc(l.poste)}</span></div></div></td>
-      ${l.cases.map(c => `<td><div class="cell ${c.statut}"><b>${lib[c.statut]}</b>${c.client ? `<span>${esc(c.client)}</span>` : ''}</div></td>`).join('')}</tr>`).join('')}</tbody></table></div>` : empty('Aucun intérimaire.'));
+      ${l.cases.map((c, k) => `<td><button type="button" class="cell ${c.statut}" data-a="jour" data-d="${d.jours[k]}"><b>${lib[c.statut]}</b>${c.client ? `<span>${esc(c.client)}</span>` : ''}</button></td>`).join('')}</tr>`).join('')}</tbody></table></div>` : empty('Aucun intérimaire.'));
 };
 
 V.agence.interimaires = async () => {
@@ -526,7 +622,7 @@ V.client.demandes = async () => {
   return head('Mes demandes', 'Envoyez vos besoins. L\'agence les valide et les diffuse, puis vous acceptez ou refusez les intérimaires qui ont accepté la mission.') +
     `<div class="grid-main"><div style="display:flex;flex-direction:column;gap:18px;min-width:0">${actives.map(m => missionCard(m, 'client')).join('') || panel(null, '', empty('Aucune demande en cours.'))}
     ${passees.length ? panel('Historique', '', `<div class="list">${passees.slice(-10).reverse().map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)}</div></div>${badge(...missionStatut(m))}</div>`).join('')}</div>`) : ''}</div>
-    ${panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f">Date<input type="date" name="date" min="${t}" required value="${addDays(t || new Date().toISOString().slice(0, 10), 7)}"></label>
+    ${panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f">Date<input type="date" name="date" min="${t}" required value="${S.p.dem_date || addDays(t || new Date().toISOString().slice(0, 10), 7)}"></label>
       <label class="f">Poste<input type="text" name="poste" required list="postes" placeholder="Serveur"></label><datalist id="postes">${['Serveur', 'Chef de rang', 'Commis de cuisine', 'Cuisinier', 'Plongeur', 'Barman', 'Réceptionniste', 'Femme de chambre'].map(p => `<option value="${p}">`).join('')}</datalist>
       <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
       <label class="f">Nombre de personnes<input type="number" name="nb_postes" value="1" min="1" max="30" required></label><label class="f full">Précisions pour l'agence<textarea name="commentaire" placeholder="Tenue, lieu de rendez-vous…"></textarea></label>
@@ -534,8 +630,13 @@ V.client.demandes = async () => {
 };
 V.client.jour = async () => {
   S.p.jd = S.p.jd || S.cfg?.aujourdhui;
-  const L = await GET('/planning/jour?date=' + S.p.jd);
-  return head('Planning du jour', 'Seuls les intérimaires affectés à votre établissement apparaissent ici.') +
+  S.p.cm = S.p.cm || (S.cfg?.aujourdhui || '').slice(0, 7);
+  const [L, c] = await Promise.all([GET('/planning/jour?date=' + S.p.jd), GET('/calendrier?mois=' + S.p.cm)]);
+  const J = Object.fromEntries(c.jours.map(x => [x.date, x]));
+  return head('Planning', 'Cliquez sur une date pour voir vos missions et les intérimaires validés, en attente de votre décision ou refusés.') +
+    panel('', navMois('cm', S.p.cm) + `<div class="legend">${badge('danger', 'Décision à prendre')}${badge('attente', 'En cours')}${badge('libre', 'Tout pourvu')}</div>`,
+      `<div class="panel-b">${grilleMois(S.p.cm, iso => { const x = J[iso]; if (!x) return { lignes: [] };
+        return { cls: x.en_attente ? 'danger' : x.verrouillees === x.missions ? 'libre' : 'attente', lignes: [`${x.retenus}/${x.postes} validé${x.retenus > 1 ? 's' : ''}`, ...(x.en_attente ? [`${x.en_attente} à décider`] : [])], court: `${x.retenus}/${x.postes}` }; })}</div>`) +
     panel(fdate(S.p.jd, 'long'), `<form data-f="jour" class="inline-form"><input type="date" name="date" value="${S.p.jd}" aria-label="Date"><button class="btn sm" type="submit">Afficher</button></form>`,
       L.length ? L.map(j => `<div class="shift"><div class="time"><b>${j.debut}</b>${j.fin}</div><div class="person"><div class="avatar">${initials(j.prenom + ' ' + j.nom)}</div><div><b>${esc(j.prenom)} ${esc(j.nom)}</b><span>${esc(j.poste)}</span></div></div><div>${badge('pris', 'Confirmé')}</div></div>`).join('') : empty('Aucun intérimaire prévu ce jour-là.'));
 };
@@ -608,12 +709,13 @@ V.interim.dispo = async () => {
     for (let k = 1; k <= nb; k++) {
       const iso = `${y}-${String(mo + 1).padStart(2, '0')}-${String(k).padStart(2, '0')}`, m = M[iso], e = D[iso];
       const cls = m ? m[0] : e === 'disponible' ? 'libre' : e === 'indisponible' ? 'off' : '', lab = m ? m[1] : e === 'disponible' ? 'Disponible' : e === 'indisponible' ? 'Indisponible' : '';
-      h += m || iso < t ? `<div class="day ${cls} ${iso < t ? 'past' : ''} ${iso === t ? 'today' : ''}"><span class="d">${k}</span><span class="lbl">${esc(lab)}</span></div>`
+      h += m ? `<button class="day ${cls} ${iso < t ? 'passe' : ''} ${iso === t ? 'today' : ''}" data-a="jour" data-d="${iso}" aria-label="${k} : ${esc(lab)}, voir le détail"><span class="d">${k}</span><span class="lbl">${esc(lab)}</span></button>`
+        : iso < t ? `<div class="day ${cls} past ${iso === t ? 'today' : ''}"><span class="d">${k}</span><span class="lbl">${esc(lab)}</span></div>`
         : `<button class="day ${cls} ${iso === t ? 'today' : ''}" data-a="dispo" data-d="${iso}" data-e="${e || ''}" aria-label="${k} : ${lab || 'non renseigné'}"><span class="d">${k}</span><span class="lbl">${lab}</span></button>`;
     }
     return `<section class="panel"><div class="panel-h"><h2>${d0.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2></div><div class="panel-b">${h}</div></section>`;
   };
-  return head('Disponibilités', 'Cliquez sur un jour pour le passer en disponible, puis indisponible, puis non renseigné. L\'agence s\'en sert pour vous proposer des missions.',
+  return head('Disponibilités', 'Cliquez sur un jour libre pour le passer en disponible, puis indisponible, puis non renseigné. Cliquez sur un jour de mission pour en voir tous les détails.',
     btn('Mois précédents', 'left', 'data-a="mois" data-d="-1"', 'sm') + btn('Mois suivants', 'chev', 'data-a="mois" data-d="1"', 'sm')) +
     `<div class="legend">${badge('libre', 'Disponible')}${badge('off', 'Indisponible')}${badge('attente', 'Mission proposée')}${badge('pris', 'Mission confirmée')}</div><div class="grid2">${cal(0)}${cal(1)}</div>`;
 };
@@ -751,6 +853,9 @@ const A = {
   bgen: el => act(async () => { const r = await POST('/bulletins/generer', { debut: el.dataset.d, fin: el.dataset.f }); toast(r.crees ? `${r.crees} fiche(s) de paie créée(s)` : 'Aucune heure validée à mettre en paie sur cette période.'); reload(); }, el),
   bpay: el => act(async () => { await POST(`/bulletins/${el.dataset.id}/payer`); toast('Fiche marquée payée. L\'intérimaire est prévenu.'); reload(); }, el),
   nav: el => go(el.dataset.v),
+  jour: el => act(() => openJour(el.dataset.d), el),
+  navmois: el => { S.p[el.dataset.k] = moisDe(S.p[el.dataset.k] + '-01', Number(el.dataset.d)); reload(); },
+  demjour: el => { closeModal(); go('demandes', { dem_date: el.dataset.d }); },
   menu: () => setMenu(!S.menu),
   tab: el => { S.p[el.dataset.k] = el.dataset.v; reload(); },
   logout: () => act(async () => { await POST('/logout').catch(() => { }); S.me = null; S.pwTemp = null; renderAuth(); }),
@@ -769,9 +874,9 @@ const A = {
   decision: el => act(async () => {
     const r = await POST(`/missions/${el.dataset.m}/decision`, { interim_id: Number(el.dataset.i), accepte: el.dataset.ok === '1' });
     toast(r.verrouillee ? 'Mission validée et verrouillée. Les documents ont été envoyés.' : el.dataset.ok === '1' ? 'Intérimaire retenu.' : 'Intérimaire refusé. La place est de nouveau ouverte.');
-    reload();
+    await reload(); await rafraichirJour();
   }, el),
-  repondre: el => act(async () => { await POST(`/missions/${el.dataset.id}/repondre`, { accepte: el.dataset.ok === '1' }); toast(el.dataset.ok === '1' ? 'Mission acceptée. En attente de confirmation de l\'employeur.' : 'Mission refusée.'); reload(); }, el),
+  repondre: el => act(async () => { await POST(`/missions/${el.dataset.id}/repondre`, { accepte: el.dataset.ok === '1' }); toast(el.dataset.ok === '1' ? 'Mission acceptée. En attente de confirmation de l\'employeur.' : 'Mission refusée.'); await reload(); await rafraichirJour(); }, el),
   isel: el => { S.p.isel = Number(el.dataset.id); reload(); },
   csel: el => { S.p.csel = Number(el.dataset.id); reload(); },
   interimform: el => act(() => interimForm(Number(el.dataset.id) || null), el),

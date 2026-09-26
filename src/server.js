@@ -168,6 +168,7 @@ app.post('/api/password', auth, wrap((req, res) => {
 const api = express.Router();
 api.use(auth);
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
+require('./jour')(api, { fail: (...a) => fail(...a), isDate: (...a) => isDate(...a), wrap: fn => wrap(fn), today: () => today(), missionPourInterim: (...a) => missionPourInterim(...a), missionRow: (...a) => missionRow(...a) });
 
 /* ---------------- Clients ---------------- */
 const CLIENT_FIELDS = ['nom', 'siret', 'secteur', 'adresse', 'ville', 'contact', 'email', 'telephone', 'convention'];

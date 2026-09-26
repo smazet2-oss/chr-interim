@@ -63,6 +63,14 @@ Sur la fiche d'un intérimaire ou d'un client, l'agence dispose de deux boutons 
 6. **Après la mission** : l'intérimaire confirme ses heures ou déclare des heures en plus avec une justification. L'employeur valide et accepte ou refuse les heures en plus. Chacun note l'autre en fin de service ; les avis reçus par les intérimaires sont anonymes.
 7. **Facturation et paie** : l'agence génère les factures de la période (heures validées × taux × coefficient du client) et consulte la paie calculée, avec IFM et ICCP de 10 % chacune. Ce calcul est indicatif et doit être contrôlé par votre gestionnaire de paie.
 
+### Calendriers et détail d'une journée
+
+Un clic sur une date ouvre le détail de la journée, structuré par mission, selon le profil :
+
+- **Agence** (Planning, vue « Semaine » ou « Mois ») : toutes les missions du jour, avec lieu, interlocuteur, taux et motif, et les intérimaires regroupés par état (validés, en attente de l'employeur, refusés, non retenus, sans réponse, ont décliné). Pour chacun : moyen d'envoi, contrat et heures. S'y ajoutent les intérimaires disponibles et indisponibles ce jour-là. L'agence peut accepter ou refuser un candidat depuis cette fenêtre.
+- **Employeur** (Planning) : calendrier du mois ; pour chaque mission, les intérimaires validés (avec leur téléphone une fois la mission verrouillée), en attente de sa décision (boutons Accepter / Refuser) et refusés.
+- **Intérimaire** (Disponibilités) : un clic sur un jour de mission affiche le lieu, les horaires, le taux, l'état, le contrat (lecture, signature), les heures, les documents et, une fois la mission confirmée, le contact sur place et les collègues. Il peut accepter ou refuser une mission proposée depuis cette fenêtre.
+
 ### Dossier de l'intérimaire
 
 - **Expériences** : l'intérimaire (ou l'agence) ajoute ses expériences passées avec le bouton « Ajouter ». Chaque mission verrouillée ajoute sa ligne toute seule ; elle disparaît si la mission est annulée.

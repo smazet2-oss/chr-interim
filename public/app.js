@@ -151,6 +151,22 @@ async function afterLogin() {
 }
 
 /* ---------------- Coquille ---------------- */
+/* Menu mobile : les rubriques s'ouvrent dans un tiroir sous le logo. */
+function setMenu(open) {
+  S.menu = open;
+  $('#sidebar').classList.toggle('open', open);
+  const b = $('#menu-btn'); if (!b) return;
+  b.setAttribute('aria-expanded', open);
+  b.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
+}
+/* Sur petit écran, chaque tableau devient une pile de fiches : chaque cellule reçoit l'intitulé de sa colonne. */
+function etiqueterTableaux(root) {
+  root.querySelectorAll('table:not(.plan)').forEach(t => {
+    const th = [...t.querySelectorAll('thead th')].map(x => x.textContent.trim());
+    t.classList.add('fiches');
+    t.querySelectorAll('tbody tr').forEach(tr => [...tr.children].forEach((td, i) => { if (th[i]) td.dataset.label = th[i]; }));
+  });
+}
 async function renderApp() {
   const me = S.me, prof = me.profil;
   $('#space').textContent = SPACE[prof];
@@ -159,13 +175,14 @@ async function renderApp() {
   $('#me').innerHTML = `<div class="avatar">${initials(me.nom)}</div><div style="min-width:0"><b>${esc(me.nom)}</b><span>${esc(sub || '')} · ${esc(me.username)}</span></div><button class="logout" data-a="logout" title="Se déconnecter" aria-label="Se déconnecter">${ic('out')}</button>`;
   $('#banner').className = 'demo' + (prof === 'agence' ? '' : ' agency');
   $('#banner').innerHTML = ic(prof === 'agence' ? 'check' : 'lock') + BANNER[prof];
-  $('#bell').innerHTML = ic('bell');
+  document.querySelectorAll('.bell').forEach(b => { b.innerHTML = ic('bell'); });
+  setMenu(false);
   const main = $('#main');
   main.innerHTML = '<div class="loading">Chargement…</div>';
   const view = S.view;
   try {
     const html = await V[prof][view]();
-    if (S.view === view) main.innerHTML = html;
+    if (S.view === view) { main.innerHTML = html; etiqueterTableaux(main); }
   } catch (e) { if (S.me) main.innerHTML = `<div class="panel">${empty('Impossible de charger cette page : ' + esc(e.message))}</div>`; }
   refreshCounts();
 }
@@ -190,7 +207,8 @@ async function refreshCounts() {
       set('documents', dos.manquantes.length);
     }
     const n = prof === 'agence' ? [] : await GET('/notifications');
-    $('#bell').innerHTML = ic('bell') + (n.length ? '<span class="dot"></span>' : '');
+    document.querySelectorAll('.bell').forEach(b => { b.innerHTML = ic('bell') + (n.length ? '<span class="dot"></span>' : ''); });
+    $('#menu-btn .dot').hidden = ![...document.querySelectorAll('[data-count]')].some(c => !c.hidden);
   } catch { /* compteurs non essentiels */ }
 }
 const head = (t, p, right = '') => `<div class="head"><div><div class="crumbs">${SPACE[S.me.profil]}${ic('chev')}${NAV[S.me.profil].find(n => n[0] === S.view)?.[1] || ''}</div><h1>${t}</h1>${p ? `<p>${p}</p>` : ''}</div>${right ? `<div class="actions">${right}</div>` : ''}</div>`;
@@ -358,7 +376,7 @@ V.agence.interimaires = async () => {
   const [xp, dos, ks, types] = s ? await Promise.all([GET(`/interimaires/${s.id}/experiences`), GET(`/interimaires/${s.id}/pieces`), GET('/contrats?interim_id=' + s.id), piecesTypes()]) : [];
   return head('Intérimaires', 'Fiches candidats, dossier administratif, contrats et accès à l\'espace intérimaire.', btn('Nouvel intérimaire', 'plus', 'data-a="interimform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun intérimaire. Créez la première fiche.')) :
-      `<div class="grid-main" style="grid-template-columns:minmax(260px,1fr) minmax(0,1.5fr)">
+      `<div class="grid-main side">
       ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
       <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}${gestionProfil('interimaires', s)}</div></div>
       <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
@@ -723,6 +741,7 @@ const A = {
   bgen: el => act(async () => { const r = await POST('/bulletins/generer', { debut: el.dataset.d, fin: el.dataset.f }); toast(r.crees ? `${r.crees} fiche(s) de paie créée(s)` : 'Aucune heure validée à mettre en paie sur cette période.'); reload(); }, el),
   bpay: el => act(async () => { await POST(`/bulletins/${el.dataset.id}/payer`); toast('Fiche marquée payée. L\'intérimaire est prévenu.'); reload(); }, el),
   nav: el => go(el.dataset.v),
+  menu: () => setMenu(!S.menu),
   tab: el => { S.p[el.dataset.k] = el.dataset.v; reload(); },
   logout: () => act(async () => { await POST('/logout').catch(() => { }); S.me = null; S.pwTemp = null; renderAuth(); }),
   close: el => { closeModal(); if (el.dataset.go) go(el.dataset.go); },

@@ -16,18 +16,25 @@
 <body>
 <div id="auth" hidden></div>
 <div class="shell" id="app" hidden>
-  <aside class="sidebar">
-    <div class="brand"><picture><source media="(max-width: 900px)" srcset="/img/logo-compact.png" width="480" height="78"><img class="brand-logo" src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="720" height="171"></picture></div>
-    <div class="space" id="space"></div>
-    <nav class="nav" id="nav" aria-label="Rubriques"></nav>
-    <div class="me" id="me"></div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand"><picture><source media="(max-width: 900px)" srcset="/img/logo-compact.png" width="480" height="78"><img class="brand-logo" src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="720" height="171"></picture>
+      <div class="mob-actions">
+        <button class="iconbtn dark bell" data-a="notifs" aria-label="Notifications"></button>
+        <button class="iconbtn dark" data-a="menu" id="menu-btn" aria-label="Ouvrir le menu" aria-expanded="false" aria-controls="drawer"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span class="dot" hidden></span></button>
+      </div>
+    </div>
+    <div class="drawer" id="drawer">
+      <div class="space" id="space"></div>
+      <nav class="nav" id="nav" aria-label="Rubriques"></nav>
+      <div class="mob-account"><button class="btn sm" data-a="motdepasse">Changer mon mot de passe</button><button class="btn sm" data-a="logout">Se déconnecter</button></div>
+      <div class="me" id="me"></div>
+    </div>
   </aside>
   <div class="content">
     <header class="appbar">
       <div class="spacer"></div>
       <button class="btn sm" data-a="motdepasse">Changer mon mot de passe</button>
-      <button class="btn sm mobile-only" data-a="logout">Se déconnecter</button>
-      <button class="iconbtn" data-a="notifs" aria-label="Notifications" id="bell"></button>
+      <button class="iconbtn bell" data-a="notifs" aria-label="Notifications"></button>
     </header>
     <div class="demo" id="banner"></div>
     <main id="main"><div class="loading">Chargement…</div></main>

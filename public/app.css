@@ -198,7 +198,7 @@ th.today{color:var(--accent-text);background:var(--accent-soft)}
 .private .h svg{width:12px;height:12px}
 
 label.f{display:flex;flex-direction:column;gap:5px;font-size:12.5px;font-weight:500;color:var(--ink-2)}
-input[type=text],input[type=password],input[type=number],input[type=date],input[type=time],select,textarea{background:var(--surface);border:1px solid var(--line-strong);border-radius:7px;padding:8px 10px;width:100%;font-weight:400;font-size:13.5px}
+input[type=text],input[type=password],input[type=email],input[type=tel],input[type=url],input[type=number],input[type=date],input[type=time],select,textarea{background:var(--surface);border:1px solid var(--line-strong);border-radius:7px;padding:8px 10px;width:100%;font-weight:400;font-size:13.5px}
 input:focus,select:focus,textarea:focus{outline:2px solid var(--accent-soft);border-color:var(--accent)}
 textarea{resize:vertical;min-height:70px}
 .form{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}

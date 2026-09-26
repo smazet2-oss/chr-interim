@@ -8,6 +8,7 @@ const multer = require('multer');
 const { tx, one, all, run, DATA_DIR } = require('./db');
 const { envoyer, canalConfigure } = require('./notify');
 const dossier = require('./dossier');
+const P = require('./parametres');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -190,6 +191,7 @@ api.get('/clients', (req, res) => {
 });
 api.post('/clients', role('agence'), wrap((req, res) => {
   const c = clientBody(req.body);
+  if (c.delai_paiement === undefined) c.delai_paiement = P.num('delai_paiement_defaut', 15);
   if (!c.nom) fail(400, 'La raison sociale est obligatoire.');
   const keys = Object.keys(c);
   const r = run(`INSERT INTO clients (${keys.join(',')}) VALUES (${keys.map(() => '?').join(',')})`, ...keys.map(k => c[k]));
@@ -443,8 +445,8 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
     run('UPDATE missions SET statut = \'diffusee\' WHERE id = ?', m.id);
   });
   const d = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const texte = `CHR Intérim : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h. Connectez-vous pour accepter : ${APP_URL}`;
-  for (const i of dest) for (const c of canaux) envoyer(c, i, 'Nouvelle mission CHR Intérim', texte);
+  const texte = `${P.get('raison_sociale')} : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h. Connectez-vous pour accepter : ${APP_URL}`;
+  for (const i of dest) for (const c of canaux) envoyer(c, i, `Nouvelle mission — ${P.get('raison_sociale')}`, texte);
   res.json({ envoyes: dest.length, canaux, simules: canaux.filter(c => !canalConfigure(c)).map(c => CANAL_LABEL[c]) });
 }));
 
@@ -495,8 +497,8 @@ api.post('/missions/:id/decision', role('agence', 'client'), wrap((req, res) => 
     const docs = docsMission(missionRow(m.id)).map(d => d.nom).join(', ');
     for (const x of all(`SELECT i.*, e.canaux FROM reponses r JOIN interimaires i ON i.id = r.interim_id JOIN envois e ON e.mission_id = r.mission_id AND e.interim_id = r.interim_id
                          WHERE r.mission_id = ? AND r.etat = 'retenu'`, m.id)) {
-      const texte = `CHR Intérim : votre mission ${m.poste} chez ${m.client_nom} le ${m.date} (${m.debut}–${m.fin}) est confirmée. Documents à consulter dans votre espace : ${docs}. ${APP_URL}`;
-      for (const c of x.canaux.split(',')) envoyer(c, x, 'Mission confirmée — CHR Intérim', texte);
+      const texte = `${P.get('raison_sociale')} : votre mission ${m.poste} chez ${m.client_nom} le ${m.date} (${m.debut}–${m.fin}) est confirmée. Documents à consulter dans votre espace : ${docs}. ${APP_URL}`;
+      for (const c of x.canaux.split(',')) envoyer(c, x, `Mission confirmée — ${P.get('raison_sociale')}`, texte);
     }
   }
   res.json({ verrouillee });
@@ -689,7 +691,7 @@ api.get('/factures', (req, res) => {
   if (req.user.profil === 'interim') return res.status(403).json({ error: 'Accès refusé.' });
   const w = req.user.profil === 'client' ? 'WHERE f.client_id = ' + Number(req.user.client_id) : '';
   res.json(all(`SELECT f.*, c.nom AS client_nom FROM factures f JOIN clients c ON c.id = f.client_id ${w} ORDER BY f.id DESC`)
-    .map(f => ({ ...f, montant_ttc: Math.round(f.montant_ht * 120) / 100, en_retard: !f.payee_le && f.echeance < today() })));
+    .map(f => ({ ...f, montant_ttc: Math.round(f.montant_ht * (100 + f.tva_taux)) / 100, en_retard: !f.payee_le && f.echeance < today() })));
 });
 api.post('/factures/generer', role('agence'), wrap((req, res) => {
   const { debut, fin } = req.body;
@@ -703,10 +705,10 @@ api.post('/factures/generer', role('agence'), wrap((req, res) => {
       const c = one('SELECT * FROM clients WHERE id = ?', cid);
       const ht = Math.round(ls.reduce((s, l) => s + l.total * l.taux_horaire * c.coefficient, 0) * 100) / 100;
       const annee = today().slice(0, 4);
-      const n = one('SELECT COUNT(*) n FROM factures WHERE numero LIKE ?', `F-${annee}-%`).n + 1;
-      const numero = `F-${annee}-${String(n).padStart(4, '0')}`;
+      const n = one('SELECT COUNT(*) n FROM factures WHERE numero LIKE ?', `${P.get('facture_prefixe') || 'F'}-${annee}-%`).n + 1;
+      const numero = `${P.get('facture_prefixe') || 'F'}-${annee}-${String(n).padStart(4, '0')}`;
       const ech = new Date(); ech.setDate(ech.getDate() + c.delai_paiement);
-      const r = run('INSERT INTO factures (numero, client_id, debut, fin, montant_ht, echeance) VALUES (?,?,?,?,?,?)', numero, cid, debut, fin, ht, ech.toISOString().slice(0, 10));
+      const r = run('INSERT INTO factures (numero, client_id, debut, fin, montant_ht, echeance, tva_taux) VALUES (?,?,?,?,?,?,?)', numero, cid, debut, fin, ht, ech.toISOString().slice(0, 10), P.num('tva_taux', 20));
       ls.forEach(l => run('INSERT INTO facture_heures (facture_id, heure_id) VALUES (?,?)', r.lastInsertRowid, l.id));
       creees.push(numero);
     }
@@ -723,8 +725,65 @@ api.get('/paie', role('agence'), wrap((req, res) => {
   if (!isDate(debut) || !isDate(fin)) fail(400, 'Période invalide.');
   const rows = all(`SELECT i.id, i.prenom, i.nom, SUM(x.total) AS heures, SUM(x.total * x.taux_horaire) AS brut
      FROM (${HEURES_FACTURABLES}) x JOIN interimaires i ON i.id = x.interim_id GROUP BY i.id ORDER BY i.nom`, debut, fin);
-  res.json(rows.map(r => { const ifm = r.brut * 0.1, iccp = (r.brut + ifm) * 0.1; return { ...r, ifm, iccp, total: r.brut + ifm + iccp }; }));
+  const ti = P.num('ifm_taux', 10) / 100, tc = P.num('iccp_taux', 10) / 100;
+  res.json(rows.map(r => { const ifm = r.brut * ti, iccp = (r.brut + ifm) * tc; return { ...r, ifm, iccp, total: r.brut + ifm + iccp }; }));
 }));
+/* ---------------- Paramètres de l'agence ---------------- */
+api.get('/parametres', role('agence'), (req, res) => res.json({ ...P.vuePublique(), canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])) }));
+api.put('/parametres', role('agence'), wrap((req, res) => {
+  P.enregistrer(req.body || {}, fail);
+  res.json({ ...P.vuePublique(), canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])) });
+}));
+api.post('/parametres/test', role('agence'), wrap(async (req, res) => {
+  const canal = req.body.canal, dest = str(req.body.destinataire, 120);
+  if (!CANAUX.includes(canal)) fail(400, 'Canal inconnu.');
+  if (!dest) fail(400, 'Indiquez un destinataire.');
+  if (!canalConfigure(canal)) fail(409, `${CANAL_LABEL[canal]} n'est pas encore configuré : renseignez et enregistrez les réglages d'abord.`);
+  const r = await envoyer(canal, canal === 'mail' ? { email: dest } : { telephone: dest }, `Test — ${P.get('raison_sociale')}`,
+    `${P.get('raison_sociale')} : message de test envoyé depuis la plateforme. Si vous le recevez, le canal ${CANAL_LABEL[canal]} fonctionne.`);
+  res.json(r);
+}));
+
+/** Facture lisible et imprimable (agence, ou client destinataire). */
+api.get('/factures/:id/document', wrap((req, res) => {
+  if (req.user.profil === 'interim') fail(404, 'Facture introuvable.');
+  const f = one('SELECT f.*, c.nom AS client_nom, c.adresse AS client_adresse, c.ville AS client_ville, c.siret AS client_siret FROM factures f JOIN clients c ON c.id = f.client_id WHERE f.id = ?', req.params.id);
+  if (!f || (req.user.profil === 'client' && f.client_id !== req.user.client_id)) fail(404, 'Facture introuvable.');
+  const lignes = all(`SELECT m.date, m.poste, m.taux_horaire, c.coefficient, i.prenom, i.nom,
+      h.heures_prevues + CASE WHEN h.extra_statut = 'accepte' THEN h.extra ELSE 0 END AS heures
+      FROM facture_heures fh JOIN heures h ON h.id = fh.heure_id JOIN missions m ON m.id = h.mission_id JOIN clients c ON c.id = m.client_id
+      JOIN interimaires i ON i.id = h.interim_id WHERE fh.facture_id = ? ORDER BY m.date, i.nom`, f.id);
+  const e = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const eur = n => Number(n).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+  const d = iso => new Date(iso + 'T12:00').toLocaleDateString('fr-FR');
+  const g = k => P.get(k), manque = '<mark>[à compléter dans Paramètres]</mark>';
+  const tva = Math.round(f.montant_ht * f.tva_taux) / 100;
+  const adr = [g('adresse'), [g('code_postal'), g('ville')].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const legal = [g('forme_juridique') && `${g('forme_juridique')}${g('capital') ? ` au capital de ${Number(g('capital')).toLocaleString('fr-FR')} €` : ''}`,
+    g('siret') && `SIRET ${g('siret')}`, g('rcs') && `RCS ${g('rcs')}`, g('ape') && `APE ${g('ape')}`, g('tva_intra') && `TVA ${g('tva_intra')}`].filter(Boolean).join(' · ');
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Facture ${e(f.numero)}</title>
+<style>body{font-family:'Helvetica Neue',Arial,sans-serif;max-width:820px;margin:24px auto;padding:0 20px;color:#111;font-size:14px;line-height:1.5}
+.entete{background:#112233;margin:-24px -20px 22px;padding:18px 24px;border-bottom:5px solid #C99948;display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.entete img{display:block;height:54px;width:auto;max-width:100%}.entete .n{color:#fff;text-align:right}.entete .n b{display:block;font-size:20px;color:#C99948}
+.cols{display:flex;gap:24px;flex-wrap:wrap}.cols>div{flex:1;min-width:240px}.lbl{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:#6b7280;margin-bottom:4px}
+table{width:100%;border-collapse:collapse;margin-top:18px;font-size:13px}th{background:#f3f4f6;text-align:left;padding:8px;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#4b5563}td{padding:8px;border-bottom:1px solid #e5e7eb}.r{text-align:right;white-space:nowrap}
+.tot{margin-left:auto;margin-top:14px;width:min(320px,100%)}.tot div{display:flex;justify-content:space-between;padding:4px 0}.tot .ttc{border-top:2px solid #112233;font-weight:bold;font-size:16px;margin-top:4px;padding-top:8px}
+.mentions{margin-top:26px;font-size:12px;color:#374151;border-top:1px solid #C99948;padding-top:12px}mark{background:#fde68a}.paye{color:#166534;font-weight:bold}
+@media print{body{margin:0}.entete{margin:0 0 22px}} @media (max-width:560px){.entete img{height:30px}}</style></head><body>
+<div class="entete"><picture><source media="(max-width: 560px)" srcset="/img/logo-compact.png"><img src="/img/logo-horizontal.png" alt="${e(g('raison_sociale'))}"></picture><div class="n">FACTURE<b>${e(f.numero)}</b></div></div>
+<div class="cols"><div><div class="lbl">Émise par</div><b>${e(g('raison_sociale'))}</b><br>${adr ? e(adr) : manque}<br>${e([g('telephone'), g('email')].filter(Boolean).join(' · '))}</div>
+<div><div class="lbl">Facturé à</div><b>${e(f.client_nom)}</b><br>${e([f.client_adresse, f.client_ville].filter(Boolean).join(', '))}${f.client_siret ? `<br>SIRET ${e(f.client_siret)}` : ''}</div>
+<div><div class="lbl">Dates</div>Émise le ${new Date(f.created_at + 'Z').toLocaleDateString('fr-FR')}<br>Période : du ${d(f.debut)} au ${d(f.fin)}<br><b>Échéance : ${d(f.echeance)}</b>${f.payee_le ? `<br><span class="paye">Payée le ${d(f.payee_le)}</span>` : ''}</div></div>
+<table><thead><tr><th>Date</th><th>Intérimaire</th><th>Poste</th><th class="r">Heures</th><th class="r">Taux HT</th><th class="r">Montant HT</th></tr></thead><tbody>
+${lignes.map(l => `<tr><td>${d(l.date)}</td><td>${e(l.prenom)} ${e(l.nom)}</td><td>${e(l.poste)}</td><td class="r">${String(l.heures).replace('.', ',')}</td><td class="r">${eur(l.taux_horaire * l.coefficient)}</td><td class="r">${eur(l.heures * l.taux_horaire * l.coefficient)}</td></tr>`).join('')}</tbody></table>
+<div class="tot"><div><span>Total HT</span><span>${eur(f.montant_ht)}</span></div><div><span>TVA ${String(f.tva_taux).replace('.', ',')} %</span><span>${eur(tva)}</span></div><div class="ttc"><span>Total TTC</span><span>${eur(f.montant_ht + tva)}</span></div></div>
+<div class="mentions"><p><b>Règlement</b> par virement avant le ${d(f.echeance)}${g('iban') ? ` · IBAN ${e(g('iban'))}${g('bic') ? ` · BIC ${e(g('bic'))}` : ''}` : ` · IBAN ${manque}`}</p>
+<p>En cas de retard de paiement : pénalités au ${e(g('penalites'))}, et indemnité forfaitaire pour frais de recouvrement de 40 € (articles L441-10 et D441-5 du Code de commerce). ${e(g('facture_mentions'))}</p>
+<p>${e(g('raison_sociale'))}${legal ? ' · ' + e(legal) : ''}${g('garantie_financiere') ? ` · Garantie financière : ${e(g('garantie_financiere'))}` : ''}</p></div>
+</body></html>`);
+}));
+
 api.get('/journal', role('agence'), (req, res) => res.json(all('SELECT * FROM envois_messages ORDER BY id DESC LIMIT 200')));
 api.get('/config', (req, res) => res.json({ canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES }));
 

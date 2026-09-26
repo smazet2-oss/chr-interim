@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const crypto = require('node:crypto');
 const multer = require('multer');
 const { one, all, run, tx, DATA_DIR } = require('./db');
+const P = require('./parametres');
 
 const PIECES_DIR = path.join(DATA_DIR, 'pieces');
 fs.mkdirSync(PIECES_DIR, { recursive: true });
@@ -209,7 +210,9 @@ module.exports = function register(api, h) {
   api.get('/contrats/:id/document', wrap((req, res) => {
     const k = contratAccessible(req);
     const e = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
-    const cfg = n => process.env[n] ? e(process.env[n]) : '<mark>[à compléter]</mark>';
+    const cfg = k => P.get(k) ? e(P.get(k)) : '<mark>[à compléter]</mark>';
+    const adresse = [P.get('adresse'), [P.get('code_postal'), P.get('ville')].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+    const pc = k => String(P.num(k, 10)).replace('.', ',');
     const d = new Date(k.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
     const taux = Number(k.taux_horaire).toFixed(2).replace('.', ',');
     const usage = /usage|saisonnier/i.test(k.motif);
@@ -223,13 +226,13 @@ dl{display:grid;grid-template-columns:220px 1fr;gap:4px 14px;margin:8px 0}dt{col
 @media print{body{margin:0}.entete{margin:0 0 22px}} @media (max-width:560px){.entete{padding:14px 20px}.entete img{height:30px}h1{font-size:19px}} @media (max-width:560px){dl{grid-template-columns:1fr}dt{margin-top:6px}}</style></head><body>
 <div class="entete"><picture><source media="(max-width: 560px)" srcset="/img/logo-compact.png"><img src="/img/logo-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR"></picture></div>
 <h1>Contrat de mission (travail temporaire)</h1><p class="sub">N° ${e(k.numero)} · établi le ${new Date(k.created_at + 'Z').toLocaleDateString('fr-FR')}</p>
-<h2>Entreprise de travail temporaire</h2><dl><dt>Raison sociale</dt><dd>${process.env.AGENCE_RAISON_SOCIALE ? e(process.env.AGENCE_RAISON_SOCIALE) : 'CHR Intérim'}</dd><dt>Adresse</dt><dd>${cfg('AGENCE_ADRESSE')}</dd><dt>SIRET</dt><dd>${cfg('AGENCE_SIRET')}</dd><dt>Garantie financière</dt><dd>${cfg('AGENCE_GARANTIE_FINANCIERE')}</dd></dl>
+<h2>Entreprise de travail temporaire</h2><dl><dt>Raison sociale</dt><dd>${cfg('raison_sociale')}${P.get('forme_juridique') ? ' (' + e(P.get('forme_juridique')) + ')' : ''}</dd><dt>Adresse</dt><dd>${adresse ? e(adresse) : '<mark>[à compléter]</mark>'}</dd><dt>SIRET</dt><dd>${cfg('siret')}</dd><dt>Garantie financière</dt><dd>${cfg('garantie_financiere')}</dd>${P.get('telephone') || P.get('email') ? `<dt>Contact</dt><dd>${e([P.get('telephone'), P.get('email')].filter(Boolean).join(' · '))}</dd>` : ''}</dl>
 <h2>Salarié intérimaire</h2><dl><dt>Nom et prénom</dt><dd>${e(k.interim_nom.toUpperCase())} ${e(k.prenom)}</dd><dt>Date de naissance</dt><dd>${k.date_naissance ? new Date(k.date_naissance + 'T12:00').toLocaleDateString('fr-FR') : '<mark>[à compléter]</mark>'}</dd><dt>Nationalité</dt><dd>${e(k.nationalite)}</dd><dt>Ville</dt><dd>${e(k.interim_ville || '')}</dd></dl>
 <h2>Entreprise utilisatrice</h2><dl><dt>Raison sociale</dt><dd>${e(k.client_nom)}</dd><dt>Lieu de mission</dt><dd>${e([k.client_adresse, k.client_ville].filter(Boolean).join(', ')) || '<mark>[à compléter]</mark>'}</dd></dl>
 <h2>Mission</h2><dl><dt>Motif de recours</dt><dd>${e(k.motif)}</dd><dt>Poste et qualification</dt><dd>${e(k.poste)}</dd><dt>Date</dt><dd>${e(d)}</dd><dt>Horaires</dt><dd>${e(k.debut)} – ${e(k.fin)}</dd><dt>Terme de la mission</dt><dd>${new Date(k.date + 'T12:00').toLocaleDateString('fr-FR')}, fin de service</dd><dt>Période d'essai</dt><dd>2 jours (mission d'un mois au plus)</dd></dl>
 <h2>Rémunération</h2><dl><dt>Salaire horaire brut</dt><dd>${taux} €, identique à celui d'un salarié de qualification équivalente de l'entreprise utilisatrice</dd>
-<dt>Indemnité de fin de mission</dt><dd>${usage ? 'Non due pour ce motif de recours (article L1251-33 du Code du travail)' : '10 % de la rémunération brute totale'}</dd><dt>Indemnité compensatrice de congés payés</dt><dd>10 % de la rémunération totale, indemnité de fin de mission comprise</dd><dt>Heures supplémentaires</dt><dd>Majorées selon la convention collective HCR, après accord de l'entreprise utilisatrice</dd></dl>
-<h2>Protection sociale</h2><dl><dt>Caisse de retraite complémentaire</dt><dd>${cfg('CAISSE_RETRAITE')}</dd><dt>Organisme de prévoyance</dt><dd>${cfg('ORGANISME_PREVOYANCE')}</dd></dl>
+<dt>Indemnité de fin de mission</dt><dd>${usage ? 'Non due pour ce motif de recours (article L1251-33 du Code du travail)' : `${pc('ifm_taux')} % de la rémunération brute totale`}</dd><dt>Indemnité compensatrice de congés payés</dt><dd>${pc('iccp_taux')} % de la rémunération totale, indemnité de fin de mission comprise</dd><dt>Heures supplémentaires</dt><dd>Majorées selon la convention collective ${e(P.get('convention'))}, après accord de l'entreprise utilisatrice</dd></dl>
+<h2>Protection sociale</h2><dl><dt>Caisse de retraite complémentaire</dt><dd>${cfg('caisse_retraite')}</dd><dt>Organisme de prévoyance</dt><dd>${cfg('organisme_prevoyance')}</dd></dl>
 <h2>Mentions</h2><p>L'embauche du salarié par l'entreprise utilisatrice à l'issue de la mission n'est pas interdite. Le salarié bénéficie des équipements collectifs de l'entreprise utilisatrice (restauration, transports) dans les mêmes conditions que ses salariés. Les documents de prise de poste de l'entreprise utilisatrice (règlement intérieur, consignes de sécurité et d'hygiène) sont disponibles dans l'espace intérimaire.</p>
 <h2>Signature</h2><div class="sig">${k.statut === 'signe' ? `<span class="ok">Signé électroniquement</span> par ${e(k.signe_nom)} le ${new Date(k.signe_le + 'Z').toLocaleString('fr-FR', { timeZone: 'Europe/Paris' })}.` : k.statut === 'annule' ? '<span class="wait">Contrat annulé.</span>' : '<span class="wait">En attente de la signature du salarié.</span>'}</div>
 </body></html>`);
@@ -244,7 +247,7 @@ dl{display:grid;grid-template-columns:220px 1fr;gap:4px 14px;margin:8px 0}dt{col
   const EN_SUSPENS = `SELECT h.*, m.date, m.debut, m.fin, c.nom AS client_nom FROM heures h JOIN missions m ON m.id = h.mission_id JOIN clients c ON c.id = m.client_id
     WHERE h.interim_id = ? AND m.date <= ? AND h.id NOT IN (SELECT heure_id FROM bulletin_heures)
     AND (h.valide_interim = 0 OR h.valide_client = 0 OR h.extra_statut = 'attente')`;
-  const calcul = (heures, brut) => { const ifm = brut * 0.1, iccp = (brut + ifm) * 0.1; return { heures, brut, ifm, iccp, total: brut + ifm + iccp }; };
+  const calcul = (heures, brut) => { const ifm = brut * P.num('ifm_taux', 10) / 100, iccp = (brut + ifm) * P.num('iccp_taux', 10) / 100; return { heures, brut, ifm, iccp, total: brut + ifm + iccp }; };
   const r2 = n => Math.round(n * 100) / 100;
 
   function avecAlerte(b) {

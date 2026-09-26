@@ -33,6 +33,17 @@ Ouvrez ensuite http://localhost:3000.
 - Le mot de passe provisoire n'est affiché qu'une fois. Il est stocké chiffré (bcrypt) et doit être remplacé à la première connexion : 8 caractères minimum, avec une majuscule et un chiffre.
 - L'agence peut réinitialiser un mot de passe ou désactiver un compte.
 
+### Paramètres de l'agence
+
+La rubrique **Paramètres** de l'espace agence regroupe :
+
+- **Identité légale et contact** : raison sociale, forme juridique, capital, SIRET, RCS, APE, TVA intracommunautaire, adresse, contact, garantie financière, caisse de retraite, organisme de prévoyance. Ces informations figurent sur les contrats et les factures. Un bandeau signale celles qui manquent.
+- **Facturation** : préfixe des numéros, taux de TVA (enregistré sur chaque facture émise), délai de paiement par défaut, pénalités de retard, IBAN, BIC, mentions complémentaires. Chaque facture est consultable et imprimable (bouton « Voir ») par l'agence et par le client concerné.
+- **Paie** : taux de l'indemnité de fin de mission et des congés payés, convention collective, calendrier de versement.
+- **Messagerie** : serveur SMTP pour l'e-mail, compte Twilio pour les SMS et WhatsApp, avec un bouton d'envoi de test.
+
+Les mots de passe et clés sont chiffrés (AES-256-GCM) avec une clé propre à l'installation, créée dans `DATA_DIR/secret.key`, ou dérivée de `APP_SECRET` si cette variable est définie. Ils ne sont jamais renvoyés à l'écran. Les variables d'environnement de `.env.example` restent possibles, mais les valeurs saisies dans Paramètres priment.
+
 ### Suspendre ou supprimer un profil
 
 Sur la fiche d'un intérimaire ou d'un client, l'agence dispose de deux boutons :

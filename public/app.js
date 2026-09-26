@@ -40,6 +40,7 @@ const P = {
   bell: '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>',
   out: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/>',
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   edit: '<path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
   trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
 };
@@ -81,7 +82,7 @@ const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, b
 const NAV = {
   agence: [['accueil', 'Tableau de bord', 'dash'], ['missions', 'Missions', 'briefcase'], ['planning', 'Planning', 'cal'], ['interimaires', 'Intérimaires', 'users'],
     ['clients', 'Clients', 'building'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
-    ['paie', 'Paie', 'wallet'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list']],
+    ['paie', 'Paie', 'wallet'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
   client: [['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes demandes', 'briefcase'], ['jour', 'Planning du jour', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
     ['interimaires', 'Intérimaires', 'users'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file'], ['documents', 'Documents', 'folder']],
   interim: [['accueil', 'Accueil', 'dash'], ['missions', 'Missions proposées', 'send'], ['dispo', 'Disponibilités', 'cal'], ['heures', 'Mes heures', 'clock'],
@@ -422,7 +423,7 @@ V.agence.facturation = async () => {
     panel('Générer les factures', '', `<form data-f="facturer" class="panel-b inline-form"><label class="f">Du<input type="date" name="debut" value="${d}" required></label><label class="f">Au<input type="date" name="fin" value="${f}" required></label><button class="btn primary" type="submit">${ic('receipt')}Générer</button></form>`) +
     panel('Factures', '', fs.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Client</th><th>Période</th><th class="r">HT</th><th class="r">TTC</th><th>Échéance</th><th>Statut</th><th></th></tr></thead><tbody>
     ${fs.map(x => `<tr><td class="mono">${x.numero}</td><td>${esc(x.client_nom)}</td><td>${fdate(x.debut, 'num')} – ${fdate(x.fin, 'num')}</td><td class="r num">${eur(x.montant_ht)}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${fdate(x.echeance, 'num')}</td>
-    <td>${x.payee_le ? badge('libre', 'Payée le ' + fdate(x.payee_le, 'num')) : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À échéance')}</td><td class="r">${x.payee_le ? '' : btn('Marquer payée', 'check', `data-a="payee" data-id="${x.id}"`, 'sm')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
+    <td>${x.payee_le ? badge('libre', 'Payée le ' + fdate(x.payee_le, 'num')) : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À échéance')}</td><td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap"><a class="btn sm ghost" href="/api/factures/${x.id}/document" target="_blank" rel="noopener">${ic('file')}Voir</a>${x.payee_le ? '' : btn('Marquer payée', 'check', `data-a="payee" data-id="${x.id}"`, 'sm')}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
 };
 V.agence.paie = async () => {
   const [d0, f0] = quinzaine(); S.p.pd = S.p.pd || d0; S.p.pf = S.p.pf || f0;
@@ -457,6 +458,28 @@ V.agence.journal = async () => {
     panel('Canaux', '', `<div class="panel-b statusline" style="gap:18px">${conf}</div>`) +
     panel('200 derniers messages', '', L.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Canal</th><th>Destinataire</th><th>Message</th><th>Statut</th></tr></thead><tbody>
     ${L.map(x => `<tr><td class="num">${esc(x.created_at)}</td><td>${CANAUX[x.canal]?.[1] || x.canal}</td><td class="mono">${esc(x.destinataire)}</td><td style="min-width:260px">${esc(x.contenu)}</td><td>${badge(...st[x.statut])}${x.detail ? `<div class="small muted">${esc(x.detail)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucun message envoyé.'));
+};
+
+V.agence.parametres = async () => {
+  const d = await GET('/parametres');
+  const v = d.valeurs;
+  const essentiels = [['siret', 'SIRET'], ['adresse', 'adresse'], ['garantie_financiere', 'garantie financière'], ['caisse_retraite', 'caisse de retraite'], ['organisme_prevoyance', 'organisme de prévoyance'], ['iban', 'IBAN']].filter(([k]) => !v[k]);
+  const champ = c => {
+    const id = 'p-' + c.k, val = v[c.k];
+    const aide = c.aide ? `<span class="hint">${esc(c.aide)}</span>` : '';
+    if (c.type === 'password') return `<label class="f" for="${id}">${esc(c.l)}<input type="password" id="${id}" name="${c.k}" autocomplete="new-password" placeholder="${val.defini ? 'Enregistré · laisser vide pour le conserver' : ''}">${val.defini ? `<span class="check small"><input type="checkbox" name="effacer" value="${c.k}"> Effacer la valeur enregistrée</span>` : ''}${aide}</label>`;
+    if (c.type === 'select') return `<label class="f" for="${id}">${esc(c.l)}<select id="${id}" name="${c.k}">${c.options.map(o => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>${aide}</label>`;
+    if (c.type === 'textarea') return `<label class="f full" for="${id}">${esc(c.l)}<textarea id="${id}" name="${c.k}" maxlength="1000">${esc(val)}</textarea>${aide}</label>`;
+    return `<label class="f" for="${id}">${esc(c.l)}<input type="${c.type === 'number' ? 'text' : c.type || 'text'}" ${c.type === 'number' ? 'inputmode="decimal"' : ''} id="${id}" name="${c.k}" value="${esc(val)}" ${c.req ? 'required' : ''} autocomplete="off">${aide}</label>`;
+  };
+  const canaux = Object.entries(CANAUX).map(([k, [i, l]]) => `<span class="row small">${ic(i)}${l} ${d.canaux[k] ? badge('libre', 'configuré') : badge('attente', 'simulé')}</span>`).join('');
+  return head('Paramètres de l\'agence', 'Informations légales et réglages utilisés pour les contrats, les factures, la paie et l\'envoi des messages.') +
+    (essentiels.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('alert')}</div><div><b>${essentiels.length} information${essentiels.length > 1 ? 's' : ''} manquante${essentiels.length > 1 ? 's' : ''} sur les contrats et factures</b><div class="small muted">${essentiels.map(e => e[1]).join(', ')}</div></div></div></section>` : '') +
+    d.groupes.map(g => `<section class="panel"><div class="panel-h"><div><h2>${esc(g.titre)}</h2><div class="small muted">${esc(g.aide)}</div></div>${g.id === 'messagerie' ? `<div class="statusline">${canaux}</div>` : ''}</div>
+      <form data-f="param" class="panel-b form">${g.champs.map(champ).join('')}<div class="full row"><button class="btn primary" type="submit">${ic('check')}Enregistrer</button></div></form>
+      ${g.id === 'messagerie' ? `<form data-f="paramtest" class="panel-b inline-form" style="border-top:1px solid var(--line)"><label class="f" style="flex:0 1 160px">Canal<select name="canal">${['mail', 'sms', 'whatsapp'].map(k => `<option value="${k}">${CANAUX[k][1]}</option>`).join('')}</select></label>
+        <label class="f">Destinataire (e-mail ou numéro de téléphone)<input type="text" name="destinataire" required placeholder="vous@exemple.fr ou 06 12 34 56 78"></label><button class="btn" type="submit">${ic('send')}Envoyer un message de test</button></form>
+        <div class="panel-f"><span>E-mail : les identifiants SMTP de votre messagerie professionnelle (Microsoft 365, Google Workspace, OVH) ou d'un service d'envoi (Brevo, Mailjet). SMS et WhatsApp : un compte <a class="link" href="https://www.twilio.com" target="_blank" rel="noopener">Twilio</a> ; WhatsApp demande en plus un numéro validé par Meta.</span></div>` : ''}</section>`).join('');
 };
 
 /* ===== Employeur ===== */
@@ -511,7 +534,7 @@ V.client.interimaires = async () => {
 V.client.factures = async () => {
   const fs = await GET('/factures');
   return head('Factures', 'Calculées à partir des heures que vous avez validées.', ro('Consultation uniquement')) +
-    panel(null, '', fs.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Période</th><th>Échéance</th><th class="r">TTC</th><th>Statut</th></tr></thead><tbody>${fs.map(x => `<tr><td class="mono">${x.numero}</td><td>${fdate(x.debut, 'num')} – ${fdate(x.fin, 'num')}</td><td>${fdate(x.echeance, 'num')}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${x.payee_le ? badge('libre', 'Payée') : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À régler')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
+    panel(null, '', fs.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Période</th><th>Échéance</th><th class="r">TTC</th><th>Statut</th><th></th></tr></thead><tbody>${fs.map(x => `<tr><td class="mono">${x.numero}</td><td>${fdate(x.debut, 'num')} – ${fdate(x.fin, 'num')}</td><td>${fdate(x.echeance, 'num')}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${x.payee_le ? badge('libre', 'Payée') : x.en_retard ? badge('danger', 'En retard') : badge('attente', 'À régler')}</td><td class="r"><a class="btn sm ghost" href="/api/factures/${x.id}/document" target="_blank" rel="noopener">${ic('file')}Voir</a></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture.'));
 };
 V.client.contrat = async () => {
   const [c] = await GET('/clients');
@@ -739,6 +762,17 @@ const A = {
   toggleextra: el => { el.closest('form').querySelector('.extra').hidden = !el.checked; },
 };
 const F = {
+  param: (fd, f) => act(async () => {
+    const effacer = fd.getAll('effacer'); fd.delete('effacer');
+    await PUT('/parametres', { valeurs: Object.fromEntries(fd), effacer });
+    S.cfg = await GET('/config').catch(() => S.cfg);
+    toast('Paramètres enregistrés'); reload();
+  }),
+  paramtest: fd => act(async () => {
+    const r = await POST('/parametres/test', Object.fromEntries(fd));
+    if (r.statut === 'envoye') toast('Message de test envoyé. Vérifiez sa réception.');
+    else toast(`Échec de l'envoi : ${r.detail || 'erreur inconnue'}. Vérifiez les réglages.`, true);
+  }),
   suspendre: (fd, f) => act(async () => { await POST(`/${f.dataset.t}/${f.dataset.id}/suspendre`, { motif: fd.get('motif') }); closeModal(); toast('Profil suspendu. Ses sessions ont été fermées.'); reload(); }),
   supprimer: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;

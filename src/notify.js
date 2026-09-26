@@ -1,35 +1,36 @@
 'use strict';
 // Envoi des messages : e-mail (SMTP), SMS et WhatsApp (Twilio).
-// Sans configuration, les messages sont enregistrés comme « simulés » dans le journal des envois.
+// Les réglages viennent de l'onglet Paramètres de l'agence (ou des variables d'environnement).
+// Sans réglage, les messages sont enregistrés comme « simulés » dans le journal des envois.
 const { run } = require('./db');
+const P = require('./parametres');
 
-let mailer = null;
-if (process.env.SMTP_HOST) {
-  const nodemailer = require('nodemailer');
-  mailer = nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT || 587),
-    secure: process.env.SMTP_SECURE === 'true',
-    auth: process.env.SMTP_USER ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS } : undefined,
-  });
+let mailer = null, mailerCle = '';
+function getMailer() {
+  const cfg = { host: P.get('smtp_host'), port: Number(P.get('smtp_port') || 587), secure: P.get('smtp_secure') === 'oui', user: P.get('smtp_user'), pass: P.get('smtp_pass') };
+  if (!cfg.host) return null;
+  const cle = JSON.stringify(cfg);
+  if (cle !== mailerCle) {
+    const nodemailer = require('nodemailer');
+    mailer = nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined });
+    mailerCle = cle;
+  }
+  return mailer;
 }
-const twilio = process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN
-  ? { sid: process.env.TWILIO_ACCOUNT_SID, token: process.env.TWILIO_AUTH_TOKEN } : null;
+const twilio = () => (P.get('twilio_sid') && P.get('twilio_token') ? { sid: P.get('twilio_sid'), token: P.get('twilio_token') } : null);
 
 function canalConfigure(canal) {
-  if (canal === 'mail') return !!mailer;
-  if (canal === 'sms') return !!(twilio && process.env.TWILIO_SMS_FROM);
-  if (canal === 'whatsapp') return !!(twilio && process.env.TWILIO_WHATSAPP_FROM);
+  if (canal === 'mail') return !!P.get('smtp_host');
+  if (canal === 'sms') return !!(twilio() && P.get('twilio_sms_from'));
+  if (canal === 'whatsapp') return !!(twilio() && P.get('twilio_whatsapp_from'));
   return false;
 }
 
 async function twilioSend(from, to, body) {
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${twilio.sid}/Messages.json`, {
+  const t = twilio();
+  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${t.sid}/Messages.json`, {
     method: 'POST',
-    headers: {
-      Authorization: 'Basic ' + Buffer.from(`${twilio.sid}:${twilio.token}`).toString('base64'),
-      'Content-Type': 'application/x-www-form-urlencoded',
-    },
+    headers: { Authorization: 'Basic ' + Buffer.from(`${t.sid}:${t.token}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
     body: new URLSearchParams({ From: from, To: to, Body: body }),
   });
   if (!res.ok) throw new Error(`Twilio ${res.status} : ${(await res.text()).slice(0, 200)}`);
@@ -44,34 +45,26 @@ function e164(tel) {
 }
 
 /**
- * Envoie un message sur un canal. Ne lève jamais d'erreur : le résultat est journalisé.
- * @param {'mail'|'sms'|'whatsapp'} canal
- * @param {{email?:string, telephone?:string}} dest
+ * Envoie un message sur un canal. Ne lève jamais d'erreur : le résultat est journalisé et renvoyé.
+ * @returns {Promise<{statut:'envoye'|'simule'|'echec', detail?:string}>}
  */
 async function envoyer(canal, dest, sujet, texte) {
   const destinataire = canal === 'mail' ? dest.email : e164(dest.telephone);
-  if (!destinataire) {
-    run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)',
-      canal, '—', texte, 'echec', canal === 'mail' ? 'Aucune adresse e-mail' : 'Aucun numéro de téléphone');
-    return;
-  }
-  if (!canalConfigure(canal)) {
-    run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)',
-      canal, destinataire, texte, 'simule', 'Canal non configuré');
-    return;
-  }
+  const log = (statut, detail) => { run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)', canal, destinataire || '—', texte, statut, detail || null); return { statut, detail }; };
+  if (!destinataire) return log('echec', canal === 'mail' ? 'Aucune adresse e-mail' : 'Aucun numéro de téléphone');
+  if (!canalConfigure(canal)) return log('simule', 'Canal non configuré');
   try {
     if (canal === 'mail') {
-      await mailer.sendMail({ from: process.env.SMTP_FROM || process.env.SMTP_USER, to: destinataire, subject: sujet, text: texte });
+      const from = P.get('smtp_from') || P.get('smtp_user');
+      await getMailer().sendMail({ from, to: destinataire, subject: sujet, text: texte, replyTo: P.get('email') || undefined });
     } else if (canal === 'sms') {
-      await twilioSend(process.env.TWILIO_SMS_FROM, destinataire, texte);
+      await twilioSend(P.get('twilio_sms_from'), destinataire, texte);
     } else {
-      await twilioSend('whatsapp:' + process.env.TWILIO_WHATSAPP_FROM, 'whatsapp:' + destinataire, texte);
+      await twilioSend('whatsapp:' + e164(P.get('twilio_whatsapp_from')), 'whatsapp:' + destinataire, texte);
     }
-    run('INSERT INTO envois_messages (canal, destinataire, contenu, statut) VALUES (?,?,?,?)', canal, destinataire, texte, 'envoye');
+    return log('envoye');
   } catch (e) {
-    run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)',
-      canal, destinataire, texte, 'echec', String(e.message).slice(0, 300));
+    return log('echec', String(e.message).slice(0, 300));
   }
 }
 

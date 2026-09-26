@@ -68,6 +68,9 @@ tx(() => {
   const f3 = mission(C[0], 'Chef de rang', jour(6), '18:00', '23:30', 2, 13.2, 'diffusee');
   envoi(f3, I[1], 'whatsapp'); envoi(f3, I[4], 'sms,mail'); rep(f3, I[1], 'accepte'); rep(f3, I[4], 'accepte');
   mission(C[2], 'Barman', jour(10), '19:00', '02:00', 1, 12.9, 'nouvelle');
+  // Mission du soir même, non pourvue : signalée « importance haute ».
+  const f4 = mission(C[0], 'Serveur', jour(0), '19:00', '23:30', 1, 12.2, 'diffusee');
+  envoi(f4, I[0], 'sms,whatsapp'); envoi(f4, I[3], 'sms');
 
   // Contrats et lignes d'expérience des missions déjà verrouillées.
   for (const m of all('SELECT m.*, c.nom AS client_nom FROM missions m JOIN clients c ON c.id = m.client_id WHERE m.statut = \'verrouillee\'')) {

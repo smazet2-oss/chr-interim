@@ -90,6 +90,9 @@ test('détail d\'une journée selon le profil', async () => {
   // Calendrier du mois
   const cal = (await ag.get('/calendrier?mois=' + jour.slice(0, 7))).data.jours.find(x => x.date === jour);
   assert.equal(cal.missions, 1); assert.equal(cal.postes, 2); assert.equal(cal.retenus, 2);
+  const evs = (await ag.get('/calendrier?mois=' + jour.slice(0, 7))).data.evenements.filter(x => x.date === jour);
+  assert.equal(evs.length, 1); assert.equal(evs[0].retenus, 2); assert.ok(evs[0].client_nom && evs[0].debut);
+  assert.equal((await cl2.get('/calendrier?mois=' + jour.slice(0, 7))).data.evenements.length, 0, 'un employeur ne voit pas les missions des autres');
   assert.equal((await cl2.get('/calendrier?mois=' + jour.slice(0, 7))).data.jours.length, 0);
   assert.equal((await A.get('/calendrier')).status, 403);
   assert.equal((await ag.get('/jour/2026-99-99')).status, 400);

@@ -816,8 +816,18 @@ app.use('/api', api);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));
 
 /* ---------------- Interface ---------------- */
-app.use(express.static(path.join(__dirname, '..', 'public'), { index: 'index.html', maxAge: PROD ? '1h' : 0 }));
-app.get('*', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'index.html')));
+// Version du code : chaque déploiement change l'adresse de app.js et app.css, les navigateurs rechargent donc toujours la dernière version.
+const VERSION = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 12);
+const INDEX = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8')
+  .replace('href="/app.css"', `href="/app.css?v=${VERSION}"`).replace('src="/app.js"', `src="/app.js?v=${VERSION}"`);
+function req_versionnee(res) { return res.req && res.req.query && res.req.query.v === VERSION ? 'public, max-age=31536000, immutable' : 'no-cache'; }
+const envoyerIndex = (req, res) => { res.set('Cache-Control', 'no-cache'); res.type('html').send(INDEX); };
+app.get(['/', '/index.html'], envoyerIndex);
+app.use(express.static(path.join(__dirname, '..', 'public'), {
+  index: false,
+  setHeaders: (res, fichier) => res.set('Cache-Control', /\.(png|jpg|webp|svg)$/.test(fichier) ? 'public, max-age=86400' : req_versionnee(res) ),
+}));
+app.get('*', envoyerIndex);
 
 // Gestion des erreurs : message clair pour l'utilisateur, détail dans les journaux du serveur.
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars

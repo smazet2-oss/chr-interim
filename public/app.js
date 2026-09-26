@@ -262,7 +262,7 @@ function credModal(c, titre) {
 }
 function notifModal(list) {
   return `${modalHead(ic('bell') + (list.length > 1 ? 'Nouvelles missions en attente de validation' : 'Nouvelle mission en attente de validation'))}
-    <div class="list">${list.map(m => `<div class="li"><div><b>${esc(m.poste)} · ${esc(m.client_nom)}</b><div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${m.etat === 'complet' ? badge('off', 'Complet pour l\'instant') : badge('attente', 'À traiter')}</div>`).join('')}</div>
+    <div class="list">${list.map(m => `<div class="li"><div><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b><div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${m.etat === 'complet' ? badge('off', 'Complet pour l\'instant') : badge('attente', 'À traiter')}</div>`).join('')}</div>
     <div class="panel-f" style="justify-content:flex-end">${btn('Plus tard', '', 'data-a="close"')}${btn('Voir mes missions', 'chev', 'data-a="close" data-go="missions"', 'primary')}</div>`;
 }
 
@@ -287,7 +287,7 @@ function missionCard(m, mode) {
     : rows.length ? `<div class="list">${rows.map(r => `<div class="li" style="flex-wrap:wrap"><div class="person"><div class="avatar">${initials(r.nom)}</div><div><b>${esc(r.nom)}</b><span>${esc(r.poste)}${r.canaux ? ' · envoyé par ' + r.canaux.map(c => CANAUX[c]?.[1]).join(', ') : ''}${r.note !== undefined ? ' · ' + stars(r.note) : ''}</span></div></div>
       <div class="row">${badge(...REP[r.etat ?? 'null'])}${r.etat === 'accepte' && !locked ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="1"`, 'sm primary') : ''}</div></div>`).join('')}</div>`
       : empty(mode === 'agence' ? 'Aucun intérimaire contacté.' : 'Diffusée. En attente de réponses des intérimaires.');
-  return `<section class="panel"><div class="panel-h"><div><h2>${m.nb_postes} × ${esc(m.poste)}${mode === 'agence' ? ` <span class="muted" style="font-weight:400">· ${esc(m.client_nom)}</span>` : ''}</h2>
+  return `<section class="panel"><div class="panel-h"><div><h2>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)}${mode === 'agence' ? ` <span class="muted" style="font-weight:400">· ${esc(m.client_nom)}</span>` : ''}</h2>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div><div class="row">${badge(sc, sl)}${actions}${locked ? ro('Mission verrouillée') : ''}</div></div>
     ${body}${locked && m.documents?.length ? `<div class="panel-f"><span class="row">${ic('file')}Documents envoyés : ${docLinks(m.documents)}</span></div>` : ''}</section>`;
 }
@@ -299,7 +299,7 @@ function missionInterim(m) {
     complet: `<button class="btn sm" disabled>${ic('lock')}Complet</button>`,
     a_repondre: btn('Refuser', '', `data-a="repondre" data-id="${m.id}" data-ok="0"`, 'sm') + btn('Accepter la mission', 'check', `data-a="repondre" data-id="${m.id}" data-ok="1"`, 'sm primary'),
   };
-  return `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px;flex:1"><b>${esc(m.poste)} · ${esc(m.client_nom)}</b>
+  return `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px;flex:1"><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${m.nb_postes} poste${m.nb_postes > 1 ? 's' : ''}</div>
     ${m.etat === 'complet' ? '<div class="hint" style="margin-top:4px">Toutes les places sont prises. Le bouton se réactive si une place se libère.</div>' : ''}
     ${m.etat === 'confirmee' && m.documents.length ? `<div class="small" style="margin-top:6px">${ic('file', 'style="vertical-align:-3px;color:var(--ink-3)"')} Documents : ${docLinks(m.documents)}</div>` : ''}</div>
@@ -354,6 +354,49 @@ function gestionProfil(type, r) {
 }
 const suspenduInfo = r => r.suspendu ? `<div class="extra" style="grid-template-columns:1fr;background:var(--off-bg);border-color:var(--line-strong);color:var(--ink-2)"><div class="small"><b>${ic('lock', 'style="vertical-align:-3px"')} Profil suspendu depuis le ${fdate(r.suspendu_le, 'num')}</b>${r.motif_suspension ? ` · ${esc(r.motif_suspension)}` : ''}<br>Connexion impossible${r.prenom ? ', aucune mission proposée' : ', aucune nouvelle mission'} tant que le profil n'est pas réactivé.</div></div>` : '';
 
+/* ---------------- Calendrier standard (mois, semaines en lignes, missions dans les cases) ---------------- */
+const HEURE_SOIR = '16:00';
+/** Mission du soir même : aujourd'hui, à partir de 16 h, non annulée. Importance haute. */
+const estCeSoir = m => m.date === S.cfg?.aujourdhui && m.debut >= HEURE_SOIR && m.statut !== 'annulee';
+const iconeCeSoir = (m, avecTexte) => estCeSoir(m) ? `<span class="urgent" title="Importance haute : mission ce soir">${ic('alert')}${avecTexte ? 'Ce soir' : ''}</span>` : '';
+function semaineIso(iso) {
+  const d = new Date(iso + 'T12:00'); d.setDate(d.getDate() + 3 - ((d.getDay() + 6) % 7));
+  const j1 = new Date(d.getFullYear(), 0, 4, 12);
+  return 1 + Math.round(((d - j1) / 864e5 - 3 + ((j1.getDay() + 6) % 7)) / 7);
+}
+/**
+ * Calendrier du mois. jour(iso) renvoie { cls, evenements:[{texte, cls, urgent}], action:'jour'|'dispo', attrs }.
+ * La semaine en cours est précédée d'une flèche.
+ */
+function calendrierStandard(mois, jour) {
+  const [y, m] = mois.split('-').map(Number), t = S.cfg?.aujourdhui || '';
+  const premier = new Date(y, m - 1, 1, 12), debut = new Date(premier); debut.setDate(1 - ((premier.getDay() + 6) % 7));
+  const fin = new Date(y, m, 0, 12), lundiCourant = lundi(t);
+  let h = `<div class="calstd" role="grid"><div class="cs-tete"><span class="cs-sem">Sem.</span>${['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(x => `<span>${x}</span>`).join('')}</div>`;
+  for (const d = new Date(debut); d <= fin || d.getDay() !== 1; d.setDate(d.getDate() + 1)) {
+    const iso = d.toISOString().slice(0, 10);
+    if (d.getDay() === 1) {
+      const courante = iso === lundiCourant;
+      h += `<div class="cs-ligne ${courante ? 'courante' : ''}" role="row"><span class="cs-sem" title="Semaine ${semaineIso(iso)}${courante ? ' (en cours)' : ''}">${courante ? '<b class="fleche" aria-label="Semaine en cours">▶</b>' : ''}${semaineIso(iso)}</span>`;
+    }
+    const hors = iso.slice(0, 7) !== mois, c = jour(iso) || {}, ev = c.evenements || [];
+    const urgent = ev.some(e => e.urgent);
+    h += `<div class="cs-jour ${c.cls || ''} ${hors ? 'hors' : ''} ${iso === t ? 'aujourdhui' : ''} ${iso < t ? 'passe' : ''}" role="button" tabindex="0" data-a="${c.action || 'jour'}" data-d="${iso}" ${c.attrs || ''}
+      aria-label="${fdate(iso, 'long')}${ev.length ? ', ' + ev.length + ' mission' + (ev.length > 1 ? 's' : '') : ''}${urgent ? ', importance haute' : ''}">
+      <span class="cs-num">${Number(iso.slice(8))}${urgent ? `<span class="urgent">${ic('alert')}</span>` : ''}</span>
+      ${c.etiquette ? `<span class="cs-etiq">${esc(c.etiquette)}</span>` : ''}
+      ${ev.slice(0, 3).map(e => `<span class="ev s-${e.cls}${e.urgent ? ' ev-urgent' : ''}">${e.urgent ? ic('alert') : ''}<span>${esc(e.texte)}</span></span>`).join('')}${ev.length > 3 ? `<span class="ev-plus">+${ev.length - 3}</span>` : ''}</div>`;
+    if (d.getDay() === 0) h += '</div>';
+  }
+  return h + '</div>';
+}
+const legendeCal = (...items) => `<div class="legend">${items.join('')}<span class="badge s-danger urgent-leg">${ic('alert')}Ce soir : importance haute</span><span class="small muted">▶ semaine en cours</span></div>`;
+function couleurMission(e) {
+  if (e.statut === 'nouvelle') return 'danger';
+  if (e.statut === 'verrouillee') return 'libre';
+  return e.en_attente ? 'attente' : 'pris';
+}
+
 /* ---------------- Calendrier du mois et détail d'une journée ---------------- */
 const moisDe = (iso, delta = 0) => { const d = new Date(iso.slice(0, 7) + '-01T12:00'); d.setMonth(d.getMonth() + delta); return d.toISOString().slice(0, 7); };
 /** Grille d'un mois ; cellule(iso, jour) renvoie { cls, lignes[], clic } */
@@ -395,7 +438,7 @@ async function openJour(date) {
     corps = d.missions.map(m => {
       const I = m.intervenants, par = e => I.filter(x => x.etat === e);
       const canaux = x => x.canaux.map(c => CANAUX[c]?.[1]).join(', ');
-      return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${esc(m.motif || '')}</div></div>${badge(...missionStatut({ ...m, actifs: I.filter(x => ['accepte', 'retenu'].includes(x.etat)).length, retenus: par('retenu').length }))}</div>
+      return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h · ${esc(m.motif || '')}</div></div>${badge(...missionStatut({ ...m, actifs: I.filter(x => ['accepte', 'retenu'].includes(x.etat)).length, retenus: par('retenu').length }))}</div>
         <dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc([m.client_adresse, m.client_ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc([m.client_contact, m.client_telephone].filter(Boolean).join(' · ') || '—')}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}<dt>Postes pourvus</dt><dd>${par('retenu').length} / ${m.nb_postes}</dd></dl>
         ${m.statut === 'nouvelle' ? `<div class="row" style="margin-top:8px">${btn('Valider et diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary')}</div>` : ''}
         ${groupe('Validés', 'libre', par('retenu'), x => ligne(x, suiviIntervenant(x, m.date), ` · ${canaux(x)}`))}
@@ -411,7 +454,7 @@ async function openJour(date) {
   } else if (prof === 'client') {
     corps = d.missions.map(m => {
       const C = m.candidats, par = (...e) => C.filter(x => e.includes(x.etat));
-      return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${m.nb_postes} × ${esc(m.poste)}</h3><div class="small muted">${m.debut}–${m.fin}${m.commentaire ? ' · ' + esc(m.commentaire) : ''}</div></div>${badge(...missionStatut({ ...m, actifs: par('accepte', 'retenu').length, retenus: par('retenu').length }))}</div>
+      return `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)}</h3><div class="small muted">${m.debut}–${m.fin}${m.commentaire ? ' · ' + esc(m.commentaire) : ''}</div></div>${badge(...missionStatut({ ...m, actifs: par('accepte', 'retenu').length, retenus: par('retenu').length }))}</div>
         <div class="small" style="margin:6px 0">Postes pourvus : <b>${par('retenu').length} / ${m.nb_postes}</b></div>
         ${m.statut === 'nouvelle' ? empty('Demande en cours de validation par l\'agence.') : ''}
         ${groupe('Validés', 'libre', par('retenu'), x => ligne(x, stars(x.note) + suiviIntervenant(x, m.date)))}
@@ -422,7 +465,7 @@ async function openJour(date) {
     }).join('');
   } else {
     const ET = { confirmee: ['libre', 'Mission confirmée'], en_attente: ['attente', 'En attente de confirmation'], a_repondre: ['pris', 'À traiter'], complet: ['off', 'Complet'], non_retenu: ['off', 'Non retenu'], pourvue: ['off', 'Mission pourvue'], decline: ['off', 'Vous avez décliné'], annulee: ['off', 'Annulée'] };
-    corps = d.missions.map(m => `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${badge(...ET[m.etat])}</div>
+    corps = d.missions.map(m => `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir({ ...m, statut: m.etat === 'annulee' ? 'annulee' : '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · ${eur(m.taux_horaire)}/h</div></div>${badge(...ET[m.etat])}</div>
       <dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc(m.lieu || '—')}</dd><dt>Nombre de postes</dt><dd>${m.nb_postes}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}
       ${m.contact ? `<dt>Sur place</dt><dd>${esc(m.contact.nom || '—')}${m.contact.telephone ? ` · <a class="link" href="tel:${esc(m.contact.telephone.replace(/\s/g, ''))}">${esc(m.contact.telephone)}</a>` : ''}</dd>` : ''}
       ${m.collegues?.length ? `<dt>Avec vous</dt><dd>${esc(m.collegues.join(', '))}</dd>` : ''}
@@ -450,7 +493,9 @@ V.agence.accueil = async () => {
   const hAttente = hs.filter(h => h.ouvert && !(h.valide_interim && h.valide_client));
   const du = fs.filter(f => !f.payee_le), retard = du.filter(f => f.en_retard);
   const enCours = ms.filter(m => ['nouvelle', 'diffusee'].includes(m.statut));
+  const ceSoir = ms.filter(m => estCeSoir(m) && m.statut !== 'verrouillee');
   const tasks = [
+    ...ceSoir.map(m => ['e', 'alert', `Ce soir, importance haute : ${m.nb_postes} × ${m.poste} non pourvu`, `${m.client_nom} · ${m.debut}–${m.fin}`, 'missions']),
     ...nouvelles.map(m => ['w', 'send', `Mission à diffuser : ${m.nb_postes} × ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
     ...decisions.map(m => ['n', 'users', `Candidats en attente de l'employeur : ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
     ...retard.map(f => ['e', 'alert', `Facture ${f.numero} en retard`, `${f.client_nom} · ${eur(f.montant_ttc)} TTC`, 'facturation']),
@@ -460,7 +505,7 @@ V.agence.accueil = async () => {
     `<div class="kpis">${kpi('Missions à diffuser', 'send', nouvelles.length, 'Demandes à valider')}${kpi('Missions en cours', 'briefcase', ms.filter(m => m.statut === 'diffusee').length, 'Diffusées, non verrouillées')}
     ${kpi('Heures à finaliser', 'clock', hAttente.length, 'Missions terminées')}${kpi('Encours clients TTC', 'receipt', eur(du.reduce((a, f) => a + f.montant_ttc, 0)), retard.length ? `${retard.length} en retard` : 'Aucun retard', retard.length ? 'down' : '')}</div>
     <div class="grid-main">${panel('Missions en cours', btn('Toutes les missions', 'chev', 'data-a="nav" data-v="missions"', 'sm'), enCours.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Client</th><th>Poste</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${enCours.map(m => `<tr><td>${fdate(m.date)}</td><td>${esc(m.client_nom)}</td><td>${m.nb_postes} × ${esc(m.poste)}</td><td>${badge(...missionStatut(m))}</td><td class="r">${m.statut === 'nouvelle' ? btn('Diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary') : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune mission en cours.'))}
+      ${enCours.map(m => `<tr><td>${fdate(m.date)}${iconeCeSoir(m)}</td><td>${esc(m.client_nom)}</td><td>${m.nb_postes} × ${esc(m.poste)}</td><td>${badge(...missionStatut(m))}</td><td class="r">${m.statut === 'nouvelle' ? btn('Diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary') : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune mission en cours.'))}
     ${panel('À traiter', tasks.length ? badge('danger', tasks.length) : '', tasks.length ? tasks.map(([c, i, t, d, v]) => `<div class="task"><div class="ic ${c}">${ic(i)}</div><div><b>${esc(t)}</b><div class="small muted">${esc(d)}</div></div><button class="btn sm ghost" data-a="nav" data-v="${v}" aria-label="Ouvrir">${ic('chev')}</button></div>`).join('') : empty('Rien à traiter.'))}</div>`;
 };
 
@@ -475,15 +520,17 @@ V.agence.missions = async () => {
 };
 
 V.agence.planning = async () => {
-  S.p.pv = S.p.pv || 'semaine';
-  const onglets = `<div class="panel" style="padding:10px 14px">${tabs('pv', [['semaine', 'Semaine par intérimaire'], ['mois', 'Mois : missions par date']])}</div>`;
+  S.p.pv = S.p.pv || 'mois';
+  const onglets = `<div class="panel" style="padding:10px 14px">${tabs('pv', [['mois', 'Calendrier du mois'], ['semaine', 'Semaine par intérimaire']])}</div>`;
   if (S.p.pv === 'mois') {
     S.p.am = S.p.am || (S.cfg?.aujourdhui || '').slice(0, 7);
-    const c = await GET('/calendrier?mois=' + S.p.am), J = Object.fromEntries(c.jours.map(x => [x.date, x]));
-    return head('Planning', 'Cliquez sur une date pour voir toutes les missions du jour, les intérimaires contactés et leur état, et les intérimaires disponibles.') + onglets +
-      panel('', navMois('am', S.p.am) + `<div class="legend">${badge('danger', 'À diffuser')}${badge('attente', 'En cours')}${badge('libre', 'Tout pourvu')}</div>`,
-        `<div class="panel-b">${grilleMois(S.p.am, iso => { const x = J[iso]; if (!x) return { lignes: [] };
-          return { cls: x.nouvelles ? 'danger' : x.verrouillees === x.missions ? 'libre' : 'attente', lignes: [`${x.missions} mission${x.missions > 1 ? 's' : ''}`, `${x.retenus}/${x.postes} pourvu${x.postes > 1 ? 's' : ''}`], court: `${x.retenus}/${x.postes}` }; })}</div>`);
+    const c = await GET('/calendrier?mois=' + S.p.am);
+    const E = {}; c.evenements.forEach(e => (E[e.date] = E[e.date] || []).push(e));
+    return head('Planning', 'Cliquez sur une date ou une mission pour voir le détail du jour : missions, intérimaires contactés et leur état, disponibles.') + onglets +
+      panel('', navMois('am', S.p.am) + legendeCal(badge('danger', 'À diffuser'), badge('attente', 'Candidats à confirmer'), badge('pris', 'Diffusée'), badge('libre', 'Pourvue')),
+        `<div class="panel-b">${calendrierStandard(S.p.am, iso => ({
+          evenements: (E[iso] || []).map(e => ({ texte: `${e.debut} ${e.poste} · ${e.client_nom} ${e.retenus}/${e.nb_postes}`, cls: couleurMission(e), urgent: estCeSoir(e) })),
+        }))}</div>`);
   }
   S.p.sem = S.p.sem || lundi(S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10));
   const d = await GET('/planning?debut=' + S.p.sem);
@@ -657,11 +704,12 @@ V.client.jour = async () => {
   S.p.jd = S.p.jd || S.cfg?.aujourdhui;
   S.p.cm = S.p.cm || (S.cfg?.aujourdhui || '').slice(0, 7);
   const [L, c] = await Promise.all([GET('/planning/jour?date=' + S.p.jd), GET('/calendrier?mois=' + S.p.cm)]);
-  const J = Object.fromEntries(c.jours.map(x => [x.date, x]));
-  return head('Planning', 'Cliquez sur une date pour voir vos missions et les intérimaires validés, en attente de votre décision ou refusés.') +
-    panel('', navMois('cm', S.p.cm) + `<div class="legend">${badge('danger', 'Décision à prendre')}${badge('attente', 'En cours')}${badge('libre', 'Tout pourvu')}</div>`,
-      `<div class="panel-b">${grilleMois(S.p.cm, iso => { const x = J[iso]; if (!x) return { lignes: [] };
-        return { cls: x.en_attente ? 'danger' : x.verrouillees === x.missions ? 'libre' : 'attente', lignes: [`${x.retenus}/${x.postes} validé${x.retenus > 1 ? 's' : ''}`, ...(x.en_attente ? [`${x.en_attente} à décider`] : [])], court: `${x.retenus}/${x.postes}` }; })}</div>`) +
+  const E = {}; c.evenements.forEach(e => (E[e.date] = E[e.date] || []).push(e));
+  return head('Planning', 'Cliquez sur une date ou une mission pour voir les intérimaires validés, en attente de votre décision ou refusés.') +
+    panel('', navMois('cm', S.p.cm) + legendeCal(badge('danger', 'En validation agence'), badge('attente', 'Décision à prendre'), badge('pris', 'En recherche'), badge('libre', 'Pourvue')),
+      `<div class="panel-b">${calendrierStandard(S.p.cm, iso => ({
+        evenements: (E[iso] || []).map(e => ({ texte: `${e.debut} ${e.poste} ${e.retenus}/${e.nb_postes}`, cls: couleurMission(e), urgent: estCeSoir(e) })),
+      }))}</div>`) +
     panel(fdate(S.p.jd, 'long'), `<form data-f="jour" class="inline-form"><input type="date" name="date" value="${S.p.jd}" aria-label="Date"><button class="btn sm" type="submit">Afficher</button></form>`,
       L.length ? L.map(j => `<div class="shift"><div class="time"><b>${j.debut}</b>${j.fin}</div><div class="person"><div class="avatar">${initials(j.prenom + ' ' + j.nom)}</div><div><b>${esc(j.prenom)} ${esc(j.nom)}</b><span>${esc(j.poste)}</span></div></div><div>${badge('pris', 'Confirmé')}</div></div>`).join('') : empty('Aucun intérimaire prévu ce jour-là.'));
 };
@@ -724,25 +772,19 @@ V.interim.dispo = async () => {
   const [ds, ms] = await Promise.all([GET('/disponibilites'), GET('/missions')]);
   const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10);
   const D = Object.fromEntries(ds.map(d => [d.date, d.etat]));
-  const M = {}; ms.forEach(m => { if (m.etat === 'confirmee') M[m.date] = ['pris', m.client_nom]; else if (['a_repondre', 'en_attente'].includes(m.etat) && !M[m.date]) M[m.date] = ['attente', 'Proposée']; });
-  S.p.mo = S.p.mo || 0;
-  const base = new Date(t.slice(0, 7) + '-01T12:00'); base.setMonth(base.getMonth() + S.p.mo);
-  const cal = off => {
-    const d0 = new Date(base); d0.setMonth(d0.getMonth() + off);
-    const y = d0.getFullYear(), mo = d0.getMonth(), nb = new Date(y, mo + 1, 0).getDate(), pad = (new Date(y, mo, 1).getDay() + 6) % 7;
-    let h = `<div class="cal">${['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'].map(x => `<div class="dow">${x}</div>`).join('')}${'<div class="day blank"></div>'.repeat(pad)}`;
-    for (let k = 1; k <= nb; k++) {
-      const iso = `${y}-${String(mo + 1).padStart(2, '0')}-${String(k).padStart(2, '0')}`, m = M[iso], e = D[iso];
-      const cls = m ? m[0] : e === 'disponible' ? 'libre' : e === 'indisponible' ? 'off' : '', lab = m ? m[1] : e === 'disponible' ? 'Disponible' : e === 'indisponible' ? 'Indisponible' : '';
-      h += m ? `<button class="day ${cls} ${iso < t ? 'passe' : ''} ${iso === t ? 'today' : ''}" data-a="jour" data-d="${iso}" aria-label="${k} : ${esc(lab)}, voir le détail"><span class="d">${k}</span><span class="lbl">${esc(lab)}</span></button>`
-        : iso < t ? `<div class="day ${cls} past ${iso === t ? 'today' : ''}"><span class="d">${k}</span><span class="lbl">${esc(lab)}</span></div>`
-        : `<button class="day ${cls} ${iso === t ? 'today' : ''}" data-a="dispo" data-d="${iso}" data-e="${e || ''}" aria-label="${k} : ${lab || 'non renseigné'}"><span class="d">${k}</span><span class="lbl">${lab}</span></button>`;
-    }
-    return `<section class="panel"><div class="panel-h"><h2>${d0.toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' })}</h2></div><div class="panel-b">${h}</div></section>`;
-  };
-  return head('Mon planning', 'Vos missions et vos disponibilités. Cliquez sur un jour libre pour le passer en disponible, puis indisponible, puis non renseigné. Cliquez sur un jour de mission pour en voir tous les détails.',
-    btn('Mois précédents', 'left', 'data-a="mois" data-d="-1"', 'sm') + btn('Mois suivants', 'chev', 'data-a="mois" data-d="1"', 'sm')) +
-    `<div class="legend">${badge('libre', 'Disponible')}${badge('off', 'Indisponible')}${badge('attente', 'Mission proposée')}${badge('pris', 'Mission confirmée')}</div><div class="grid2">${cal(0)}${cal(1)}</div>`;
+  const E = {};
+  ms.filter(m => !['decline', 'annulee'].includes(m.etat)).forEach(m => (E[m.date] = E[m.date] || []).push(m));
+  S.p.im = S.p.im || t.slice(0, 7);
+  const CL = { confirmee: 'libre', en_attente: 'attente', a_repondre: 'pris', complet: 'off', non_retenu: 'off', pourvue: 'off' };
+  return head('Mon planning', 'Cliquez sur un jour de mission pour en voir le détail. Cliquez sur un jour libre pour le passer en disponible, puis indisponible, puis non renseigné.') +
+    panel('', navMois('im', S.p.im) + legendeCal(badge('pris', 'Proposée'), badge('attente', 'En attente de confirmation'), badge('libre', 'Confirmée'), badge('off', 'Indisponible')),
+      `<div class="panel-b">${calendrierStandard(S.p.im, iso => {
+        const ev = (E[iso] || []).map(m => ({ texte: `${m.debut} ${m.poste} · ${m.client_nom}`, cls: CL[m.etat] || 'off', urgent: ['confirmee', 'en_attente', 'a_repondre'].includes(m.etat) && estCeSoir({ ...m, statut: '' }) }));
+        const e = D[iso];
+        if (ev.length) return { evenements: ev, action: 'jour', etiquette: e === 'indisponible' ? 'Indisponible' : '' };
+        if (iso < t) return { cls: e === 'indisponible' ? 'indispo' : '', action: 'jour' };
+        return { cls: e === 'disponible' ? 'dispo' : e === 'indisponible' ? 'indispo' : '', action: 'dispo', attrs: `data-e="${e || ''}"`, etiquette: e === 'disponible' ? 'Disponible' : e === 'indisponible' ? 'Indisponible' : '' };
+      })}</div>`);
 };
 V.interim.heures = async () => {
   const hs = await GET('/heures');
@@ -1006,7 +1048,7 @@ document.addEventListener('click', e => {
   fn(el, e);
 });
 document.addEventListener('change', e => { const el = e.target; if (el.dataset?.a === 'toggleextra') A.toggleextra(el); });
-document.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.matches('[data-a="isel"],[data-a="csel"]')) e.target.click(); if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || (e.key === ' ' && e.target.matches('.cs-jour'))) && e.target.matches('[data-a="isel"],[data-a="csel"],.cs-jour')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape') closeModal(); });
 document.addEventListener('input', e => { if (e.target.dataset && 'rules' in e.target.dataset) { const r = $('#rules'); if (r) r.innerHTML = rulesHtml(e.target.value); } });
 document.addEventListener('submit', e => {
   const f = e.target.closest('form[data-f]'); if (!f) return;

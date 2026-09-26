@@ -476,3 +476,46 @@ button.cell:hover{filter:brightness(.96)}
 .nav-sep{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;font-weight:600;color:var(--side-ink);opacity:.65;padding:12px 10px 4px}
 .nav-sep:first-child{padding-top:2px}
 @media (max-width:900px){.nav-sep{grid-column:1/-1;padding:10px 4px 2px}}
+
+/* ---------- Calendrier standard (mois) ---------- */
+.calstd{display:grid;gap:4px;font-size:12px}
+.cs-tete,.cs-ligne{display:grid;grid-template-columns:44px repeat(7,minmax(0,1fr));gap:4px;align-items:stretch}
+.cs-tete span{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-3);text-align:center;font-weight:600;padding:2px 0 4px}
+.cs-sem{display:flex;align-items:center;justify-content:center;gap:3px;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums;border-radius:6px}
+.cs-ligne.courante .cs-sem{background:#C99948;color:#112233;font-weight:700}
+.cs-ligne.courante .cs-jour:not(.hors){border-color:#C99948}
+.fleche{font-size:10px;line-height:1;color:#112233}
+.cs-jour{border:1px solid var(--line);background:var(--surface);border-radius:6px;min-height:84px;padding:4px 5px;display:flex;flex-direction:column;gap:2px;cursor:pointer;overflow:hidden;min-width:0;text-align:left;transition:box-shadow .12s,border-color .12s}
+.cs-jour:hover{border-color:var(--ink-3);box-shadow:0 1px 4px rgba(17,34,51,.12)}
+.cs-jour:focus-visible{outline:2px solid #C99948;outline-offset:1px}
+.cs-jour.hors{opacity:.4;background:none}
+.cs-jour.passe:not(.hors){background:var(--off-bg)}
+.cs-jour.passe .cs-num{color:var(--ink-3)}
+.cs-jour.aujourdhui{border:2px solid #112233;box-shadow:inset 0 0 0 1px #C99948}
+.cs-jour.dispo{background:var(--libre-bg)}
+.cs-jour.indispo{background:var(--off-bg);background-image:repeating-linear-gradient(135deg,transparent 0 6px,rgba(127,127,127,.12) 6px 8px)}
+.cs-num{display:flex;align-items:center;justify-content:space-between;gap:2px;font-weight:600;font-variant-numeric:tabular-nums}
+.cs-jour.aujourdhui .cs-num{color:#7E5F24}
+.cs-etiq{font-size:10.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ev{display:flex;align-items:center;gap:3px;border-radius:4px;padding:1px 4px;font-size:11px;line-height:1.35;min-width:0}
+.ev>span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.ev svg{width:11px;height:11px;flex:none}
+.ev.ev-urgent{box-shadow:inset 3px 0 0 var(--danger-dot);font-weight:600}
+.ev-plus{font-size:10.5px;color:var(--ink-3);font-weight:600}
+.urgent{display:inline-flex;align-items:center;gap:3px;color:var(--danger-dot);font-weight:700;font-size:.85em;margin-right:5px;vertical-align:middle}
+.urgent svg{width:1.1em;height:1.1em;flex:none}
+.cs-num .urgent{margin:0}
+.urgent-leg svg{width:12px;height:12px;margin-right:3px;vertical-align:-2px}
+@media (max-width:640px){
+  .calstd{gap:2px}
+  .cs-tete,.cs-ligne{grid-template-columns:26px repeat(7,minmax(0,1fr));gap:2px}
+  .cs-tete span{font-size:9.5px;letter-spacing:0}
+  .cs-sem{font-size:9.5px;flex-direction:column;gap:0}
+  .cs-jour{min-height:52px;padding:3px 2px;gap:2px}
+  .cs-etiq{display:none}
+  .ev{height:6px;padding:0;border-radius:3px}
+  .ev>span,.ev svg{display:none}
+  .ev.s-libre{background:var(--libre-dot)} .ev.s-pris{background:var(--pris-dot)} .ev.s-attente{background:var(--attente-dot)} .ev.s-off{background:var(--off-dot)} .ev.s-danger{background:var(--danger-dot)}
+  .ev.ev-urgent{background:var(--danger-dot);box-shadow:none}
+  .ev-plus{font-size:9px}
+}

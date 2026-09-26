@@ -20,7 +20,11 @@ module.exports = function register(api, h) {
         (SELECT COUNT(*) FROM reponses r JOIN missions x ON x.id = r.mission_id WHERE x.date = m.date AND x.statut != 'annulee' ${p === 'client' ? 'AND x.client_id = m.client_id' : ''} AND r.etat = 'retenu') AS retenus,
         (SELECT COUNT(*) FROM reponses r JOIN missions x ON x.id = r.mission_id WHERE x.date = m.date AND x.statut = 'diffusee' ${p === 'client' ? 'AND x.client_id = m.client_id' : ''} AND r.etat = 'accepte') AS en_attente
       FROM missions m WHERE m.date LIKE ? AND m.statut != 'annulee' ${filtre} GROUP BY m.date ORDER BY m.date`, ...args);
-    res.json({ mois, jours: rows });
+    const evenements = all(`SELECT m.id, m.date, m.poste, m.debut, m.fin, m.nb_postes, m.statut, c.nom AS client_nom,
+        (SELECT COUNT(*) FROM reponses r WHERE r.mission_id = m.id AND r.etat = 'retenu') AS retenus,
+        (SELECT COUNT(*) FROM reponses r WHERE r.mission_id = m.id AND r.etat = 'accepte') AS en_attente
+      FROM missions m JOIN clients c ON c.id = m.client_id WHERE m.date LIKE ? AND m.statut != 'annulee' ${filtre} ORDER BY m.date, m.debut`, ...args);
+    res.json({ mois, jours: rows, evenements, aujourdhui: today() });
   }));
 
   /** Tout ce qui concerne une date, structuré par mission. */

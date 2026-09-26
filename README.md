@@ -65,11 +65,15 @@ Sur la fiche d'un intérimaire ou d'un client, l'agence dispose de deux boutons 
 
 ### Calendriers et détail d'une journée
 
-Un clic sur une date ouvre le détail de la journée, structuré par mission, selon le profil :
+Les trois espaces affichent le planning sous forme de **calendrier mensuel standard** (lundi → dimanche, numéro de semaine en colonne de gauche). La **semaine en cours** est repérée par une flèche ▶ et un liseré doré, le jour même par un cadre bleu nuit. Chaque mission apparaît dans sa case (heure, poste, postes pourvus), en couleur selon son état ; sur mobile, les missions deviennent des barres de couleur.
 
-- **Agence** (Planning, vue « Semaine » ou « Mois ») : toutes les missions du jour, avec lieu, interlocuteur, taux et motif, et les intérimaires regroupés par état (validés, en attente de l'employeur, refusés, non retenus, sans réponse, ont décliné). Pour chacun : moyen d'envoi, contrat et heures. S'y ajoutent les intérimaires disponibles et indisponibles ce jour-là. L'agence peut accepter ou refuser un candidat depuis cette fenêtre.
+**Importance haute** : une mission du jour même commençant à 16 h ou plus tard (« ce soir ») porte une icône d'alerte rouge dans le calendrier, les listes de missions, le détail du jour et les notifications. Chez l'agence, celles qui ne sont pas encore pourvues passent en tête de « À traiter ».
+
+Les cases, les missions et les en-têtes de jour sont cliquables (souris, doigt ou clavier : Entrée / Espace). Un clic sur une date ouvre le détail de la journée, structuré par mission, selon le profil :
+
+- **Agence** (Planning, onglets « Calendrier du mois » et « Semaine par intérimaire ») : toutes les missions du jour, avec lieu, interlocuteur, taux et motif, et les intérimaires regroupés par état (validés, en attente de l'employeur, refusés, non retenus, sans réponse, ont décliné). Pour chacun : moyen d'envoi, contrat et heures. S'y ajoutent les intérimaires disponibles et indisponibles ce jour-là. L'agence peut accepter ou refuser un candidat depuis cette fenêtre.
 - **Employeur** (Planning) : calendrier du mois ; pour chaque mission, les intérimaires validés (avec leur téléphone une fois la mission verrouillée), en attente de sa décision (boutons Accepter / Refuser) et refusés.
-- **Intérimaire** (Disponibilités) : un clic sur un jour de mission affiche le lieu, les horaires, le taux, l'état, le contrat (lecture, signature), les heures, les documents et, une fois la mission confirmée, le contact sur place et les collègues. Il peut accepter ou refuser une mission proposée depuis cette fenêtre.
+- **Intérimaire** (Mon planning) : un clic sur un jour libre le passe en disponible, indisponible puis non renseigné ; un clic sur un jour de mission affiche le lieu, les horaires, le taux, l'état, le contrat (lecture, signature), les heures, les documents et, une fois la mission confirmée, le contact sur place et les collègues. Il peut accepter ou refuser une mission proposée depuis cette fenêtre.
 
 ### Dossier de l'intérimaire
 

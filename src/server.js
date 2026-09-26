@@ -96,7 +96,9 @@ function auth(req, res, next) {
   const token = parseCookies(req.headers.cookie)[COOKIE];
   if (!token) return res.status(401).json({ error: 'Connexion requise.' });
   const u = one(`SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-                 WHERE s.token = ? AND s.expires_at > ? AND u.actif = 1`, token, new Date().toISOString());
+                 LEFT JOIN clients c ON c.id = u.client_id LEFT JOIN interimaires i ON i.id = u.interim_id
+                 WHERE s.token = ? AND s.expires_at > ? AND u.actif = 1
+                 AND COALESCE(c.suspendu, 0) = 0 AND COALESCE(i.suspendu, 0) = 0`, token, new Date().toISOString());
   if (!u) return res.status(401).json({ error: 'Session expirée. Reconnectez-vous.' });
   req.user = u; req.token = token;
   // Tant que le mot de passe provisoire n'est pas changé, seules ces routes sont ouvertes.
@@ -136,6 +138,10 @@ app.post('/api/login', limiteConnexion, wrap((req, res) => {
     fail(401, 'Identifiant ou mot de passe incorrect.');
   }
   if (!u.actif) fail(403, 'Ce compte est désactivé. Contactez votre agence.');
+  if ((u.client_id && one('SELECT suspendu FROM clients WHERE id = ?', u.client_id)?.suspendu)
+    || (u.interim_id && one('SELECT suspendu FROM interimaires WHERE id = ?', u.interim_id)?.suspendu)) {
+    fail(403, 'Votre profil est suspendu. Contactez votre agence.');
+  }
   run('DELETE FROM sessions WHERE expires_at < ?', new Date().toISOString());
   setSession(res, u.id);
   run('UPDATE users SET last_login = datetime(\'now\') WHERE id = ?', u.id);
@@ -217,8 +223,8 @@ api.get('/interimaires', (req, res) => {
   if (p === 'interim') return res.json(all(INTERIM_SQL + ' WHERE i.id = ?', req.user.interim_id));
   // Employeur : intérimaires venus chez lui, candidats à ses missions, et nouveaux inscrits de son secteur.
   const cid = req.user.client_id, secteur = one('SELECT secteur FROM clients WHERE id = ?', cid).secteur;
-  const rows = all(`${INTERIM_SQL} WHERE i.id IN (SELECT r.interim_id FROM reponses r JOIN missions m ON m.id = r.mission_id WHERE m.client_id = ? AND r.etat != 'decline')
-     OR (i.secteur = ? AND i.created_at >= datetime('now','-30 days')) ORDER BY i.nom`, cid, secteur);
+  const rows = all(`${INTERIM_SQL} WHERE i.suspendu = 0 AND (i.id IN (SELECT r.interim_id FROM reponses r JOIN missions m ON m.id = r.mission_id WHERE m.client_id = ? AND r.etat != 'decline')
+     OR (i.secteur = ? AND i.created_at >= datetime('now','-30 days'))) ORDER BY i.nom`, cid, secteur);
   const venus = new Set(all(`SELECT r.interim_id FROM reponses r JOIN missions m ON m.id = r.mission_id
      WHERE m.client_id = ? AND r.etat = 'retenu' AND m.statut = 'verrouillee'`, cid).map(r => r.interim_id));
   const cand = new Set(all(`SELECT r.interim_id FROM reponses r JOIN missions m ON m.id = r.mission_id
@@ -244,6 +250,59 @@ api.put('/interimaires/:id', role('agence'), wrap((req, res) => {
   if (keys.length) run(`UPDATE interimaires SET ${keys.map(k => k + ' = ?').join(', ')} WHERE id = ?`, ...keys.map(k => c[k]), req.params.id);
   res.json(one('SELECT * FROM interimaires WHERE id = ?', req.params.id));
 }));
+/* ---------------- Suspension et suppression des profils (agence) ---------------- */
+const PROFILS = {
+  clients: { label: 'Client', fk: 'client_id', nom: r => r.nom,
+    historique: id => ({
+      'facture(s)': one('SELECT COUNT(*) n FROM factures WHERE client_id = ?', id).n,
+      'mission(s) réalisée(s)': one(`SELECT COUNT(*) n FROM missions m WHERE m.client_id = ? AND EXISTS (SELECT 1 FROM heures h WHERE h.mission_id = m.id)`, id).n,
+    }),
+    fichiers: id => all('SELECT fichier FROM documents WHERE client_id = ?', id).map(d => path.join(UPLOAD_DIR, path.basename(d.fichier))) },
+  interimaires: { label: 'Intérimaire', fk: 'interim_id', nom: r => `${r.prenom} ${r.nom}`,
+    historique: id => ({
+      'contrat(s) de mission': one('SELECT COUNT(*) n FROM contrats WHERE interim_id = ? AND statut != \'annule\'', id).n,
+      'fiche(s) de paie': one('SELECT COUNT(*) n FROM bulletins WHERE interim_id = ?', id).n,
+      'relevé(s) d\'heures': one('SELECT COUNT(*) n FROM heures WHERE interim_id = ?', id).n,
+    }),
+    fichiers: id => [
+      ...all('SELECT fichier FROM pieces WHERE interim_id = ?', id).map(p => path.join(DATA_DIR, 'pieces', path.basename(p.fichier))),
+      ...all('SELECT fichier FROM bulletins WHERE interim_id = ? AND fichier IS NOT NULL', id).map(b => path.join(DATA_DIR, 'pieces', path.basename(b.fichier))),
+    ] },
+};
+for (const [table, P] of Object.entries(PROFILS)) {
+  const ligne = id => { const r = one(`SELECT * FROM ${table} WHERE id = ?`, id); if (!r) fail(404, `${P.label} introuvable.`); return r; };
+  api.post(`/${table}/:id/suspendre`, role('agence'), wrap((req, res) => {
+    const r = ligne(req.params.id);
+    if (r.suspendu) fail(409, 'Ce profil est déjà suspendu.');
+    tx(() => {
+      run(`UPDATE ${table} SET suspendu = 1, suspendu_le = datetime('now'), motif_suspension = ? WHERE id = ?`, str(req.body.motif, 300) || null, r.id);
+      // Déconnexion immédiate des comptes rattachés
+      run(`DELETE FROM sessions WHERE user_id IN (SELECT id FROM users WHERE ${P.fk} = ?)`, r.id);
+    });
+    res.json({ ok: true });
+  }));
+  api.post(`/${table}/:id/reactiver`, role('agence'), wrap((req, res) => {
+    const r = ligne(req.params.id);
+    run(`UPDATE ${table} SET suspendu = 0, suspendu_le = NULL, motif_suspension = NULL WHERE id = ?`, r.id);
+    res.json({ ok: true });
+  }));
+  /** Suppression définitive, refusée si le profil a un historique à conserver légalement. */
+  api.delete(`/${table}/:id`, role('agence'), wrap((req, res) => {
+    const r = ligne(req.params.id);
+    const h = Object.entries(P.historique(r.id)).filter(([, n]) => n > 0);
+    if (h.length) {
+      fail(409, `Suppression impossible : ${P.nom(r)} a un historique à conserver (${h.map(([k, n]) => `${n} ${k}`).join(', ')}). Suspendez ce profil à la place.`);
+    }
+    const fichiers = P.fichiers(r.id);
+    tx(() => {
+      run(`DELETE FROM users WHERE ${P.fk} = ?`, r.id);
+      run(`DELETE FROM ${table} WHERE id = ?`, r.id);
+    });
+    fichiers.forEach(f => fs.rmSync(f, { force: true }));
+    res.json({ ok: true });
+  }));
+}
+
 api.put('/notes-privees/:interimId', role('client'), wrap((req, res) => {
   run(`INSERT INTO notes_privees (client_id, interim_id, texte) VALUES (?,?,?)
        ON CONFLICT(client_id, interim_id) DO UPDATE SET texte = excluded.texte`, req.user.client_id, Number(req.params.interimId), str(req.body.texte, 2000));
@@ -344,7 +403,9 @@ api.get('/missions', (req, res) => {
 api.post('/missions', role('agence', 'client'), wrap((req, res) => {
   const b = req.body;
   const client_id = req.user.profil === 'client' ? req.user.client_id : Number(b.client_id);
-  if (!one('SELECT 1 FROM clients WHERE id = ?', client_id)) fail(400, 'Client introuvable.');
+  const cli = one('SELECT suspendu FROM clients WHERE id = ?', client_id);
+  if (!cli) fail(400, 'Client introuvable.');
+  if (cli.suspendu) fail(409, 'Ce client est suspendu : réactivez-le avant de créer une mission.');
   const poste = str(b.poste, 80); if (!poste) fail(400, 'Indiquez le poste.');
   if (!isDate(b.date)) fail(400, 'Date invalide.');
   if (b.date < today()) fail(400, 'La date est déjà passée.');
@@ -373,7 +434,7 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
   const dest = [];
   tx(() => {
     for (const iid of ids) {
-      const i = one('SELECT * FROM interimaires WHERE id = ?', iid); if (!i) continue;
+      const i = one('SELECT * FROM interimaires WHERE id = ? AND suspendu = 0', iid); if (!i) continue;
       const r = run('INSERT OR IGNORE INTO envois (mission_id, interim_id, canaux) VALUES (?,?,?)', m.id, iid, canaux.join(','));
       if (!r.changes) continue;
       run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', iid, m.id, `Nouvelle mission : ${m.poste} chez ${m.client_nom}`);
@@ -470,7 +531,7 @@ api.get('/planning', role('agence'), wrap((req, res) => {
      LEFT JOIN reponses r ON r.mission_id = e.mission_id AND r.interim_id = e.interim_id
      WHERE m.statut = 'diffusee' AND m.date BETWEEN ? AND ? AND (r.etat IS NULL OR r.etat IN ('accepte','refuse_client'))`, debut, fin);
   const dispo = all('SELECT * FROM disponibilites WHERE date BETWEEN ? AND ?', debut, fin);
-  const interims = all('SELECT id, prenom, nom, poste, secteur FROM interimaires ORDER BY nom');
+  const interims = all('SELECT id, prenom, nom, poste, secteur FROM interimaires WHERE suspendu = 0 ORDER BY nom');
   const key = (a, b) => a + '|' + b, P = {}, A = {}, Dp = {};
   pris.forEach(x => P[key(x.interim_id, x.date)] = x.client);
   attente.forEach(x => A[key(x.interim_id, x.date)] = x.client);

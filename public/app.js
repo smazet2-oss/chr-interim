@@ -298,6 +298,13 @@ const BULL_ST = b => b.statut === 'paye' ? badge('libre', 'Payé le ' + fdate(b.
 const alerteHeures = bl => bl.length ? `<div class="extra" style="grid-template-columns:1fr;background:var(--danger-bg);border-color:var(--danger-dot);color:var(--danger-fg)"><div class="row small"><b>${ic('alert')}${bl.length} relevé${bl.length > 1 ? 's' : ''} d'heures non validé${bl.length > 1 ? 's' : ''} : paiement bloqué</b></div>
   ${bl.map(x => `<div class="small">${fdate(x.date)} · ${esc(x.client_nom)} · il manque : ${esc(x.manque)}</div>`).join('')}</div>` : '';
 
+function gestionProfil(type, r) {
+  const nom = type === 'clients' ? r.nom : `${r.prenom} ${r.nom}`;
+  return (r.suspendu ? btn('Réactiver', 'check', `data-a="reactiver" data-t="${type}" data-id="${r.id}"`, 'sm primary') : btn('Suspendre', 'lock', `data-a="suspendre" data-t="${type}" data-id="${r.id}" data-n="${esc(nom)}"`, 'sm'))
+    + btn('Supprimer', 'trash', `data-a="supprimer" data-t="${type}" data-id="${r.id}" data-n="${esc(nom)}"`, 'sm danger');
+}
+const suspenduInfo = r => r.suspendu ? `<div class="extra" style="grid-template-columns:1fr;background:var(--off-bg);border-color:var(--line-strong);color:var(--ink-2)"><div class="small"><b>${ic('lock', 'style="vertical-align:-3px"')} Profil suspendu depuis le ${fdate(r.suspendu_le, 'num')}</b>${r.motif_suspension ? ` · ${esc(r.motif_suspension)}` : ''}<br>Connexion impossible${r.prenom ? ', aucune mission proposée' : ', aucune nouvelle mission'} tant que le profil n'est pas réactivé.</div></div>` : '';
+
 /* ---------------- Vues ---------------- */
 const V = { agence: {}, client: {}, interim: {} };
 
@@ -351,9 +358,9 @@ V.agence.interimaires = async () => {
   return head('Intérimaires', 'Fiches candidats, dossier administratif, contrats et accès à l\'espace intérimaire.', btn('Nouvel intérimaire', 'plus', 'data-a="interimform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun intérimaire. Créez la première fiche.')) :
       `<div class="grid-main" style="grid-template-columns:minmax(260px,1fr) minmax(0,1.5fr)">
-      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
-      <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div>${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}</div>
-      <div class="panel-b" style="display:flex;flex-direction:column;gap:16px"><dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
+      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
+      <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}${gestionProfil('interimaires', s)}</div></div>
+      <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
       <dt>Date de naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
       <dt>Taux horaire</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>
       <dt>Dossier administratif</dt><dd>${s.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd><dt>Note moyenne</dt><dd>${stars(s.note)}</dd></dl>
@@ -367,8 +374,8 @@ V.agence.clients = async () => {
   return head('Clients', 'Fiches entreprises, conditions, documents et accès à l\'espace employeur.', btn('Nouveau client', 'plus', 'data-a="clientform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun client. Créez la première fiche.')) :
       panel(`${L.length} client${L.length > 1 ? 's' : ''}`, '', `<div class="scroll"><table><thead><tr><th>Client</th><th>Secteur</th><th class="r">Missions</th><th class="r">Pourvues</th><th>Note des intérimaires</th><th>Accès</th></tr></thead><tbody>
-      ${L.map(c => `<tr class="clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0"><td><b>${esc(c.nom)}</b><div class="small muted">${esc(c.ville || '')}</div></td><td>${esc(c.secteur)}</td><td class="r num">${c.nb_missions}</td><td class="r num">${c.nb_pourvues}</td><td>${stars(c.note)}</td><td>${c.acces ? `<span class="mono">${esc(c.acces)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>`) +
-      `<div class="grid2"><section class="panel"><div class="panel-h"><h2>${esc(s.nom)}</h2>${btn('Modifier', 'edit', `data-a="clientform" data-id="${s.id}"`, 'sm')}</div><div class="panel-b" style="display:flex;flex-direction:column;gap:16px">
+      ${L.map(c => `<tr class="clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0"><td><b>${esc(c.nom)}</b> ${c.suspendu ? badge('off', 'Suspendu') : ''}<div class="small muted">${esc(c.ville || '')}</div></td><td>${esc(c.secteur)}</td><td class="r num">${c.nb_missions}</td><td class="r num">${c.nb_pourvues}</td><td>${stars(c.note)}</td><td>${c.acces ? `<span class="mono">${esc(c.acces)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>`) +
+      `<div class="grid2"><section class="panel"><div class="panel-h"><h2>${esc(s.nom)}</h2><div class="row">${btn('Modifier', 'edit', `data-a="clientform" data-id="${s.id}"`, 'sm')}${gestionProfil('clients', s)}</div></div><div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}
       <dl class="kv"><dt>SIRET</dt><dd>${esc(s.siret || '—')}</dd><dt>Adresse</dt><dd>${esc([s.adresse, s.ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc(s.contact || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd>
       <dt>Coefficient</dt><dd>${num(s.coefficient)}</dd><dt>Paiement</dt><dd>${s.delai_paiement} jours</dd><dt>Convention</dt><dd>${esc(s.convention)}</dd></dl>${accessBox('client', s.id, s.acces)}</div></section>
       ${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div>`);
@@ -605,8 +612,8 @@ V.interim.avis = async () => {
 
 /* ---------------- Formulaires en fenêtre ---------------- */
 async function missionForm() {
-  const cs = await GET('/clients');
-  if (!cs.length) return toast('Créez d\'abord une fiche client.', true);
+  const cs = (await GET('/clients')).filter(c => !c.suspendu);
+  if (!cs.length) return toast('Créez d\'abord une fiche client (ou réactivez un client suspendu).', true);
   const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10);
   openModal(`${modalHead(ic('plus') + 'Nouvelle mission')}<form data-f="mission"><div class="panel-b form">
     <label class="f full">Client<select name="client_id" required>${cs.map(c => `<option value="${c.id}">${esc(c.nom)}</option>`).join('')}</select></label>
@@ -622,7 +629,7 @@ async function diffuseModal(id) {
   const deja = new Set(m.envois.map(e => e.interim_id));
   const w = m.poste.toLowerCase().split(/\s+/)[0];
   const match = i => i.poste.toLowerCase().includes(w) || i.secteur === m.client_secteur;
-  const L = is.filter(i => !deja.has(i.id)).sort((a, b) => match(b) - match(a) || (b.note || 0) - (a.note || 0));
+  const L = is.filter(i => !deja.has(i.id) && !i.suspendu).sort((a, b) => match(b) - match(a) || (b.note || 0) - (a.note || 0));
   const c = S.cfg?.canaux || {};
   openModal(`${modalHead(ic('send') + 'Valider et diffuser la mission', `${m.nb_postes} × ${esc(m.poste)} · ${esc(m.client_nom)} · ${fdate(m.date)} · ${m.debut}–${m.fin}`)}
     <form data-f="diffuser" data-id="${m.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:14px">
@@ -665,6 +672,15 @@ async function act(fn, el) {
 }
 const reload = () => renderApp();
 const A = {
+  suspendre: el => openModal(`${modalHead(ic('lock') + 'Suspendre le profil', esc(el.dataset.n))}<form data-f="suspendre" data-t="${el.dataset.t}" data-id="${el.dataset.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    <p>${el.dataset.t === 'clients' ? 'Le client ne pourra plus se connecter ni recevoir de nouvelles missions.' : 'L\'intérimaire ne pourra plus se connecter et ne recevra plus de missions.'} Ses données sont conservées ; vous pourrez le réactiver à tout moment.</p>
+    <label class="f">Motif (facultatif, visible par l'agence seulement)<input type="text" name="motif" maxlength="300"></label></div>${modalFoot('Suspendre', 'type="submit"')}</form>`),
+  reactiver: el => act(async () => { await POST(`/${el.dataset.t}/${el.dataset.id}/reactiver`); toast('Profil réactivé'); reload(); }, el),
+  supprimer: el => openModal(`${modalHead(ic('trash') + 'Supprimer définitivement', esc(el.dataset.n))}<form data-f="supprimer" data-t="${el.dataset.t}" data-id="${el.dataset.id}"><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    <p>La fiche, ses accès et ses documents seront <b>effacés sans retour possible</b>.</p>
+    <p class="hint">Un profil qui a des contrats, des fiches de paie, des factures ou des heures travaillées ne peut pas être supprimé : ces documents doivent être conservés. Suspendez-le à la place.</p>
+    <label class="check"><input type="checkbox" name="ok" required> Je confirme la suppression définitive</label><div class="err" hidden></div></div>
+    <div class="panel-f" style="justify-content:flex-end">${btn('Annuler', '', 'data-a="close"')}<button class="btn danger" type="submit">${ic('trash')}Supprimer</button></div></form>`),
   xpadd: el => openModal(`${modalHead(ic('plus') + 'Ajouter une expérience')}<form data-f="xp" data-id="${el.dataset.id}"><div class="panel-b form">
     <label class="f">Poste<input type="text" name="poste" required maxlength="100"></label><label class="f">Employeur<input type="text" name="employeur" required maxlength="150"></label>
     <label class="f">Début<input type="date" name="debut" required></label><label class="f">Fin (vide si en cours)<input type="date" name="fin"></label>
@@ -723,6 +739,13 @@ const A = {
   toggleextra: el => { el.closest('form').querySelector('.extra').hidden = !el.checked; },
 };
 const F = {
+  suspendre: (fd, f) => act(async () => { await POST(`/${f.dataset.t}/${f.dataset.id}/suspendre`, { motif: fd.get('motif') }); closeModal(); toast('Profil suspendu. Ses sessions ont été fermées.'); reload(); }),
+  supprimer: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    try { await DEL(`/${f.dataset.t}/${f.dataset.id}`); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    if (f.dataset.t === 'clients') S.p.csel = null; else S.p.isel = null;
+    closeModal(); toast('Profil supprimé'); reload();
+  }),
   xp: (fd, f) => act(async () => { await POST(`/interimaires/${f.dataset.id}/experiences`, Object.fromEntries(fd)); closeModal(); toast('Expérience ajoutée'); reload(); }),
   piece: (fd, f) => act(async () => { if (!fd.get('expire_le')) fd.delete('expire_le'); await api('POST', `/interimaires/${f.dataset.iid}/pieces`, fd); closeModal(); toast(S.me.profil === 'agence' ? 'Document ajouté et validé' : 'Document envoyé. L\'agence va le vérifier.'); reload(); }),
   prefus: (fd, f) => act(async () => { await POST(`/pieces/${f.dataset.id}/statut`, { statut: 'refuse', commentaire: fd.get('commentaire') }); closeModal(); toast('Document refusé. L\'intérimaire est prévenu.'); reload(); }),

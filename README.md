@@ -33,6 +33,13 @@ Ouvrez ensuite http://localhost:3000.
 - Le mot de passe provisoire n'est affiché qu'une fois. Il est stocké chiffré (bcrypt) et doit être remplacé à la première connexion : 8 caractères minimum, avec une majuscule et un chiffre.
 - L'agence peut réinitialiser un mot de passe ou désactiver un compte.
 
+### Suspendre ou supprimer un profil
+
+Sur la fiche d'un intérimaire ou d'un client, l'agence dispose de deux boutons :
+
+- **Suspendre** (réversible) : les sessions en cours sont fermées et la connexion est refusée. Un intérimaire suspendu ne reçoit plus de missions et n'apparaît plus au planning ni chez les employeurs ; aucune mission ne peut être créée pour un client suspendu. Les données sont conservées ; « Réactiver » rétablit l'accès.
+- **Supprimer** (définitif) : efface la fiche, ses comptes et ses documents. La suppression est refusée si le profil a un historique à conserver légalement (contrats, fiches de paie, factures, heures travaillées) : il faut alors le suspendre.
+
 ### Circuit d'une mission
 
 1. **Demande** : l'employeur fait une demande, ou l'agence crée la mission. Elle apparaît « À valider par l'agence ».

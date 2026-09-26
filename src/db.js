@@ -215,6 +215,12 @@ function addColumn(table, col, def) {
 addColumn('missions', 'motif', "TEXT NOT NULL DEFAULT 'Accroissement temporaire d''activité'");
 addColumn('interimaires', 'date_naissance', 'TEXT');
 addColumn('interimaires', 'nationalite', "TEXT NOT NULL DEFAULT 'Française'");
+// Suspension d'un profil (réversible) : plus de connexion, plus de missions.
+for (const t of ['clients', 'interimaires']) {
+  addColumn(t, 'suspendu', 'INTEGER NOT NULL DEFAULT 0');
+  addColumn(t, 'suspendu_le', 'TEXT');
+  addColumn(t, 'motif_suspension', 'TEXT');
+}
 
 /** Exécute fn dans une transaction exclusive (évite les courses sur les acceptations). */
 function tx(fn) {

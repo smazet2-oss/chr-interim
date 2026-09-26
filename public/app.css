@@ -349,3 +349,7 @@ dialog{border:0;padding:0;background:none}
 .hero .when span{color:var(--gold)}
 .foot-brand{display:flex;align-items:center;gap:8px;justify-content:center;padding:18px 0 4px;color:var(--ink-3);font-size:12px}
 .foot-brand b{color:var(--gold-ink);font-weight:600;letter-spacing:.08em}
+.btn.danger{color:var(--danger-fg);border-color:var(--danger-dot)}
+.btn.danger:hover{background:var(--danger-bg)}
+.modal .btn.danger{background:var(--danger-dot);color:#FFFFFF;border-color:var(--danger-dot)}
+.panel-f .btn.danger:hover{filter:brightness(1.08)}

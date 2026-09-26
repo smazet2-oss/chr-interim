@@ -2,7 +2,8 @@
 // Données de démonstration (fictives). Usage : npm run demo
 // Tous les comptes de démonstration utilisent le mot de passe « Demo2026! », sauf camille.roux (première connexion).
 const bcrypt = require('bcryptjs');
-const { one, run, tx } = require('./db');
+const { one, all, run, tx } = require('./db');
+const dossier = require('./dossier');
 
 if (one('SELECT 1 FROM clients LIMIT 1')) {
   console.log('La base contient déjà des données : démonstration non installée. (npm run demo:reset pour repartir de zéro)');
@@ -67,6 +68,20 @@ tx(() => {
   const f3 = mission(C[0], 'Chef de rang', jour(6), '18:00', '23:30', 2, 13.2, 'diffusee');
   envoi(f3, I[1], 'whatsapp'); envoi(f3, I[4], 'sms,mail'); rep(f3, I[1], 'accepte'); rep(f3, I[4], 'accepte');
   mission(C[2], 'Barman', jour(10), '19:00', '02:00', 1, 12.9, 'nouvelle');
+
+  // Contrats et lignes d'expérience des missions déjà verrouillées.
+  for (const m of all('SELECT m.*, c.nom AS client_nom FROM missions m JOIN clients c ON c.id = m.client_id WHERE m.statut = \'verrouillee\'')) {
+    dossier.surVerrouillage(m, all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat = \'retenu\'', m.id).map(x => x.interim_id), jour(0).slice(0, 4));
+  }
+  run('UPDATE contrats SET statut = \'signe\', signe_le = datetime(\'now\',\'-3 days\'), signe_nom = \'Lucas Martin\' WHERE interim_id = ?', I[3]);
+  run('UPDATE interimaires SET date_naissance = \'1998-03-14\' WHERE id = ?', I[0]);
+  run('INSERT INTO experiences (interim_id, debut, fin, employeur, poste, description) VALUES (?,?,?,?,?,?)', I[0], '2021-09-01', '2024-06-30', 'Restaurant L\'Ardoise, Lyon', 'Commis de cuisine', 'Brasserie de 80 couverts, poste garde-manger puis chaud.');
+  run('INSERT INTO experiences (interim_id, debut, fin, employeur, poste) VALUES (?,?,?,?,?)', I[0], '2019-09-01', '2021-06-30', 'Lycée hôtelier François Rabelais', 'CAP Cuisine (formation)');
+  // Fiche de paie de Lucas (heures validées des deux côtés).
+  const h3b = one('SELECT h.id, m.taux_horaire, h.heures_prevues FROM heures h JOIN missions m ON m.id = h.mission_id WHERE h.id = ?', h3);
+  const brut = h3b.heures_prevues * h3b.taux_horaire, ifm = brut * 0.1, iccp = (brut + ifm) * 0.1, r2 = n => Math.round(n * 100) / 100;
+  const b = run('INSERT INTO bulletins (interim_id, debut, fin, heures, brut, ifm, iccp, total) VALUES (?,?,?,?,?,?,?,?)', I[3], jour(-15), jour(0), h3b.heures_prevues, r2(brut), r2(ifm), r2(iccp), r2(brut + ifm + iccp));
+  run('INSERT INTO bulletin_heures (bulletin_id, heure_id) VALUES (?,?)', b.lastInsertRowid, h3);
 
   for (let k = 1; k <= 20; k++) run('INSERT OR IGNORE INTO disponibilites (interim_id, date, etat) VALUES (?,?,?)', I[0], jour(k), k % 7 === 0 ? 'indisponible' : 'disponible');
   run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', I[0], f1, 'Nouvelle mission : Commis de cuisine chez Brasserie Le Comptoir');

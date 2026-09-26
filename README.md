@@ -45,6 +45,16 @@ Ouvrez ensuite http://localhost:3000.
 6. **Après la mission** : l'intérimaire confirme ses heures ou déclare des heures en plus avec une justification. L'employeur valide et accepte ou refuse les heures en plus. Chacun note l'autre en fin de service ; les avis reçus par les intérimaires sont anonymes.
 7. **Facturation et paie** : l'agence génère les factures de la période (heures validées × taux × coefficient du client) et consulte la paie calculée, avec IFM et ICCP de 10 % chacune. Ce calcul est indicatif et doit être contrôlé par votre gestionnaire de paie.
 
+### Dossier de l'intérimaire
+
+- **Expériences** : l'intérimaire (ou l'agence) ajoute ses expériences passées avec le bouton « Ajouter ». Chaque mission verrouillée ajoute sa ligne toute seule ; elle disparaît si la mission est annulée.
+- **Téléverser** : l'intérimaire dépose les pièces de son dossier et l'agence les valide ou les refuse (la raison du refus lui est affichée). Le dossier passe « complet » quand toutes les pièces exigées sont validées et non expirées. Pièces demandées :
+  - **toujours** : pièce d'identité, carte Vitale ou attestation de droits, RIB, justificatif de domicile de moins de 3 mois ;
+  - **selon la situation** : titre de séjour autorisant à travailler (nationalité hors UE, EEE et Suisse), autorisation parentale (moins de 18 ans) ;
+  - **facultatives** : diplômes et certificats (HACCP…), attestation de suivi médical, permis de conduire, CV.
+- **Contrats** : un contrat de mission est créé pour chaque intérimaire retenu. Il le lit en ligne (page imprimable) et le signe en saisissant son nom (signature électronique simple : date, heure et adresse IP enregistrées). Les informations de l'agence se règlent par variables d'environnement : `AGENCE_RAISON_SOCIALE`, `AGENCE_ADRESSE`, `AGENCE_SIRET`, `AGENCE_GARANTIE_FINANCIERE`, `CAISSE_RETRAITE`, `ORGANISME_PREVOYANCE`. Tant qu'elles sont vides, le contrat affiche « [à compléter] ».
+- **Paie** : l'agence génère les fiches de paie d'une période (rubrique Paie), dépose le PDF produit par son logiciel de paie et les marque payées. L'intérimaire voit ses fiches payées ou en attente ; une **alerte** signale les heures non validées qui bloquent le paiement, avec ce qu'il manque (sa confirmation, la validation de l'employeur ou l'accord sur les heures en plus).
+
 ### Envoi des messages
 
 Sans configuration, les messages ne sont **pas envoyés** : ils sont enregistrés comme « simulés » dans « Journal des envois ». Pour les envoyer réellement, renseignez les variables d'environnement (voir `.env.example`) :
@@ -83,7 +93,8 @@ Sauvegardez régulièrement le dossier `DATA_DIR`.
 Ce prototype est fonctionnel, mais plusieurs points sont à traiter avant de l'ouvrir à de vrais clients et intérimaires :
 
 - **RGPD** : registre des traitements, mentions d'information, durée de conservation (le numéro de sécurité sociale n'est volontairement pas collecté).
-- **Contrats** : le « contrat de mission » est aujourd'hui une mention. Il faudra générer le vrai document et, si besoin, une signature électronique (Yousign, par exemple).
+- **Contrats** : le modèle de contrat de mission et le motif de recours sont à faire valider par un juriste. La signature électronique intégrée est une signature « simple » ; pour une valeur probante renforcée, passer par un prestataire (Yousign, par exemple). Le contrat de mise à disposition avec l'employeur n'est pas encore généré.
+- **Documents personnels** : les pièces d'identité et RIB sont des données sensibles ; prévoir leur durée de conservation et leur suppression à la fin de la relation.
 - **Paie et factures** : validation des calculs par un expert-comptable. L'export vers votre logiciel de paie n'est pas prévu.
 - **Hébergement** : sauvegardes automatiques et nom de domaine.
 

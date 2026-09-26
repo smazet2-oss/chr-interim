@@ -157,6 +157,65 @@ CREATE TABLE IF NOT EXISTS envois_messages (
 );
 `);
 
+db.exec(`
+-- Lignes d'expérience du CV. source = 'mission' : ajoutée automatiquement au verrouillage d'une mission.
+CREATE TABLE IF NOT EXISTS experiences (
+  id INTEGER PRIMARY KEY,
+  interim_id INTEGER NOT NULL REFERENCES interimaires(id) ON DELETE CASCADE,
+  debut TEXT NOT NULL, fin TEXT,
+  employeur TEXT NOT NULL, poste TEXT NOT NULL, description TEXT,
+  source TEXT NOT NULL DEFAULT 'manuel' CHECK (source IN ('manuel','mission')),
+  mission_id INTEGER REFERENCES missions(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (interim_id, mission_id)
+);
+-- Pièces du dossier administratif de l'intérimaire.
+CREATE TABLE IF NOT EXISTS pieces (
+  id INTEGER PRIMARY KEY,
+  interim_id INTEGER NOT NULL REFERENCES interimaires(id) ON DELETE CASCADE,
+  type TEXT NOT NULL,
+  nom TEXT NOT NULL, fichier TEXT NOT NULL, mime TEXT NOT NULL, taille INTEGER NOT NULL,
+  expire_le TEXT,
+  statut TEXT NOT NULL DEFAULT 'a_verifier' CHECK (statut IN ('a_verifier','valide','refuse')),
+  commentaire TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+-- Contrats de mission, créés au verrouillage de la mission.
+CREATE TABLE IF NOT EXISTS contrats (
+  id INTEGER PRIMARY KEY,
+  numero TEXT NOT NULL UNIQUE,
+  mission_id INTEGER NOT NULL REFERENCES missions(id) ON DELETE CASCADE,
+  interim_id INTEGER NOT NULL REFERENCES interimaires(id) ON DELETE CASCADE,
+  statut TEXT NOT NULL DEFAULT 'a_signer' CHECK (statut IN ('a_signer','signe','annule')),
+  signe_le TEXT, signe_nom TEXT, signe_ip TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (mission_id, interim_id)
+);
+-- Fiches de paie par quinzaine.
+CREATE TABLE IF NOT EXISTS bulletins (
+  id INTEGER PRIMARY KEY,
+  interim_id INTEGER NOT NULL REFERENCES interimaires(id) ON DELETE CASCADE,
+  debut TEXT NOT NULL, fin TEXT NOT NULL,
+  heures REAL NOT NULL, brut REAL NOT NULL, ifm REAL NOT NULL, iccp REAL NOT NULL, total REAL NOT NULL,
+  statut TEXT NOT NULL DEFAULT 'en_attente' CHECK (statut IN ('en_attente','paye')),
+  paye_le TEXT,
+  fichier TEXT, fichier_nom TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE TABLE IF NOT EXISTS bulletin_heures (
+  bulletin_id INTEGER NOT NULL REFERENCES bulletins(id) ON DELETE CASCADE,
+  heure_id INTEGER NOT NULL UNIQUE REFERENCES heures(id) ON DELETE CASCADE
+);
+`);
+
+// Migrations de colonnes (bases créées avec une version précédente).
+function addColumn(table, col, def) {
+  if (!db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
+}
+addColumn('missions', 'motif', "TEXT NOT NULL DEFAULT 'Accroissement temporaire d''activité'");
+addColumn('interimaires', 'date_naissance', 'TEXT');
+addColumn('interimaires', 'nationalite', "TEXT NOT NULL DEFAULT 'Française'");
+
 /** Exécute fn dans une transaction exclusive (évite les courses sur les acceptations). */
 function tx(fn) {
   db.exec('BEGIN IMMEDIATE');

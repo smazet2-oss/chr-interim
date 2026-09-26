@@ -7,6 +7,7 @@ const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const { tx, one, all, run, DATA_DIR } = require('./db');
 const { envoyer, canalConfigure } = require('./notify');
+const dossier = require('./dossier');
 
 const app = express();
 app.set('trust proxy', 1);
@@ -28,6 +29,8 @@ const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && !i
 const isTime = s => typeof s === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(s);
 const str = (v, max = 200) => (v == null ? '' : String(v).trim().slice(0, max));
 const CANAUX = ['whatsapp', 'sms', 'mail'];
+// Motifs de recours au travail temporaire (article L1251-6 du Code du travail).
+const MOTIFS = ['Accroissement temporaire d\'activité', 'Remplacement d\'un salarié absent', 'Emploi à caractère saisonnier', 'Emploi d\'usage constant (secteur HCR)'];
 const CANAL_LABEL = { whatsapp: 'WhatsApp', sms: 'SMS', mail: 'E-mail' };
 
 function dureeHeures(debut, fin) {
@@ -157,6 +160,7 @@ app.post('/api/password', auth, wrap((req, res) => {
 
 const api = express.Router();
 api.use(auth);
+dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
 
 /* ---------------- Clients ---------------- */
 const CLIENT_FIELDS = ['nom', 'siret', 'secteur', 'adresse', 'ville', 'contact', 'email', 'telephone', 'convention'];
@@ -198,7 +202,8 @@ function interimBody(b) {
   const c = {};
   for (const f of INTERIM_FIELDS) if (b[f] !== undefined) c[f] = str(b[f], f === 'competences' || f === 'experience' ? 1000 : 200);
   if (b.taux_horaire !== undefined) { c.taux_horaire = Number(b.taux_horaire); if (!(c.taux_horaire >= 10 && c.taux_horaire <= 60)) fail(400, 'Taux horaire invalide.'); }
-  if (b.dossier_complet !== undefined) c.dossier_complet = b.dossier_complet ? 1 : 0;
+  if (b.date_naissance !== undefined) { if (b.date_naissance && !isDate(b.date_naissance)) fail(400, 'Date de naissance invalide.'); c.date_naissance = b.date_naissance || null; }
+  if (b.nationalite !== undefined) { if (!dossier.NATIONALITES.includes(b.nationalite)) fail(400, 'Nationalité invalide.'); c.nationalite = b.nationalite; }
   return c;
 }
 const INTERIM_SQL = `SELECT i.*,
@@ -315,7 +320,7 @@ function missionPourInterim(m, iid) {
   return {
     id: m.id, client_nom: m.client_nom, client_secteur: m.client_secteur, poste: m.poste, date: m.date, debut: m.debut, fin: m.fin,
     nb_postes: m.nb_postes, taux_horaire: m.taux_horaire, etat,
-    documents: etat === 'confirmee' ? docsMission(m) : [],
+    documents: etat === 'confirmee' ? docsMission(m).map(d => d.id === null ? { ...d, contrat_id: one('SELECT id FROM contrats WHERE mission_id = ? AND interim_id = ?', m.id, iid)?.id } : d) : [],
   };
 }
 api.get('/missions', (req, res) => {
@@ -345,10 +350,11 @@ api.post('/missions', role('agence', 'client'), wrap((req, res) => {
   if (b.date < today()) fail(400, 'La date est déjà passée.');
   if (!isTime(b.debut) || !isTime(b.fin)) fail(400, 'Horaires invalides (format HH:MM).');
   const nb = parseInt(b.nb_postes, 10); if (!(nb >= 1 && nb <= 30)) fail(400, 'Nombre de postes invalide.');
+  const motif = MOTIFS.includes(b.motif) ? b.motif : MOTIFS[0];
   const taux = req.user.profil === 'agence' && b.taux_horaire ? Number(b.taux_horaire) : 12.0;
   if (!(taux >= 10 && taux <= 60)) fail(400, 'Taux horaire invalide.');
-  const r = run('INSERT INTO missions (client_id, poste, date, debut, fin, nb_postes, taux_horaire, commentaire, created_by) VALUES (?,?,?,?,?,?,?,?,?)',
-    client_id, poste, b.date, b.debut, b.fin, nb, taux, str(b.commentaire, 500), req.user.id);
+  const r = run('INSERT INTO missions (client_id, poste, date, debut, fin, nb_postes, taux_horaire, commentaire, motif, created_by) VALUES (?,?,?,?,?,?,?,?,?,?)',
+    client_id, poste, b.date, b.debut, b.fin, nb, taux, str(b.commentaire, 500), motif, req.user.id);
   res.status(201).json(missionRow(r.lastInsertRowid));
 }));
 
@@ -415,8 +421,9 @@ api.post('/missions/:id/decision', role('agence', 'client'), wrap((req, res) => 
       const h = dureeHeures(m.debut, m.fin);
       for (const x of all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat = \'retenu\'', m.id)) {
         run('INSERT OR IGNORE INTO heures (mission_id, interim_id, heures_prevues) VALUES (?,?,?)', m.id, x.interim_id, h);
-        run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', x.interim_id, m.id, `Mission confirmée : ${m.poste} chez ${m.client_nom}. Vos documents sont disponibles.`);
+        run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', x.interim_id, m.id, `Mission confirmée : ${m.poste} chez ${m.client_nom}. Votre contrat est à signer.`);
       }
+      dossier.surVerrouillage(m, all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat = \'retenu\'', m.id).map(x => x.interim_id), today().slice(0, 4));
       for (const x of all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat IN (\'non_retenu\',\'refuse_client\')', m.id)) {
         run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', x.interim_id, m.id, `La mission ${m.poste} chez ${m.client_nom} est pourvue.`);
       }
@@ -435,7 +442,7 @@ api.post('/missions/:id/decision', role('agence', 'client'), wrap((req, res) => 
 }));
 api.post('/missions/:id/annuler', role('agence'), wrap((req, res) => {
   const m = missionRow(req.params.id); if (!m) fail(404, 'Mission introuvable.');
-  run('UPDATE missions SET statut = \'annulee\' WHERE id = ?', m.id);
+  tx(() => { run('UPDATE missions SET statut = \'annulee\' WHERE id = ?', m.id); dossier.surAnnulation(m.id); });
   res.json({ ok: true });
 }));
 
@@ -658,7 +665,7 @@ api.get('/paie', role('agence'), wrap((req, res) => {
   res.json(rows.map(r => { const ifm = r.brut * 0.1, iccp = (r.brut + ifm) * 0.1; return { ...r, ifm, iccp, total: r.brut + ifm + iccp }; }));
 }));
 api.get('/journal', role('agence'), (req, res) => res.json(all('SELECT * FROM envois_messages ORDER BY id DESC LIMIT 200')));
-api.get('/config', (req, res) => res.json({ canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today() }));
+api.get('/config', (req, res) => res.json({ canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES }));
 
 app.use('/api', api);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' }));

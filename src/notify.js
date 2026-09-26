@@ -1,9 +1,18 @@
 'use strict';
-// Envoi des messages : e-mail (SMTP), SMS et WhatsApp (Twilio).
-// Les réglages viennent de l'onglet Paramètres de l'agence (ou des variables d'environnement).
+// Envoi des messages : e-mail (SMTP), SMS et WhatsApp (Twilio), aux couleurs de l'agence.
+// Les réglages viennent de la rubrique Paramètres de l'agence (ou des variables d'environnement).
 // Sans réglage, les messages sont enregistrés comme « simulés » dans le journal des envois.
+const path = require('node:path');
 const { run } = require('./db');
 const P = require('./parametres');
+
+const IMG = path.join(__dirname, '..', 'public', 'img');
+const LOGO_EMAIL = path.join(IMG, 'bandeau-horizontal.png');
+const CID_LOGO = 'logo@chr-interim';
+const TWILIO_API = process.env.TWILIO_API_BASE || 'https://api.twilio.com';
+
+/** Adresse publique du site (liens et image WhatsApp). */
+const siteUrl = () => String(P.get('site_url') || process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
 
 let mailer = null, mailerCle = '';
 function getMailer() {
@@ -12,7 +21,12 @@ function getMailer() {
   const cle = JSON.stringify(cfg);
   if (cle !== mailerCle) {
     const nodemailer = require('nodemailer');
-    mailer = nodemailer.createTransport({ host: cfg.host, port: cfg.port, secure: cfg.secure, auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined });
+    mailer = nodemailer.createTransport({
+      host: cfg.host, port: cfg.port, secure: cfg.secure,
+      auth: cfg.user ? { user: cfg.user, pass: cfg.pass } : undefined,
+      tls: process.env.SMTP_TLS_INSECURE === '1' ? { rejectUnauthorized: false } : undefined,
+      connectionTimeout: 15000, greetingTimeout: 15000, socketTimeout: 20000,
+    });
     mailerCle = cle;
   }
   return mailer;
@@ -26,46 +40,102 @@ function canalConfigure(canal) {
   return false;
 }
 
-async function twilioSend(from, to, body) {
+async function twilioSend(params) {
   const t = twilio();
-  const res = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${t.sid}/Messages.json`, {
+  const res = await fetch(`${TWILIO_API}/2010-04-01/Accounts/${t.sid}/Messages.json`, {
     method: 'POST',
     headers: { Authorization: 'Basic ' + Buffer.from(`${t.sid}:${t.token}`).toString('base64'), 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: new URLSearchParams({ From: from, To: to, Body: body }),
+    body: new URLSearchParams(params),
+    signal: AbortSignal.timeout(20000),
   });
-  if (!res.ok) throw new Error(`Twilio ${res.status} : ${(await res.text()).slice(0, 200)}`);
+  const data = await res.json().catch(() => ({}));
+  // Messages d'erreur Twilio les plus fréquents, traduits
+  if (!res.ok) {
+    const msg = { 20003: 'identifiants Twilio refusés (Account SID ou Auth Token)', 21211: 'numéro du destinataire invalide', 21408: 'envoi vers ce pays non autorisé dans votre compte Twilio', 21608: 'compte d\'essai Twilio : le numéro du destinataire doit d\'abord être vérifié', 21612: 'expéditeur non autorisé vers ce numéro', 63016: 'hors fenêtre de 24 h : un modèle WhatsApp approuvé est nécessaire' }[data.code];
+    throw new Error(`Twilio ${res.status}${data.code ? ' (' + data.code + ')' : ''} : ${msg || data.message || 'erreur inconnue'}`);
+  }
+  return data.sid;
 }
 
 /** Numéro français 06 12 34 56 78 → +33612345678 */
 function e164(tel) {
   const d = String(tel || '').replace(/[^\d+]/g, '');
   if (d.startsWith('+')) return d;
+  if (d.startsWith('00')) return '+' + d.slice(2);
   if (d.startsWith('0') && d.length === 10) return '+33' + d.slice(1);
   return d;
 }
 
+const escHtml = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+/**
+ * E-mail HTML aux couleurs de l'agence (mise en page en tableaux, compatible avec les messageries courantes).
+ * logoSrc : "cid:…" pour l'envoi, ou une URL pour l'aperçu dans le navigateur.
+ */
+function gabaritEmail({ titre, texte, lien, bouton }, logoSrc = 'cid:' + CID_LOGO) {
+  const g = k => P.get(k);
+  const adresse = [g('adresse'), [g('code_postal'), g('ville')].filter(Boolean).join(' ')].filter(Boolean).join(', ');
+  const legal = [g('raison_sociale'), g('forme_juridique'), g('siret') && 'SIRET ' + g('siret')].filter(Boolean).join(' · ');
+  const paras = String(texte).split(/\n{2,}|\n/).filter(Boolean).map(p => `<p style="margin:0 0 14px;font-size:15px;line-height:1.55;color:#1f2937">${escHtml(p)}</p>`).join('');
+  return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escHtml(titre)}</title></head>
+<body style="margin:0;padding:0;background:#EEF1F5">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF1F5"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#FFFFFF;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif">
+<tr><td style="background:#112233;padding:0"><img src="${logoSrc}" width="600" alt="${escHtml(g('raison_sociale'))} — Spécialiste des métiers HCR" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>
+<tr><td style="background:#C99948;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
+<tr><td style="padding:28px 28px 12px"><h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:#112233">${escHtml(titre)}</h1>${paras}
+${lien ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 18px"><tr><td style="background:#112233;border-radius:8px;border-bottom:3px solid #C99948"><a href="${escHtml(lien)}" style="display:inline-block;padding:13px 22px;color:#FFFFFF;font-size:15px;font-weight:bold;text-decoration:none">${escHtml(bouton || 'Ouvrir mon espace')}</a></td></tr></table>
+<p style="margin:0 0 8px;font-size:12px;color:#6b7280">Si le bouton ne fonctionne pas : <a href="${escHtml(lien)}" style="color:#7E5F24">${escHtml(lien)}</a></p>` : ''}</td></tr>
+<tr><td style="padding:18px 28px 24px;border-top:1px solid #E5E7EB;font-size:12px;line-height:1.5;color:#6b7280">
+<b style="color:#112233">${escHtml(g('raison_sociale'))}</b> · spécialiste des métiers <b style="color:#7E5F24">HCR</b><br>
+${adresse ? escHtml(adresse) + '<br>' : ''}${[g('telephone'), g('email')].filter(Boolean).map(escHtml).join(' · ')}${g('telephone') || g('email') ? '<br>' : ''}
+<span style="color:#9ca3af">${escHtml(legal)} — Message envoyé automatiquement par la plateforme ${escHtml(g('raison_sociale'))}.</span></td></tr>
+</table></td></tr></table></body></html>`;
+}
+
 /**
  * Envoie un message sur un canal. Ne lève jamais d'erreur : le résultat est journalisé et renvoyé.
+ * @param {{titre?:string, lien?:string, bouton?:string, masquer?:string}} opts présentation de l'e-mail, lien vers le site, texte à masquer dans le journal
  * @returns {Promise<{statut:'envoye'|'simule'|'echec', detail?:string}>}
  */
-async function envoyer(canal, dest, sujet, texte) {
-  const destinataire = canal === 'mail' ? dest.email : e164(dest.telephone);
-  const log = (statut, detail) => { run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)', canal, destinataire || '—', texte, statut, detail || null); return { statut, detail }; };
+async function envoyer(canal, dest, sujet, texte, opts = {}) {
+  const destinataire = canal === 'mail' ? String(dest.email || '').trim() : e164(dest.telephone);
+  const lien = opts.lien === undefined ? siteUrl() : opts.lien;
+  const texteComplet = lien && !String(texte).includes(lien) ? `${texte}\n${lien}` : texte;
+  // Le journal ne conserve jamais les secrets (mot de passe provisoire) : ils sont masqués.
+  const texteJournal = opts.masquer ? texteComplet.split(opts.masquer).join('••••••') : texteComplet;
+  const log = (statut, detail) => { run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)', canal, destinataire || '—', texteJournal, statut, detail || null); return { statut, detail }; };
   if (!destinataire) return log('echec', canal === 'mail' ? 'Aucune adresse e-mail' : 'Aucun numéro de téléphone');
+  if (canal === 'mail' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(destinataire)) return log('echec', 'Adresse e-mail invalide');
+  if (canal !== 'mail' && !/^\+\d{8,15}$/.test(destinataire)) return log('echec', 'Numéro de téléphone invalide');
   if (!canalConfigure(canal)) return log('simule', 'Canal non configuré');
   try {
     if (canal === 'mail') {
-      const from = P.get('smtp_from') || P.get('smtp_user');
-      await getMailer().sendMail({ from, to: destinataire, subject: sujet, text: texte, replyTo: P.get('email') || undefined });
-    } else if (canal === 'sms') {
-      await twilioSend(P.get('twilio_sms_from'), destinataire, texte);
-    } else {
-      await twilioSend('whatsapp:' + e164(P.get('twilio_whatsapp_from')), 'whatsapp:' + destinataire, texte);
+      const nom = P.get('raison_sociale');
+      const from = P.get('smtp_from') || (P.get('smtp_user') && `${nom} <${P.get('smtp_user')}>`);
+      const info = await getMailer().sendMail({
+        from, to: destinataire, subject: sujet, replyTo: P.get('email') || undefined,
+        text: `${texteComplet}\n\n— ${nom}, spécialiste des métiers HCR`,
+        html: gabaritEmail({ titre: opts.titre || sujet, texte, lien, bouton: opts.bouton }),
+        attachments: [{ filename: 'chr-interim.png', path: LOGO_EMAIL, cid: CID_LOGO }],
+      });
+      return log('envoye', info.messageId ? 'ID ' + info.messageId : null);
     }
-    return log('envoye');
+    if (canal === 'sms') {
+      const sid = await twilioSend({ From: P.get('twilio_sms_from'), To: destinataire, Body: texteComplet });
+      return log('envoye', 'SID ' + sid);
+    }
+    const params = { From: 'whatsapp:' + e164(P.get('twilio_whatsapp_from')), To: 'whatsapp:' + destinataire };
+    const modele = P.get('twilio_whatsapp_modele');
+    if (modele) { params.ContentSid = modele; params.ContentVariables = JSON.stringify({ 1: texteComplet }); }
+    else {
+      params.Body = texteComplet;
+      if (P.get('whatsapp_logo') !== 'non' && siteUrl().startsWith('https://')) params.MediaUrl = siteUrl() + '/img/bandeau-mobile.png';
+    }
+    const sid = await twilioSend(params);
+    return log('envoye', 'SID ' + sid);
   } catch (e) {
     return log('echec', String(e.message).slice(0, 300));
   }
 }
 
-module.exports = { envoyer, canalConfigure };
+module.exports = { envoyer, canalConfigure, gabaritEmail, siteUrl };

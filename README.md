@@ -83,12 +83,15 @@ Un clic sur une date ouvre le détail de la journée, structuré par mission, se
 
 ### Envoi des messages
 
-Sans configuration, les messages ne sont **pas envoyés** : ils sont enregistrés comme « simulés » dans « Journal des envois ». Pour les envoyer réellement, renseignez les variables d'environnement (voir `.env.example`) :
+Les réglages se font dans l'espace agence, rubrique **Paramètres › Messagerie**, qui contient un guide pas à pas. Sans réglage, les messages sont enregistrés comme « simulés » dans le **Journal des envois**, qui indique pour chaque envoi : envoyé, simulé ou échec (avec la raison).
 
-- **E-mail** : un serveur SMTP (`SMTP_HOST`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`). Votre messagerie professionnelle, Brevo ou Mailjet conviennent.
-- **SMS et WhatsApp** : un compte [Twilio](https://www.twilio.com) (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_SMS_FROM`, `TWILIO_WHATSAPP_FROM`).
-  - WhatsApp exige un numéro validé par Meta et des modèles de messages approuvés pour écrire en premier à quelqu'un.
-  - Les numéros de téléphone des fiches doivent être renseignés, par exemple 06 12 34 56 78.
+- **E-mail** (SMTP : Brevo, Microsoft 365, Google Workspace, OVH…) : message HTML aux couleurs de l'agence. Le bandeau est intégré au message comme pièce jointe, ce qui l'affiche même sans accès au site. Le message comporte un bouton vers la plateforme, les coordonnées et les mentions légales en pied de page, ainsi qu'une version texte. Les réponses vont à l'e-mail de contact de l'agence. Le bouton « Aperçu de l'e-mail » montre le rendu.
+- **SMS** (Twilio) : expéditeur alphanumérique « CHR Interim » (11 caractères maximum) ou numéro Twilio. Un SMS ne peut pas contenir d'image.
+- **WhatsApp** (Twilio + numéro validé par Meta) : le bandeau est joint en image si l'adresse du site est en https. Pour écrire en premier à quelqu'un, WhatsApp exige un modèle approuvé : renseignez son identifiant `HX…` (variable `{{1}}` = texte du message).
+- **Envoi des identifiants** : à la création ou à la réinitialisation d'un accès, la fenêtre des identifiants propose de les envoyer par e-mail, SMS ou WhatsApp aux coordonnées de la fiche. Le mot de passe provisoire est masqué dans le journal.
+- Les erreurs Twilio courantes sont traduites (identifiants refusés, numéro invalide, compte d'essai, pays non autorisé, modèle WhatsApp requis).
+
+L'envoi est testé de bout en bout (`test/envoi.test.js`) contre un faux serveur SMTP et une fausse API Twilio.
 
 ## Mettre en ligne
 

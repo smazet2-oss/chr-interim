@@ -6,7 +6,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const multer = require('multer');
 const { tx, one, all, run, DATA_DIR } = require('./db');
-const { envoyer, canalConfigure } = require('./notify');
+const { envoyer, canalConfigure, gabaritEmail, siteUrl } = require('./notify');
 const dossier = require('./dossier');
 const P = require('./parametres');
 
@@ -16,7 +16,6 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '200kb' }));
 
 const PROD = process.env.NODE_ENV === 'production';
-const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 const COOKIE = 'chr_session';
 const SESSION_DAYS = 7;
 const UPLOAD_DIR = path.join(DATA_DIR, 'uploads');
@@ -337,7 +336,7 @@ api.post('/acces', role('agence'), wrap((req, res) => {
   run('INSERT INTO users (username, password_hash, profil, nom, client_id, interim_id, must_change) VALUES (?,?,?,?,?,?,1)',
     user.username, bcrypt.hashSync(password, 10), user.profil, user.nom, user.client_id, user.interim_id);
   // Le mot de passe provisoire n'est renvoyé qu'une seule fois, jamais stocké en clair.
-  res.status(201).json({ username: user.username, password, profil: user.profil, nom: user.nom });
+  res.status(201).json({ id: Number(one('SELECT id FROM users WHERE username = ?', user.username).id), username: user.username, password, profil: user.profil, nom: user.nom });
 }));
 api.post('/acces/:id/reset', role('agence'), wrap((req, res) => {
   const u = one('SELECT * FROM users WHERE id = ?', req.params.id); if (!u) fail(404, 'Compte introuvable.');
@@ -345,7 +344,26 @@ api.post('/acces/:id/reset', role('agence'), wrap((req, res) => {
   const password = genPassword();
   run('UPDATE users SET password_hash = ?, must_change = 1, actif = 1 WHERE id = ?', bcrypt.hashSync(password, 10), u.id);
   run('DELETE FROM sessions WHERE user_id = ?', u.id);
-  res.json({ username: u.username, password, profil: u.profil, nom: u.nom });
+  res.json({ id: u.id, username: u.username, password, profil: u.profil, nom: u.nom });
+}));
+/**
+ * Envoi des identifiants provisoires au titulaire du compte (e-mail, SMS, WhatsApp).
+ * Le mot de passe n'étant pas stocké en clair, l'agence le renvoie ; il est vérifié avant envoi.
+ */
+api.post('/acces/:id/envoyer', role('agence'), wrap(async (req, res) => {
+  const u = one('SELECT * FROM users WHERE id = ?', req.params.id); if (!u) fail(404, 'Compte introuvable.');
+  if (!u.must_change) fail(409, 'Ce compte a déjà choisi son mot de passe : réinitialisez-le pour envoyer de nouveaux identifiants.');
+  const pw = String(req.body.password || '');
+  if (!bcrypt.compareSync(pw, u.password_hash)) fail(400, 'Mot de passe provisoire incorrect.');
+  const fiche = u.interim_id ? one('SELECT email, telephone FROM interimaires WHERE id = ?', u.interim_id) : u.client_id ? one('SELECT email, telephone FROM clients WHERE id = ?', u.client_id) : {};
+  const dest = { email: str(req.body.email, 120) || fiche?.email, telephone: str(req.body.telephone, 30) || fiche?.telephone };
+  const canaux = (req.body.canaux || []).filter(c => CANAUX.includes(c));
+  if (!canaux.length) fail(400, 'Choisissez au moins un moyen d\'envoi.');
+  const nom = P.get('raison_sociale');
+  const texte = `${nom} : votre accès à la plateforme est prêt. Identifiant : ${u.username}. Mot de passe provisoire : ${pw}. Vous choisirez votre propre mot de passe à la première connexion.`;
+  const resultats = {};
+  for (const c of canaux) resultats[c] = await envoyer(c, dest, `Vos identifiants — ${nom}`, texte, { titre: `Bienvenue chez ${nom}`, bouton: 'Me connecter', masquer: pw });
+  res.json({ resultats, destinataires: { email: dest.email || null, telephone: dest.telephone || null } });
 }));
 api.post('/acces/:id/toggle', role('agence'), wrap((req, res) => {
   const u = one('SELECT * FROM users WHERE id = ?', req.params.id); if (!u) fail(404, 'Compte introuvable.');
@@ -446,8 +464,8 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
     run('UPDATE missions SET statut = \'diffusee\' WHERE id = ?', m.id);
   });
   const d = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const texte = `${P.get('raison_sociale')} : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h. Connectez-vous pour accepter : ${APP_URL}`;
-  for (const i of dest) for (const c of canaux) envoyer(c, i, `Nouvelle mission — ${P.get('raison_sociale')}`, texte);
+  const texte = `${P.get('raison_sociale')} : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h. Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`;
+  for (const i of dest) for (const c of canaux) envoyer(c, i, `Nouvelle mission — ${m.poste} le ${d}`, texte, { titre: 'Nouvelle mission disponible', bouton: 'Voir la mission' });
   res.json({ envoyes: dest.length, canaux, simules: canaux.filter(c => !canalConfigure(c)).map(c => CANAL_LABEL[c]) });
 }));
 
@@ -498,8 +516,9 @@ api.post('/missions/:id/decision', role('agence', 'client'), wrap((req, res) => 
     const docs = docsMission(missionRow(m.id)).map(d => d.nom).join(', ');
     for (const x of all(`SELECT i.*, e.canaux FROM reponses r JOIN interimaires i ON i.id = r.interim_id JOIN envois e ON e.mission_id = r.mission_id AND e.interim_id = r.interim_id
                          WHERE r.mission_id = ? AND r.etat = 'retenu'`, m.id)) {
-      const texte = `${P.get('raison_sociale')} : votre mission ${m.poste} chez ${m.client_nom} le ${m.date} (${m.debut}–${m.fin}) est confirmée. Documents à consulter dans votre espace : ${docs}. ${APP_URL}`;
-      for (const c of x.canaux.split(',')) envoyer(c, x, `Mission confirmée — ${P.get('raison_sociale')}`, texte);
+      const d = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+      const texte = `${P.get('raison_sociale')} : votre mission ${m.poste} chez ${m.client_nom} le ${d} (${m.debut}–${m.fin}) est confirmée. Signez votre contrat et consultez les documents dans votre espace : ${docs}.`;
+      for (const c of x.canaux.split(',')) envoyer(c, x, `Mission confirmée — ${m.poste} le ${d}`, texte, { titre: 'Votre mission est confirmée', bouton: 'Signer mon contrat' });
     }
   }
   res.json({ verrouillee });
@@ -741,9 +760,14 @@ api.post('/parametres/test', role('agence'), wrap(async (req, res) => {
   if (!dest) fail(400, 'Indiquez un destinataire.');
   if (!canalConfigure(canal)) fail(409, `${CANAL_LABEL[canal]} n'est pas encore configuré : renseignez et enregistrez les réglages d'abord.`);
   const r = await envoyer(canal, canal === 'mail' ? { email: dest } : { telephone: dest }, `Test — ${P.get('raison_sociale')}`,
-    `${P.get('raison_sociale')} : message de test envoyé depuis la plateforme. Si vous le recevez, le canal ${CANAL_LABEL[canal]} fonctionne.`);
+    `${P.get('raison_sociale')} : message de test envoyé depuis la plateforme. Si vous le recevez, le canal ${CANAL_LABEL[canal]} fonctionne.`, { titre: 'Message de test', bouton: 'Ouvrir la plateforme' });
   res.json(r);
 }));
+/** Aperçu de l'e-mail type dans le navigateur. */
+api.get('/parametres/apercu-email', role('agence'), (req, res) => {
+  res.set('Content-Type', 'text/html; charset=utf-8');
+  res.send(gabaritEmail({ titre: 'Nouvelle mission disponible', texte: `${P.get('raison_sociale')} : nouvelle mission Serveur chez Brasserie Le Comptoir, samedi 3 octobre, 18:00–23:30, 12,20 €/h. Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`, lien: siteUrl(), bouton: 'Voir la mission' }, '/img/bandeau-horizontal.png'));
+});
 
 /** Facture lisible et imprimable (agence, ou client destinataire). */
 api.get('/factures/:id/document', wrap((req, res) => {

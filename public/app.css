@@ -465,3 +465,9 @@ button.cell:hover{filter:brightness(.96)}
 }
 .lbl.l-court{display:none}
 @media (max-width:640px){.cal .lbl.l-long{display:none}.cal .lbl.l-court{display:block;font-weight:600;font-size:11px}}
+
+/* ---- guide de mise en service ---- */
+.guide details{border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-top:8px;background:var(--surface-2)}
+.guide summary{cursor:pointer;font-size:13.5px}
+.guide ol{margin:8px 0 2px;padding-left:20px;font-size:13px;line-height:1.55;color:var(--ink-2)}
+.guide li{margin-bottom:4px}

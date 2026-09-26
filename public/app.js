@@ -237,7 +237,11 @@ function credModal(c, titre) {
     <div class="cred"><div class="line"><div><div class="small muted">Identifiant</div><code>${esc(c.username)}</code></div>${btn('Copier', 'file', `data-a="copy" data-t="${esc(c.username)}"`, 'sm')}</div>
     <div class="line"><div><div class="small muted">Mot de passe provisoire</div><code>${esc(c.password)}</code></div>${btn('Copier', 'file', `data-a="copy" data-t="${esc(c.password)}"`, 'sm')}</div></div>
     <p class="small">Notez-le maintenant : il ne sera plus affiché. Transmettez ces informations à l'utilisateur. Il devra choisir son propre mot de passe à la première connexion.</p>
-    <div class="perm">${c.profil === 'agence' ? `<span class="y">${ic('check')}Contrôle complet</span>` : `<span class="y">${ic('check')}Planning</span><span class="y">${ic('check')}Heures</span><span class="y">${ic('check')}Notes de fin de service</span>${c.profil === 'client' ? `<span class="y">${ic('check')}Dépôt de documents</span>` : ''}<span class="n">${ic('lock')}Le reste en lecture seule</span>`}</div></div>
+    <div class="perm">${c.profil === 'agence' ? `<span class="y">${ic('check')}Contrôle complet</span>` : `<span class="y">${ic('check')}Planning</span><span class="y">${ic('check')}Heures</span><span class="y">${ic('check')}Notes de fin de service</span>${c.profil === 'client' ? `<span class="y">${ic('check')}Dépôt de documents</span>` : ''}<span class="n">${ic('lock')}Le reste en lecture seule</span>`}</div>
+    ${c.id && c.profil !== 'agence' ? `<form data-f="envoiacc" data-id="${c.id}" data-pw="${esc(c.password)}" class="private" style="gap:8px"><span class="h">${ic('send')}Envoyer ces identifiants</span>
+      <div class="statusline">${['mail', 'sms', 'whatsapp'].map(k => `<label class="check"><input type="checkbox" name="canal" value="${k}" ${k === 'mail' ? 'checked' : ''}>${CANAUX[k][1]}</label>`).join('')}</div>
+      <span class="hint">Envoyés à l'adresse e-mail et au téléphone de la fiche. L'e-mail porte le logo de l'agence. Le mot de passe n'est jamais conservé en clair dans le journal.</span>
+      <div class="row"><button class="btn sm" type="submit">${ic('send')}Envoyer</button><span class="small" data-resultat></span></div></form>` : ''}</div>
     <div class="panel-f" style="justify-content:flex-end">${btn('Terminé', 'check', 'data-a="close"', 'primary')}</div>`);
 }
 function notifModal(list) {
@@ -603,7 +607,12 @@ V.agence.parametres = async () => {
       <form data-f="param" class="panel-b form">${g.champs.map(champ).join('')}<div class="full row"><button class="btn primary" type="submit">${ic('check')}Enregistrer</button></div></form>
       ${g.id === 'messagerie' ? `<form data-f="paramtest" class="panel-b inline-form" style="border-top:1px solid var(--line)"><label class="f" style="flex:0 1 160px">Canal<select name="canal">${['mail', 'sms', 'whatsapp'].map(k => `<option value="${k}">${CANAUX[k][1]}</option>`).join('')}</select></label>
         <label class="f">Destinataire (e-mail ou numéro de téléphone)<input type="text" name="destinataire" required placeholder="vous@exemple.fr ou 06 12 34 56 78"></label><button class="btn" type="submit">${ic('send')}Envoyer un message de test</button></form>
-        <div class="panel-f"><span>E-mail : les identifiants SMTP de votre messagerie professionnelle (Microsoft 365, Google Workspace, OVH) ou d'un service d'envoi (Brevo, Mailjet). SMS et WhatsApp : un compte <a class="link" href="https://www.twilio.com" target="_blank" rel="noopener">Twilio</a> ; WhatsApp demande en plus un numéro validé par Meta.</span></div>` : ''}</section>`).join('');
+        <div class="panel-b guide" style="border-top:1px solid var(--line)"><div class="row" style="justify-content:space-between"><h3>Mise en service pas à pas</h3><a class="btn sm" href="/api/parametres/apercu-email" target="_blank" rel="noopener">${ic('mail')}Aperçu de l'e-mail avec votre logo</a></div>
+        <details><summary><b>1. Adresse du site</b> · indispensable pour les liens et le logo WhatsApp</summary><ol><li>Dans Render, copiez l'adresse du service (en haut de sa page), par exemple <span class="mono">https://chr-interim.onrender.com</span>.</li><li>Collez-la dans « Adresse publique du site » ci-dessus, puis Enregistrer.</li></ol></details>
+        <details><summary><b>2. E-mail</b> · avec Brevo (gratuit jusqu'à 300 e-mails par jour) ou votre messagerie</summary><ol><li>Créez un compte sur <a class="link" href="https://www.brevo.com" target="_blank" rel="noopener">brevo.com</a>, puis ajoutez et validez votre domaine (Expéditeurs, domaines et IP dédiées) : Brevo vous donne des enregistrements DNS à copier chez votre hébergeur de nom de domaine.</li><li>Menu « SMTP et API », onglet SMTP : notez le serveur <span class="mono">smtp-relay.brevo.com</span>, le port 587, l'identifiant, et générez une clé SMTP.</li><li>Renseignez ces valeurs ci-dessus, avec l'adresse d'expédition de votre domaine, par exemple <span class="mono">CHR Intérim &lt;missions@votre-domaine.fr&gt;</span>.</li><li>Avec Microsoft 365, Google Workspace ou OVH, utilisez plutôt leurs réglages SMTP (souvent un « mot de passe d'application »).</li></ol></details>
+        <details><summary><b>3. SMS</b> · avec Twilio, expéditeur « CHR Interim »</summary><ol><li>Créez un compte sur <a class="link" href="https://www.twilio.com/try-twilio" target="_blank" rel="noopener">twilio.com</a> et ajoutez du crédit (compte payant : un compte d'essai n'envoie qu'aux numéros vérifiés).</li><li>Sur l'accueil de la console, copiez l'<b>Account SID</b> (commence par AC) et l'<b>Auth Token</b>.</li><li>Dans Messaging › Settings › Geo permissions, autorisez la France.</li><li>Laissez « CHR Interim » comme expéditeur : le nom s'affiche à la place d'un numéro. Selon les règles de l'opérateur, Twilio peut demander d'enregistrer ce nom ; sinon, achetez un numéro Twilio et saisissez-le au format +33…</li></ol></details>
+        <details><summary><b>4. WhatsApp</b> · avec Twilio et un numéro validé par Meta</summary><ol><li>Dans Twilio : Messaging › Senders › WhatsApp senders, enregistrez votre numéro et reliez-le à votre compte Meta Business (vérification de l'entreprise demandée par Meta, avec le nom et le logo CHR Intérim).</li><li>Une fois le numéro approuvé, saisissez-le dans « Numéro WhatsApp Business ».</li><li>Pour écrire en premier à un intérimaire, WhatsApp impose un modèle de message approuvé : dans Content Template Builder, créez un modèle avec une variable {{1}}, faites-le approuver, puis collez son identifiant HX… ci-dessus.</li><li>Le logo est joint automatiquement à chaque message si « Joindre le logo » est sur oui et que l'adresse du site commence par https.</li></ol></details>
+        <details><summary><b>5. Vérifier</b></summary><ol><li>Enregistrez, puis utilisez « Envoyer un message de test » pour chaque canal.</li><li>Le résultat détaillé de chaque envoi (envoyé, simulé, échec avec la raison) apparaît dans la rubrique « Journal des envois ».</li></ol></details></div>` : ''}</section>`).join('');
 };
 
 /* ===== Employeur ===== */
@@ -896,6 +905,12 @@ const A = {
   toggleextra: el => { el.closest('form').querySelector('.extra').hidden = !el.checked; },
 };
 const F = {
+  envoiacc: (fd, f) => act(async () => {
+    const out = f.querySelector('[data-resultat]'); out.textContent = 'Envoi en cours…';
+    const r = await POST(`/acces/${f.dataset.id}/envoyer`, { password: f.dataset.pw, canaux: fd.getAll('canal') });
+    const lib = { envoye: 'envoyé', simule: 'simulé (canal non configuré)', echec: 'échec' };
+    out.innerHTML = Object.entries(r.resultats).map(([k, v]) => `${CANAUX[k][1]} : <b>${lib[v.statut]}</b>${v.statut === 'echec' && v.detail ? ` (${esc(v.detail)})` : ''}`).join(' · ');
+  }),
   param: (fd, f) => act(async () => {
     const effacer = fd.getAll('effacer'); fd.delete('effacer');
     await PUT('/parametres', { valeurs: Object.fromEntries(fd), effacer });

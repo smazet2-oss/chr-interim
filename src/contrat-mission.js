@@ -100,7 +100,7 @@ dl{display:grid;grid-template-columns:230px 1fr;gap:3px 14px;margin:8px 0}dt{col
 .note{font-size:12.5px;color:#444;border-left:3px solid #C99948;padding:4px 10px;background:#faf7f0}
 @media print{body{margin:0}.entete{margin:0 0 20px}.noprint{display:none}}
 @media (max-width:600px){body{font-size:13.5px;padding:0 14px}.entete{margin:-24px -14px 16px;padding:12px}.entete img{height:26px}dl,.parties,.sig{grid-template-columns:1fr}dt{margin-top:6px}}</style></head><body>
-<div class="entete"><picture><source media="(max-width: 600px)" srcset="/img/logo-compact.png"><img src="/img/logo-horizontal.png" alt="${e(A.raison_sociale)}"></picture></div>
+<div class="entete"><a href="/" title="Accueil"><picture><source media="(max-width: 600px)" srcset="/img/logo-compact.png"><img src="/img/logo-horizontal.png" alt="${e(A.raison_sociale)}"></picture></a></div>
 <h1>Contrat de travail temporaire (contrat de mission)</h1>
 <p class="sub">Articles L. 1251-1 et suivants du Code du travail · Convention collective nationale HCR (IDCC 1979)</p>
 <p class="sub">N° ${e(k.numero)} · établi le ${dfr(k.created_at)} · <span class="etat">${k.statut === 'signe' ? 'Signé par toutes les parties' : k.statut === 'annule' ? 'Annulé' : 'En cours de signature'}</span></p>

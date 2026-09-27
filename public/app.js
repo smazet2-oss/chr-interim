@@ -138,7 +138,7 @@ function renderAuth() {
   }
   const brand = '';
   if (!S.me) {
-    $('#auth').innerHTML = `<div class="auth"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture><div class="auth-card">${brand}
+    $('#auth').innerHTML = `<div class="auth"><a class="auth-banner-lien" href="/" title="Accueil"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture></a><div class="auth-card">${brand}
       <div><h1>Connexion</h1><p class="muted small" style="margin-top:4px">L'espace qui s'ouvre (agence, employeur ou intérimaire) dépend du profil attribué par l'agence.</p></div>
       <form data-f="login"><label class="f">Identifiant<input type="text" name="username" autocomplete="username" required autofocus></label>
       <label class="f">Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
@@ -148,7 +148,7 @@ function renderAuth() {
       <a class="auth-contact" href="/candidature">${ic('idcard')}<span><b>Vous cherchez des missions en hôtellerie-restauration ?</b> Rejoignez nos intérimaires : déposez votre candidature</span>${ic('chev')}</a></div>`;
     return;
   }
-  $('#auth').innerHTML = `<div class="auth"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture><div class="auth-card">${brand}
+  $('#auth').innerHTML = `<div class="auth"><a class="auth-banner-lien" href="/" title="Accueil"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture></a><div class="auth-card">${brand}
     <div><h1>Première connexion</h1><p class="muted small" style="margin-top:4px">Bienvenue ${esc(S.me.nom)}. Remplacez le mot de passe provisoire fourni par l'agence.</p></div>
     <form data-f="firstpw">${S.pwTemp ? '' : '<label class="f">Mot de passe provisoire<input type="password" name="actuel" autocomplete="current-password" required></label>'}
     <label class="f">Nouveau mot de passe<input type="password" name="nouveau" autocomplete="new-password" required data-rules></label>
@@ -1023,7 +1023,7 @@ async function renderContact(onglet) {
   const consent = cand
     ? `J'accepte que mes informations et mon CV soient conservés par ${esc(a.nom)} pour me proposer des missions. Je peux à tout moment demander leur modification ou leur suppression${a.email ? ` à ${esc(a.email)}` : ''}.`
     : `J'accepte que mes coordonnées et mes réponses soient conservées par ${esc(a.nom)} pour être recontacté(e) au sujet de mes besoins et de ses offres. Je peux à tout moment demander leur modification ou leur suppression${a.email ? ` à ${esc(a.email)}` : ''}.`;
-  $('#auth').innerHTML = `<div class="auth contact"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="${esc(a.nom)}, spécialiste des métiers HCR" width="1200" height="267"></picture>
+  $('#auth').innerHTML = `<div class="auth contact"><a class="auth-banner-lien" href="/" title="Accueil"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="${esc(a.nom)}, spécialiste des métiers HCR" width="1200" height="267"></picture></a>
     <div class="auth-card contact-card">${onglets}
       <div>${intro}${joindre ? `<p class="small" style="margin-top:8px">${cand ? 'Une question ? Appelez-nous' : 'Une urgence ? Appelez-nous'} : ${joindre}</p>` : ''}</div>
       <form data-f="${cand ? 'candidature' : 'contact'}" novalidate>${questionnaireHtml(cand ? q.questionnaire : d.questionnaire)}
@@ -1224,6 +1224,8 @@ const A = {
   bgen: el => act(async () => { const r = await POST('/bulletins/generer', { debut: el.dataset.d, fin: el.dataset.f }); toast(r.crees ? `${r.crees} fiche(s) de paie créée(s)` : 'Aucune heure validée à mettre en paie sur cette période.'); reload(); }, el),
   bpay: el => act(async () => { await POST(`/bulletins/${el.dataset.id}/payer`); toast('Fiche marquée payée. L\'intérimaire est prévenu.'); reload(); }, el),
   nav: el => go(el.dataset.v),
+  // Logo : tableau de bord quand on est connecté (sans recharger la page), sinon page de connexion.
+  logo: (el, e) => { if (!S.me || S.me.must_change) return; e.preventDefault(); setMenu(false); go('accueil'); window.scrollTo(0, 0); },
   jour: el => act(() => openJour(el.dataset.d), el),
   navmois: el => { S.p[el.dataset.k] = moisDe(S.p[el.dataset.k] + '-01', Number(el.dataset.d)); reload(); },
   demjour: el => { closeModal(); go('demandes', { dem_date: el.dataset.d }); },

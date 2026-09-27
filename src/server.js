@@ -197,7 +197,11 @@ api.get('/clients', (req, res) => {
      (SELECT COUNT(*) FROM missions m WHERE m.client_id = c.id AND m.statut = 'verrouillee') AS nb_pourvues,
      (SELECT ROUND(AVG(e.note),1) FROM evaluations e JOIN heures h ON h.id = e.heure_id JOIN missions m ON m.id = h.mission_id
         WHERE m.client_id = c.id AND e.sens = 'interim_vers_client') AS note,
-     (SELECT username FROM users u WHERE u.client_id = c.id LIMIT 1) AS acces
+     (SELECT username FROM users u WHERE u.client_id = c.id LIMIT 1) AS acces,
+     (SELECT numero FROM contrats_clients k WHERE k.client_id = c.id AND k.statut = 'signe' ORDER BY k.id DESC LIMIT 1) AS contrat_numero,
+     (SELECT signe_le FROM contrats_clients k WHERE k.client_id = c.id AND k.statut = 'signe' ORDER BY k.id DESC LIMIT 1) AS contrat_signe_le,
+     (SELECT COUNT(*) FROM contrats_clients k WHERE k.client_id = c.id AND k.statut = 'a_signer') AS contrats_a_signer,
+     (SELECT COALESCE(SUM(f.montant_ht * (100 + f.tva_taux) / 100), 0) FROM factures f WHERE f.client_id = c.id AND f.payee_le IS NULL) AS encours_ttc
      FROM clients c ${where} ORDER BY c.nom`));
 });
 api.post('/clients', role('agence'), wrap((req, res) => {

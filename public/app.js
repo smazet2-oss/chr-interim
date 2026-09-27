@@ -94,9 +94,13 @@ const GET = u => api('GET', u), POST = (u, b = {}) => api('POST', u, b), PUT = (
 /* ---------------- État et navigation ---------------- */
 const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, busy: false };
 const NAV = {
-  agence: [['accueil', 'Tableau de bord', 'dash'], ['missions', 'Missions', 'briefcase'], ['planning', 'Planning', 'cal'], ['interimaires', 'Intérimaires', 'users'],
-    ['clients', 'Clients', 'building'], ['prospects', 'Prospects', 'target'], ['candidats', 'Candidatures', 'idcard'], ['contrats', 'Contrats de mission', 'file'], ['heures', 'Heures', 'clock'], ['evaluations', 'Évaluations', 'star'], ['facturation', 'Facturation', 'receipt'],
-    ['paie', 'Paie', 'wallet'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
+  // Agence : l'essentiel en premier, puis des listes déroulantes ['+', titre, icône, [entrées]] par domaine.
+  agence: [['accueil', 'Tableau de bord', 'dash'], ['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'],
+    ['+', 'Intérimaires', 'users', [['interimaires', 'Fiches intérimaires', 'users'], ['candidats', 'Candidatures', 'idcard'], ['contrats', 'Contrats de mission', 'file'],
+      ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star']]],
+    ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Prospects', 'target']]],
+    ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
+    ['-', 'Administration'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
   // Employeur et intérimaire : par ordre d'importance, l'administratif et le social en dernier. ['-', titre] = intertitre.
   client: [['-', 'Activité'], ['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
     ['-', 'Suivi'], ['interimaires', 'Intérimaires', 'users'],
@@ -105,6 +109,12 @@ const NAV = {
     ['-', 'Suivi'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star'],
     ['-', 'Administratif et social'], ['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']],
 };
+/** Menu à plat (listes déroulantes dépliées) et groupe d'une rubrique. */
+const navPlat = prof => NAV[prof].flatMap(n => n[0] === '+' ? n[3] : [n]);
+const groupeDe = (prof, v) => NAV[prof].find(n => n[0] === '+' && n[3].some(x => x[0] === v));
+/** Listes déroulantes ouvertes : celle de la rubrique affichée, plus celles ouvertes par l'utilisateur (mémorisé sur cet appareil). */
+let NAV_OUVERT = (() => { try { return new Set(JSON.parse(localStorage.getItem('chr-nav') || '[]')); } catch { return new Set(); } })();
+const memoNav = () => { try { localStorage.setItem('chr-nav', JSON.stringify([...NAV_OUVERT])); } catch { /* stockage indisponible */ } };
 const SPACE = { agence: 'Espace agence', client: 'Espace employeur', interim: 'Espace intérimaire' };
 const BANNER = {
   agence: 'Profil agence : contrôle complet sur tous les espaces.',
@@ -133,7 +143,7 @@ function renderAuth() {
   $('#app').hidden = !logged; $('#auth').hidden = logged;
   if (logged) {
     const v = location.hash.slice(1);
-    S.view = NAV[S.me.profil].some(n => n[0] === v) ? v : 'accueil';
+    S.view = navPlat(S.me.profil).some(n => n[0] === v) ? v : 'accueil';
     renderApp(); return;
   }
   const brand = '';
@@ -199,13 +209,21 @@ function etiqueterTableaux(root) {
 async function renderApp() {
   const me = S.me, prof = me.profil;
   $('#space').textContent = SPACE[prof];
-  $('#nav').innerHTML = NAV[prof].map(([k, l, i]) => k === '-' ? `<div class="nav-sep" role="presentation">${l}</div>` : `<button data-a="nav" data-v="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span><span class="count" data-count="${k}" hidden></span></button>`).join('');
+  const lien = ([k, l, i]) => `<button data-a="nav" data-v="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span><span class="count" data-count="${k}" hidden></span></button>`;
+  const g0 = groupeDe(prof, S.view); if (g0) NAV_OUVERT.add(g0[1]);
+  $('#nav').innerHTML = NAV[prof].map((n, x) => {
+    if (n[0] === '-') return `<div class="nav-sep" role="presentation">${n[1]}</div>`;
+    if (n[0] !== '+') return lien(n);
+    const ouvert = NAV_OUVERT.has(n[1]), actif = n[3].some(e => e[0] === S.view);
+    return `<div class="nav-groupe${actif ? ' actif' : ''}"><button class="nav-titre" data-a="navgroupe" data-g="${esc(n[1])}" aria-expanded="${ouvert}" aria-controls="ng-${x}">${ic(n[2])}<span>${n[1]}</span><span class="count" data-count-groupe hidden></span><span class="nav-chev">${ic('chev')}</span></button>
+      <div class="nav-sous" id="ng-${x}" role="group" aria-label="${esc(n[1])}"${ouvert ? '' : ' hidden'}>${n[3].map(lien).join('')}</div></div>`;
+  }).join('');
   const sub = prof === 'client' ? me.client?.nom : prof === 'interim' ? me.interim?.poste : 'Agence';
   $('#me').innerHTML = `<div class="avatar">${initials(me.nom)}</div><div style="min-width:0"><b>${esc(me.nom)}</b><span>${esc(sub || '')} · ${esc(me.username)}</span></div><button class="logout" data-a="logout" title="Se déconnecter" aria-label="Se déconnecter">${ic('out')}</button>`;
   $('#banner').className = 'demo' + (prof === 'agence' ? '' : ' agency');
   $('#banner').innerHTML = ic(prof === 'agence' ? 'check' : 'lock') + BANNER[prof];
   document.querySelectorAll('.bell').forEach(b => { b.innerHTML = ic('bell'); });
-  $('#mob-titre').textContent = NAV[prof].find(n => n[0] === S.view)?.[1] || 'Menu';
+  $('#mob-titre').textContent = navPlat(prof).find(n => n[0] === S.view)?.[1] || 'Menu';
   setMenu(false);
   ajusterBandeau();
   const main = $('#main');
@@ -219,7 +237,14 @@ async function renderApp() {
 }
 async function refreshCounts() {
   const prof = S.me?.profil; if (!prof) return;
-  const set = (k, n) => { const el = document.querySelector(`[data-count="${k}"]`); if (el) { el.hidden = !n; el.textContent = n; } };
+  const set = (k, n) => {
+    const el = document.querySelector(`[data-count="${k}"]`); if (!el) return;
+    el.hidden = !n; el.textContent = n;
+    // Total sur le titre de la liste déroulante
+    const g = el.closest('.nav-groupe'); if (!g) return;
+    const tot = [...g.querySelectorAll('[data-count]')].reduce((a, c) => a + (c.hidden ? 0 : Number(c.textContent) || 0), 0), t = g.querySelector('[data-count-groupe]');
+    t.hidden = !tot; t.textContent = tot;
+  };
   try {
     if (prof === 'agence') {
       const [ms, hs] = await Promise.all([GET('/missions'), GET('/heures')]);
@@ -242,7 +267,7 @@ async function refreshCounts() {
     $('#menu-btn .dot').hidden = ![...document.querySelectorAll('[data-count]')].some(c => !c.hidden);
   } catch { /* compteurs non essentiels */ }
 }
-const head = (t, p, right = '') => `<div class="head"><div><div class="crumbs">${SPACE[S.me.profil]}${ic('chev')}${NAV[S.me.profil].find(n => n[0] === S.view)?.[1] || ''}</div><h1>${t}</h1>${p ? `<p>${p}</p>` : ''}</div>${right ? `<div class="actions">${right}</div>` : ''}</div>`;
+const head = (t, p, right = '') => `<div class="head"><div><div class="crumbs">${SPACE[S.me.profil]}${ic('chev')}${groupeDe(S.me.profil, S.view) ? groupeDe(S.me.profil, S.view)[1] + ic('chev') : ''}${navPlat(S.me.profil).find(n => n[0] === S.view)?.[1] || ''}</div><h1>${t}</h1>${p ? `<p>${p}</p>` : ''}</div>${right ? `<div class="actions">${right}</div>` : ''}</div>`;
 const panel = (title, right, body, foot = '') => `<section class="panel">${title !== null ? `<div class="panel-h"><h2>${title}</h2>${right || ''}</div>` : ''}${body}${foot ? `<div class="panel-f">${foot}</div>` : ''}</section>`;
 const tabs = (key, opts) => `<div class="tabs">${opts.map(([v, l]) => `<button class="tab" data-a="tab" data-k="${key}" data-v="${v}" aria-pressed="${S.p[key] === v}">${l}</button>`).join('')}</div>`;
 
@@ -744,6 +769,27 @@ V.agence.contrats = async () => {
     panel(`En cours de signature (${a.length})`, '', contratsPanel(a)) + panel('Tous les contrats', '', contratsPanel(ks)) +
     panel('Historique des relances', '', R.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Objet</th><th>Destinataire</th><th>Canaux</th><th>Type</th></tr></thead><tbody>${R.map(r => `<tr><td>${fdate(r.created_at, 'num')}</td><td>${r.objet === 'contrat' ? 'Contrat' : 'Facture'} <span class="mono">${esc(r.numero || '')}</span></td><td>${esc(r.destinataire)}</td><td>${r.canaux.split(',').map(c => CANAUX[c]?.[1] || esc(c)).join(', ')}</td><td>${r.auto ? badge('off', 'Automatique') : badge('pris', 'Manuelle')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune relance envoyée.'));
 };
+V.agence.relances = async () => {
+  const [fs, ks, R] = await Promise.all([GET('/factures'), GET('/contrats'), GET('/relances')]);
+  const retard = fs.filter(f => f.en_retard), aSig = ks.filter(k => k.statut === 'a_signer');
+  return head('Relances', 'Factures échues et contrats de mission en attente de signature. Les relances automatiques se règlent dans Paramètres › Relances.', btn('Réglages', 'gear', 'data-a="nav" data-v="parametres"', 'sm')) +
+    `<div class="kpis">${kpi('Factures en retard', 'alert', retard.length, eur(retard.reduce((a, f) => a + f.montant_ttc, 0)) + ' TTC', retard.length ? 'down' : '')}${kpi('Contrats à signer', 'edit', aSig.length)}${kpi('Relances envoyées', 'send', R.length, 'Depuis le début')}</div>` +
+    panel('Factures en retard', '', retard.length ? `<div class="scroll"><table><thead><tr><th>N°</th><th>Client</th><th class="r">TTC</th><th>Échéance</th><th>Relances</th><th></th></tr></thead><tbody>
+      ${retard.map(x => `<tr><td class="mono">${x.numero}</td><td>${esc(x.client_nom)}</td><td class="r num"><b>${eur(x.montant_ttc)}</b></td><td>${badge('danger', fdate(x.echeance, 'num'))}</td><td>${x.nb_relances ? `${x.nb_relances} · dernière le ${fdate(x.relance_le, 'num')}` : '<span class="muted">Aucune</span>'}</td>
+      <td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap"><a class="btn sm ghost" href="/api/factures/${x.id}/document" target="_blank" rel="noopener">${ic('file')}Voir</a>${btn('Relancer', 'send', `data-a="frelance" data-id="${x.id}"`, 'sm primary')}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune facture en retard.')) +
+    panel('Contrats de mission à signer', btn('Tous les contrats', 'chev', 'data-a="nav" data-v="contrats"', 'sm'), contratsPanel(aSig)) +
+    panel('Historique des relances', '', R.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Objet</th><th>Destinataire</th><th>Canaux</th><th>Type</th></tr></thead><tbody>${R.map(r => `<tr><td>${fdate(r.created_at, 'num')}</td><td>${r.objet === 'contrat' ? 'Contrat' : 'Facture'} <span class="mono">${esc(r.numero || '')}</span></td><td>${esc(r.destinataire)}</td><td>${r.canaux.split(',').map(c => CANAUX[c]?.[1] || esc(c)).join(', ')}</td><td>${r.auto ? badge('off', 'Automatique') : badge('pris', 'Manuelle')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune relance envoyée.'));
+};
+V.agence.tarifs = async () => {
+  const L = await GET('/clients'), min = S.cfg?.coefficient_minimum || 1.45, k = S.cfg?.facteur_cout || 1.452;
+  const marge = c => Math.round((1 - k / c) * 1000) / 10;
+  return head('Coefficients et contrats', `Coefficient de facturation de chaque entreprise : ${num(min)} par défaut, celui du contrat commercial dès sa signature. Marge brute estimée sur une heure de mission classique.`) +
+    panel(null, '', L.length ? `<div class="scroll"><table><thead><tr><th>Client</th><th class="r">Coefficient</th><th>Origine</th><th class="r">Marge estimée</th><th class="r">Paiement</th><th class="r">Encours TTC</th><th></th></tr></thead><tbody>
+    ${L.map(c => `<tr class="clickable" data-a="ouvrirclient" data-id="${c.id}" tabindex="0"><td><b>${esc(c.nom)}</b>${c.suspendu ? ' ' + badge('off', 'Suspendu') : ''}</td><td class="r num"><b>${num(c.coefficient)}</b></td>
+      <td>${c.contrat_numero ? badge('libre', `Contrat ${esc(c.contrat_numero)} signé`) : c.coefficient === min ? badge('off', 'Par défaut') : badge('attente', 'Fiche client, sans contrat')}${c.contrats_a_signer ? ' ' + badge('attente', 'Contrat à signer') : ''}</td>
+      <td class="r num ${marge(c.coefficient) < 0 ? 'down' : ''}">${num(marge(c.coefficient))} %</td><td class="r">${c.delai_paiement} j</td><td class="r num">${eur(c.encours_ttc)}</td>
+      <td class="r">${btn('Nouveau contrat', 'plus', `data-a="ccnew" data-id="${c.id}" data-coef="${c.coefficient}" data-delai="${c.delai_paiement}"`, 'sm')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucun client.'));
+};
 V.agence.facturation = async () => {
   const fs = await GET('/factures');
   const [d, f] = quinzaine();
@@ -1224,6 +1270,12 @@ const A = {
   bgen: el => act(async () => { const r = await POST('/bulletins/generer', { debut: el.dataset.d, fin: el.dataset.f }); toast(r.crees ? `${r.crees} fiche(s) de paie créée(s)` : 'Aucune heure validée à mettre en paie sur cette période.'); reload(); }, el),
   bpay: el => act(async () => { await POST(`/bulletins/${el.dataset.id}/payer`); toast('Fiche marquée payée. L\'intérimaire est prévenu.'); reload(); }, el),
   nav: el => go(el.dataset.v),
+  navgroupe: el => {
+    const ouvert = el.getAttribute('aria-expanded') !== 'true', g = el.dataset.g;
+    el.setAttribute('aria-expanded', ouvert); document.getElementById(el.getAttribute('aria-controls')).hidden = !ouvert;
+    if (ouvert) NAV_OUVERT.add(g); else NAV_OUVERT.delete(g);
+    memoNav();
+  },
   // Logo : tableau de bord quand on est connecté (sans recharger la page), sinon page de connexion.
   logo: (el, e) => { if (!S.me || S.me.must_change) return; e.preventDefault(); setMenu(false); go('accueil'); window.scrollTo(0, 0); },
   jour: el => act(() => openJour(el.dataset.d), el),
@@ -1252,6 +1304,7 @@ const A = {
   repondre: el => act(async () => { await POST(`/missions/${el.dataset.id}/repondre`, { accepte: el.dataset.ok === '1' }); toast(el.dataset.ok === '1' ? 'Mission acceptée. En attente de confirmation de l\'employeur.' : 'Mission refusée.'); await reload(); await rafraichirJour(); }, el),
   isel: el => { S.p.isel = Number(el.dataset.id); reload(); },
   csel: el => { S.p.csel = Number(el.dataset.id); reload(); },
+  ouvrirclient: el => go('clients', { csel: Number(el.dataset.id) }),
   interimform: el => act(() => interimForm(Number(el.dataset.id) || null), el),
   clientform: el => act(() => clientForm(Number(el.dataset.id) || null), el),
   ccnew: el => ccModal(el),
@@ -1389,7 +1442,7 @@ document.addEventListener('click', e => {
   fn(el, e);
 });
 document.addEventListener('change', e => { const el = e.target; if (el.dataset?.a === 'toggleextra') A.toggleextra(el); });
-document.addEventListener('keydown', e => { if ((e.key === 'Enter' || (e.key === ' ' && e.target.matches('.cs-jour'))) && e.target.matches('[data-a="isel"],[data-a="csel"],.cs-jour')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape') closeModal(); });
+document.addEventListener('keydown', e => { if ((e.key === 'Enter' || (e.key === ' ' && e.target.matches('.cs-jour'))) && e.target.matches('tr.clickable[data-a],.cs-jour')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape') closeModal(); });
 /** Minimum HCR d'un poste (Paramètres › Convention HCR), SMIC pour un poste hors liste. */
 function tauxPoste(poste) { const T = S.cfg?.taux_postes || {}, k = Object.keys(T).find(p => p.toLowerCase() === String(poste || '').trim().toLowerCase()); return k ? T[k] : (S.cfg?.smic || 0); }
 document.addEventListener('input', e => {

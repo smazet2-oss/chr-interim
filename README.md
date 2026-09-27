@@ -27,6 +27,16 @@ Ouvrez ensuite http://localhost:3000.
 
 ## Fonctionnement
 
+### Menu de l'agence
+
+Tableau de bord, Planning et Missions en premier, puis trois listes déroulantes (l'ouverture est mémorisée sur l'appareil, et la liste de la page affichée s'ouvre seule ; un badge résume les éléments à traiter quand elle est fermée) :
+
+- **Intérimaires** : fiches, candidatures, contrats de mission, relevés d'heures, paie, évaluations ;
+- **Clients** : fiches clients, prospects ;
+- **Facturation** : factures et débiteurs, relances (factures en retard, contrats à signer, historique), coefficients et contrats (coefficient de chaque entreprise, origine, marge estimée, encours).
+
+Viennent ensuite Accès utilisateurs, Journal des envois et Paramètres. Le logo ramène au tableau de bord.
+
 ### Comptes et connexion
 
 - L'agence crée l'accès depuis la fiche d'un employeur ou d'un intérimaire (« Créer l'identifiant et le mot de passe »). Les collaborateurs de l'agence s'ajoutent dans « Accès utilisateurs ».

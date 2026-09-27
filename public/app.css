@@ -591,3 +591,24 @@ fieldset.q input[type=text]{max-width:420px}
 a.brand{text-decoration:none;color:inherit;cursor:pointer}
 a.brand:focus-visible,.auth-banner-lien:focus-visible{outline:2px solid #C99948;outline-offset:2px}
 .auth-banner-lien{display:block;width:100%}
+
+/* ---------- Menu : listes déroulantes (agence) ---------- */
+.nav-groupe{display:flex;flex-direction:column;gap:1px}
+.nav .nav-titre{width:100%}
+.nav .nav-titre .nav-chev{display:flex;margin-left:auto;flex:none;transition:transform .15s;opacity:.75}
+.nav .nav-titre .nav-chev svg{width:14px;height:14px}
+.nav .nav-titre .count:not([hidden])+.nav-chev{margin-left:6px}
+.nav .nav-titre .count{margin-left:auto}
+.nav .nav-titre[aria-expanded="true"] .nav-chev{transform:rotate(90deg)}
+.nav .nav-titre[aria-expanded="true"] .count{display:none}
+.nav .nav-titre[aria-expanded="true"] .count+.nav-chev{margin-left:auto}
+.nav-groupe.actif>.nav-titre{color:var(--side-ink-strong)}
+.nav-groupe.actif>.nav-titre svg:first-child{color:var(--gold)}
+.nav-sous{display:flex;flex-direction:column;gap:1px;margin:1px 0 4px 17px;padding-left:8px;border-left:1px solid var(--side-line)}
+.nav-sous button{font-size:13px;padding:7px 10px}
+.nav-sous button svg{width:16px;height:16px}
+@media (max-width:900px){
+  .nav-groupe{grid-column:1/-1}
+  .nav-sous{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;margin:2px 0 6px;padding:4px;border-left:0;border-radius:8px;background:rgba(255,255,255,.04)}
+  .nav-sous[hidden]{display:none}
+}

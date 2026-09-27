@@ -656,30 +656,6 @@ V.agence.missions = async () => {
     (L.map(m => missionCard(m, 'agence')).join('') || panel(null, '', empty('Aucune mission.')));
 };
 
-V.agence.planning = async () => {
-  S.p.pv = S.p.pv || 'mois';
-  const onglets = `<div class="panel" style="padding:10px 14px">${tabs('pv', [['mois', 'Calendrier du mois'], ['semaine', 'Semaine par intérimaire']])}</div>`;
-  if (S.p.pv === 'mois') {
-    S.p.am = S.p.am || (S.cfg?.aujourdhui || '').slice(0, 7);
-    const c = await GET('/calendrier?mois=' + S.p.am);
-    const E = {}; c.evenements.forEach(e => (E[e.date] = E[e.date] || []).push(e));
-    return head('Planning', 'Cliquez sur une date ou une mission pour voir le détail du jour : missions, intérimaires contactés et leur état, disponibles.') + onglets +
-      panel('', navMois('am', S.p.am) + legendeCal(badge('danger', 'À diffuser'), badge('attente', 'Candidats à confirmer'), badge('pris', 'Diffusée'), badge('libre', 'Pourvue')),
-        `<div class="panel-b">${calendrierStandard(S.p.am, iso => ({
-          evenements: (E[iso] || []).map(e => ({ texte: `${e.debut} ${e.poste} · ${e.client_nom} ${e.retenus}/${e.nb_postes}`, cls: couleurMission(e), urgent: estCeSoir(e) })),
-        }))}</div>`);
-  }
-  S.p.sem = S.p.sem || lundi(S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10));
-  const d = await GET('/planning?debut=' + S.p.sem);
-  const lib = { pris: 'En mission', attente: 'Proposée', off: 'Indisponible', libre: 'Disponible', inconnu: 'Non renseigné' };
-  return head('Planning', `Semaine du ${fdate(d.jours[0], 'num')} au ${fdate(d.jours[6], 'num')}. Cliquez sur un jour ou une case pour le détail.`,
-    btn('Semaine précédente', 'left', `data-a="sem" data-d="-7"`, 'sm') + btn('Cette semaine', '', 'data-a="sem" data-d="0"', 'sm') + btn('Semaine suivante', 'chev', 'data-a="sem" data-d="7"', 'sm')) + onglets +
-    panel('', `<div class="legend">${badge('libre', 'Disponible')}${badge('pris', 'En mission')}${badge('attente', 'Proposée')}${badge('off', 'Indisponible')}</div>`,
-      d.lignes.length ? `<div class="scroll"><table class="plan"><thead><tr><th>Intérimaire</th>${d.jours.map(j => `<th class="${j === S.cfg?.aujourdhui ? 'today' : ''}"><button type="button" class="th-jour" data-a="jour" data-d="${j}">${fdate(j)}</button></th>`).join('')}</tr></thead><tbody>
-      ${d.lignes.map(l => `<tr><td><div class="person"><div class="avatar">${initials(l.prenom + ' ' + l.nom)}</div><div><b>${esc(l.prenom)} ${esc(l.nom)}</b><span>${esc(l.poste)}</span></div></div></td>
-      ${l.cases.map((c, k) => `<td><button type="button" class="cell ${c.statut}" data-a="jour" data-d="${d.jours[k]}"><b>${lib[c.statut]}</b>${c.client ? `<span>${esc(c.client)}</span>` : ''}</button></td>`).join('')}</tr>`).join('')}</tbody></table></div>` : empty('Aucun intérimaire.'));
-};
-
 V.agence.interimaires = async () => {
   const L = await GET('/interimaires');
   const s = L.find(i => i.id === S.p.isel) || L[0];
@@ -911,19 +887,6 @@ V.client.demandes = async () => {
       <label class="f">Nombre de personnes<input type="number" name="nb_postes" value="1" min="1" max="30" required></label><label class="f full">Précisions pour l'agence<textarea name="commentaire" placeholder="Tenue, lieu de rendez-vous…"></textarea></label>
       ${simLive()}<div class="full"><button class="btn primary" type="submit">${ic('send')}Envoyer la demande</button></div></form>`)}</div>`;
 };
-V.client.jour = async () => {
-  S.p.jd = S.p.jd || S.cfg?.aujourdhui;
-  S.p.cm = S.p.cm || (S.cfg?.aujourdhui || '').slice(0, 7);
-  const [L, c] = await Promise.all([GET('/planning/jour?date=' + S.p.jd), GET('/calendrier?mois=' + S.p.cm)]);
-  const E = {}; c.evenements.forEach(e => (E[e.date] = E[e.date] || []).push(e));
-  return head('Planning', 'Cliquez sur une date ou une mission pour voir les intérimaires validés, en attente de votre décision ou refusés.') +
-    panel('', navMois('cm', S.p.cm) + legendeCal(badge('danger', 'En validation agence'), badge('attente', 'Décision à prendre'), badge('pris', 'En recherche'), badge('libre', 'Pourvue')),
-      `<div class="panel-b">${calendrierStandard(S.p.cm, iso => ({
-        evenements: (E[iso] || []).map(e => ({ texte: `${e.debut} ${e.poste} ${e.retenus}/${e.nb_postes}`, cls: couleurMission(e), urgent: estCeSoir(e) })),
-      }))}</div>`) +
-    panel(fdate(S.p.jd, 'long'), `<form data-f="jour" class="inline-form"><input type="date" name="date" value="${S.p.jd}" aria-label="Date"><button class="btn sm" type="submit">Afficher</button></form>`,
-      L.length ? L.map(j => `<div class="shift"><div class="time"><b>${j.debut}</b>${j.fin}</div><div class="person"><div class="avatar">${initials(j.prenom + ' ' + j.nom)}</div><div><b>${esc(j.prenom)} ${esc(j.nom)}</b><span>${esc(j.poste)}</span></div></div><div>${badge('pris', 'Confirmé')}</div></div>`).join('') : empty('Aucun intérimaire prévu ce jour-là.'));
-};
 function rateForm(id, withAxe) {
   return `<form data-f="evaluer" data-id="${id}" class="inline-form" style="margin-top:10px;width:100%"><div><div class="small muted">Note de fin de service</div><div class="rate" data-rate>${[1, 2, 3, 4, 5].map(n => `<button type="button" data-a="star" data-n="${n}" aria-label="${n} étoile${n > 1 ? 's' : ''}">★</button>`).join('')}</div><input type="hidden" name="note"></div>
     <label class="f" style="flex:2 1 200px">Commentaire<input type="text" name="commentaire" maxlength="1000"></label>${withAxe ? '<label class="f">Axe d\'amélioration<input type="text" name="axe" maxlength="200"></label>' : ''}<button class="btn primary" type="submit">Enregistrer la note</button></form>`;
@@ -988,24 +951,6 @@ V.interim.missions = async () => {
   return head('Missions proposées', 'Acceptez ou refusez les missions envoyées par l\'agence. Après votre acceptation, l\'employeur confirme votre venue ; vous recevez alors les documents.') +
     panel('À venir', '', a.length ? `<div class="list">${a.map(missionInterim).join('')}</div>` : empty('Aucune mission proposée pour le moment.')) +
     (p.length ? panel('Passées', '', `<div class="list">${p.slice(-10).reverse().map(missionInterim).join('')}</div>`) : '');
-};
-V.interim.dispo = async () => {
-  const [ds, ms] = await Promise.all([GET('/disponibilites'), GET('/missions')]);
-  const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10);
-  const D = Object.fromEntries(ds.map(d => [d.date, d.etat]));
-  const E = {};
-  ms.filter(m => !['decline', 'annulee'].includes(m.etat)).forEach(m => (E[m.date] = E[m.date] || []).push(m));
-  S.p.im = S.p.im || t.slice(0, 7);
-  const CL = { confirmee: 'libre', signature: 'attente', en_attente: 'attente', a_repondre: 'pris', complet: 'off', non_retenu: 'off', pourvue: 'off' };
-  return head('Mon planning', 'Cliquez sur un jour de mission pour en voir le détail. Cliquez sur un jour libre pour le passer en disponible, puis indisponible, puis non renseigné.') +
-    panel('', navMois('im', S.p.im) + legendeCal(badge('pris', 'Proposée'), badge('attente', 'En attente de confirmation'), badge('libre', 'Confirmée'), badge('off', 'Indisponible')),
-      `<div class="panel-b">${calendrierStandard(S.p.im, iso => {
-        const ev = (E[iso] || []).map(m => ({ texte: `${m.debut} ${m.poste} · ${m.client_nom}`, cls: CL[m.etat] || 'off', urgent: ['confirmee', 'signature', 'en_attente', 'a_repondre'].includes(m.etat) && estCeSoir({ ...m, statut: '' }) }));
-        const e = D[iso];
-        if (ev.length) return { evenements: ev, action: 'jour', etiquette: e === 'indisponible' ? 'Indisponible' : '' };
-        if (iso < t) return { cls: e === 'indisponible' ? 'indispo' : '', action: 'jour' };
-        return { cls: e === 'disponible' ? 'dispo' : e === 'indisponible' ? 'indispo' : '', action: 'dispo', attrs: `data-e="${e || ''}"`, etiquette: e === 'disponible' ? 'Disponible' : e === 'indisponible' ? 'Indisponible' : '' };
-      })}</div>`);
 };
 V.interim.heures = async () => {
   const hs = await GET('/heures');
@@ -1324,6 +1269,133 @@ const boutonsDecision = (type, x) => ['nouveau', 'a_rappeler', 'a_relancer'].inc
   ? btn('Accepter', 'check', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="acceptee"`, 'sm primary') + btn('Refuser', 'ban', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="refusee"`, 'sm danger') : '';
 const decisionInfo = x => x.decision ? `<div class="small ${x.decision === 'refusee' ? 'muted' : ''}" style="margin-top:2px">${x.decision === 'acceptee' ? `${ic('check', 'style="width:12px;height:12px;vertical-align:-2px"')} Acceptée le ${fdate(x.decision_le.slice(0, 10), 'num')}${x.rdv_propose ? ` · RDV proposé ${new Date(x.rdv_propose).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : ' · RDV sous 48 h demandé'}` : `Refusée le ${fdate(x.decision_le.slice(0, 10), 'num')}`}</div>` : '';
 
+/* ================= Planning : Mois / Semaine / Intérimaires, agenda en liste sur téléphone ================= */
+// Agence : les trois vues (Intérimaires par défaut) · Employeur : Mois et Semaine · Intérimaire : Semaine.
+const PL_VUES = { agence: [['mois', 'Mois'], ['semaine', 'Semaine'], ['equipe', 'Intérimaires']], client: [['mois', 'Mois'], ['semaine', 'Semaine']], interim: [['semaine', 'Semaine']] };
+const PL_DEFAUT = { agence: 'equipe', client: 'mois', interim: 'semaine' };
+const PL_ETAT = { pourvue: 'libre', confirmer: 'attente', recherche: 'pris', diffuser: 'danger' };
+const estMobile = () => matchMedia('(max-width: 640px)').matches;
+const JOURS_C = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'];
+const h2m = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+function legendePlanning(prof) {
+  const L = prof === 'interim' ? [['libre', 'Confirmée'], ['attente', 'Contrat ou confirmation en attente'], ['pris', 'Proposée']]
+    : prof === 'client' ? [['libre', 'Pourvue'], ['attente', 'Décision à prendre'], ['pris', 'En recherche'], ['danger', 'En validation par l\'agence']]
+      : [['libre', 'Pourvue'], ['attente', 'À confirmer par l\'employeur'], ['pris', 'En recherche'], ['danger', 'À diffuser']];
+  return `<div class="pl-legende">${L.map(([c, l]) => `<span><i class="pl-pt pl-${c}"></i>${l}</span>`).join('')}<span class="pl-urg">${ic('alert')}Ce soir : importance haute</span></div>`;
+}
+/** En-tête commun : onglets de vue et navigation (mois ou semaine). */
+function barrePlanning(prof, vue) {
+  const vues = PL_VUES[prof];
+  const onglets = vues.length > 1 ? `<div class="seg pl-onglets" role="tablist">${vues.map(([k, l]) => `<button type="button" role="tab" aria-pressed="${vue === k}" data-a="plvue" data-v="${k}">${l}</button>`).join('')}</div>` : '';
+  const moisNav = `<div class="pl-nav">${btn('', 'left', 'data-a="plmois" data-d="-1" aria-label="Mois précédent"', 'sm')}<b>${moisLong(S.p.pm)}</b>${btn('', 'chev', 'data-a="plmois" data-d="1" aria-label="Mois suivant"', 'sm')}${btn('Aujourd\'hui', '', 'data-a="plmois" data-d="0"', 'sm ghost')}</div>`;
+  const fin = addDays(S.p.sem, 6);
+  const semNav = `<div class="pl-nav">${btn('', 'left', 'data-a="sem" data-d="-7" aria-label="Semaine précédente"', 'sm')}<b>Semaine ${semaineIso(S.p.sem)} · ${fdate(S.p.sem, 'num').slice(0, 5)} – ${fdate(fin, 'num')}</b>${btn('', 'chev', 'data-a="sem" data-d="7" aria-label="Semaine suivante"', 'sm')}${btn('Aujourd\'hui', '', 'data-a="sem" data-d="0"', 'sm ghost')}</div>`;
+  return `<div class="pl-barre">${onglets}${vue === 'mois' ? moisNav : semNav}</div>`;
+}
+async function planning(prof) {
+  const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10);
+  S.p.sem = S.p.sem || lundi(t); S.p.pm = S.p.pm || t.slice(0, 7);
+  const titre = prof === 'interim' ? 'Mon planning' : 'Planning';
+  if (estMobile()) return head(titre, '') + await agendaListe(prof);
+  const vues = PL_VUES[prof].map(v => v[0]);
+  const vue = vues.includes(S.p.pv) ? S.p.pv : PL_DEFAUT[prof];
+  const intro = { mois: 'Cliquez sur une date ou une mission pour le détail du jour.', semaine: prof === 'interim' ? 'Vos missions heure par heure. Touchez l\'en-tête d\'un jour pour indiquer votre disponibilité.' : 'Les missions heure par heure, de 6 h à 2 h du matin. Cliquez sur une mission pour le détail du jour.', equipe: 'Une ligne par intérimaire : missions, propositions et disponibilités. Les besoins non pourvus sont en tête.' }[vue];
+  const corps = vue === 'mois' ? await planningMois(prof) : vue === 'semaine' ? await planningSemaine(prof) : await planningEquipe();
+  return head(titre, intro) + `<section class="panel pl">${barrePlanning(prof, vue)}${legendePlanning(prof)}${corps}</section>`;
+}
+V.agence.planning = () => planning('agence');
+V.client.jour = () => planning('client');
+V.interim.dispo = () => planning('interim');
+
+/* ----- A · Mois ----- */
+async function planningMois(prof) {
+  const c = await GET('/calendrier?mois=' + S.p.pm);
+  const E = {}; c.evenements.forEach(e => (E[e.date] = E[e.date] || []).push(e));
+  return `<div class="panel-b">${calendrierStandard(S.p.pm, iso => ({
+    evenements: (E[iso] || []).map(e => ({ texte: `${e.debut} ${e.poste}${prof === 'agence' ? ' · ' + e.client_nom : ''} ${e.retenus}/${e.nb_postes}`, cls: couleurMission(e), urgent: estCeSoir(e) })),
+  }))}</div>`;
+}
+
+/* ----- B · Semaine chronologique (6 h → 2 h) ----- */
+const PL_H0 = 6, PL_H1 = 26, PL_PX = 30;
+async function planningSemaine(prof) {
+  const jours = [...Array(7)].map((_, k) => addDays(S.p.sem, k)), t = S.cfg?.aujourdhui;
+  const a = await GET(`/agenda?debut=${jours[0]}&fin=${jours[6]}`);
+  const D = Object.fromEntries((a.dispos || []).map(d => [d.date, d.etat]));
+  const haut = (PL_H1 - PL_H0) * PL_PX, maint = new Date(), minNow = maint.getHours() * 60 + maint.getMinutes();
+  const heures = [...Array((PL_H1 - PL_H0) / 2 + 1)].map((_, k) => PL_H0 + k * 2);
+  const colonne = j => {
+    const L = a.evenements.filter(e => e.date === j).map(e => { let d = h2m(e.debut), f = h2m(e.fin); if (f <= d) f += 1440; if (d < PL_H0 * 60) { d += 1440; f += 1440; } return { ...e, d, f }; });
+    // Couloirs : les missions qui se chevauchent sont côte à côte
+    const couloirs = []; L.forEach(e => { let k = couloirs.findIndex(fin => fin <= e.d); if (k < 0) { k = couloirs.length; couloirs.push(0); } couloirs[k] = e.f; e.k = k; });
+    const n = Math.max(1, couloirs.length);
+    return L.map(e => {
+      const top = Math.max(0, (e.d - PL_H0 * 60) / 60 * PL_PX), h = Math.max(22, Math.min(haut - top, (e.f - e.d) / 60 * PL_PX) - 2);
+      const urg = estCeSoir({ ...e, statut: e.statut || '' });
+      return `<button type="button" class="pl-bloc s-${PL_ETAT[e.etat]} pl-${PL_ETAT[e.etat]}${urg ? ' pl-bloc-urg' : ''}" data-a="jour" data-d="${e.date}" style="top:${top}px;height:${h}px;left:calc(${e.k * 100 / n}% + 3px);width:calc(${100 / n}% - 6px)" title="${esc(`${e.debut}–${e.fin} · ${e.poste} · ${e.client_nom} · ${e.libelle}`)}">
+        <span class="pl-h">${urg ? ic('alert') : ''}${e.debut}–${e.fin}</span><b>${esc(e.poste)}</b><span>${esc(prof === 'client' ? (e.noms || `${e.retenus}/${e.nb_postes} pourvu`) : e.client_nom)}</span>${prof === 'agence' ? `<span class="pl-qui">${esc(e.noms || `${e.retenus}/${e.nb_postes} pourvu`)}</span>` : ''}</button>`;
+    }).join('');
+  };
+  const entete = j => {
+    const k = jours.indexOf(j), d = D[j], futur = j >= t;
+    const dispo = prof === 'interim' ? (futur ? `<button type="button" class="pl-dispo ${d || 'nr'}" data-a="dispo" data-d="${j}" data-e="${d || ''}" title="Changer ma disponibilité">${d === 'disponible' ? 'Disponible' : d === 'indisponible' ? 'Indisponible' : 'Non renseigné'}</button>` : d ? `<span class="pl-dispo ${d}">${d === 'disponible' ? 'Disponible' : 'Indisponible'}</span>` : '') : '';
+    return `<div class="pl-jh${j === t ? ' auj' : ''}"><button type="button" class="pl-jh-b" data-a="jour" data-d="${j}"><span>${JOURS_C[k]}</span><b>${Number(j.slice(8))}</b></button>${dispo}</div>`;
+  };
+  return `<div class="pl-sem"><div class="pl-sem-tete"><span></span>${jours.map(entete).join('')}</div>
+    <div class="pl-sem-corps" style="height:${haut}px"><div class="pl-heures">${heures.map(h => `<span style="top:${(h - PL_H0) * PL_PX}px">${String(h % 24).padStart(2, '0')} h</span>`).join('')}</div>
+    ${jours.map(j => `<div class="pl-col${j === t ? ' auj' : ''}${D[j] === 'indisponible' ? ' indispo' : ''}" style="background-size:100% ${PL_PX * 2}px"><div class="pl-nuit" style="top:${(22 - PL_H0) * PL_PX}px"></div>${j === t && minNow >= PL_H0 * 60 ? `<div class="pl-maint" style="top:${(minNow - PL_H0 * 60) / 60 * PL_PX}px"></div>` : ''}${colonne(j)}</div>`).join('')}</div></div>
+    ${a.evenements.length ? '' : `<div class="panel-b">${empty('Aucune mission cette semaine.')}</div>`}`;
+}
+
+/* ----- C · Planning par intérimaire ----- */
+async function planningEquipe() {
+  const d = await GET('/planning?debut=' + S.p.sem), t = S.cfg?.aujourdhui;
+  const B = {}; d.besoins.forEach(b => (B[b.date] = B[b.date] || []).push(b));
+  const h = x => x.replace(':00', ' h').replace(':', ' h ');
+  const cellule = (c, j) => {
+    if (c.statut === 'pris') return `<button type="button" class="pl-case s-libre pl-libre" data-a="jour" data-d="${j}"><b>${h(c.debut)}–${h(c.fin)}</b><span>${esc(c.client)}</span></button>`;
+    if (c.statut === 'attente') return `<button type="button" class="pl-case ${c.accepte ? 's-attente pl-attente' : 'pl-propose'}" data-a="jour" data-d="${j}"><b>${h(c.debut)}–${h(c.fin)}</b><span>${c.accepte ? 'À confirmer · ' : 'Proposée · '}${esc(c.client)}</span></button>`;
+    if (c.statut === 'libre') return `<button type="button" class="pl-case pl-dispo-c" data-a="jour" data-d="${j}">Disponible</button>`;
+    if (c.statut === 'off') return `<button type="button" class="pl-case pl-indispo-c" data-a="jour" data-d="${j}">Indisponible</button>`;
+    return `<button type="button" class="pl-case pl-vide" data-a="jour" data-d="${j}" aria-label="${fdate(j, 'long')} : non renseigné"></button>`;
+  };
+  const nbBesoins = d.besoins.reduce((a, b) => a + (b.nb_postes - b.retenus), 0);
+  return `<div class="scroll"><div class="pl-eq" style="min-width:1040px">
+    <div class="pl-eq-l pl-eq-tete"><span>Intérimaire</span>${d.jours.map((j, k) => `<button type="button" class="pl-jh-b${j === t ? ' auj' : ''}" data-a="jour" data-d="${j}"><span>${JOURS_C[k]}</span><b>${Number(j.slice(8))}</b></button>`).join('')}<span class="r">Heures</span></div>
+    <div class="pl-eq-l pl-eq-besoins"><div><b>Besoins non pourvus</b><span class="small muted">${nbBesoins ? `${nbBesoins} poste${nbBesoins > 1 ? 's' : ''} cette semaine` : 'Tout est pourvu'}</span></div>
+      ${d.jours.map(j => `<div class="pl-eq-c">${(B[j] || []).map(b => { const urg = estCeSoir({ date: b.date, debut: b.debut, statut: b.statut }); return `<button type="button" class="pl-case ${b.statut === 'nouvelle' ? 's-danger pl-danger' : 's-pris pl-pris'}${urg ? ' pl-bloc-urg' : ''}" data-a="jour" data-d="${j}"><b>${urg ? ic('alert') : ''}${h(b.debut)}</b><span>${esc(b.poste)} · ${b.nb_postes - b.retenus} place${b.nb_postes - b.retenus > 1 ? 's' : ''}</span></button>`; }).join('')}</div>`).join('')}<span></span></div>
+    ${d.lignes.map(l => `<div class="pl-eq-l"><div class="person"><div class="avatar">${initials(l.prenom + ' ' + l.nom)}</div><div><b>${esc(l.prenom)} ${esc(l.nom)}</b><span>${esc(l.poste)}</span></div></div>
+      ${l.cases.map((c, k) => `<div class="pl-eq-c">${cellule(c, d.jours[k])}</div>`).join('')}<div class="pl-eq-tot"><b>${num(l.heures)} h</b><span class="pl-jauge"><span style="width:${Math.min(100, l.heures / 39 * 100)}%"></span></span></div></div>`).join('') || empty('Aucun intérimaire.')}
+  </div></div>`;
+}
+
+/* ----- D · Agenda en liste (téléphone) ----- */
+async function agendaListe(prof) {
+  const jours = [...Array(7)].map((_, k) => addDays(S.p.sem, k)), t = S.cfg?.aujourdhui;
+  const a = await GET(`/agenda?debut=${jours[0]}&fin=${jours[6]}`);
+  const D = Object.fromEntries((a.dispos || []).map(d => [d.date, d.etat]));
+  const E = {}; a.evenements.forEach(e => (E[e.date] = E[e.date] || []).push(e));
+  const ordre = ['diffuser', 'confirmer', 'recherche', 'pourvue'], pire = j => (E[j] || []).map(e => e.etat).sort((x, y) => ordre.indexOf(x) - ordre.indexOf(y))[0];
+  const carte = e => {
+    const urg = estCeSoir({ ...e, statut: e.statut || '' });
+    return `<button type="button" class="ag-carte pl-${PL_ETAT[e.etat]}${urg ? ' pl-bloc-urg' : ''}" data-a="jour" data-d="${e.date}"><span class="ag-h"><b>${e.debut}</b><span>${e.fin}</span></span>
+      <span class="ag-c">${urg ? `<span class="ag-urg">${ic('alert')}Ce soir · importance haute</span>` : ''}<b>${prof === 'interim' ? '' : e.nb_postes + ' × '}${esc(e.poste)}</b><span class="small muted">${esc(prof === 'client' ? (e.noms || 'Intérimaires à venir') : prof === 'agence' ? `${e.client_nom}${e.noms ? ' · ' + e.noms : ''}` : e.client_nom)}</span>
+      <span class="badge s-${PL_ETAT[e.etat]}">${esc(e.libelle)}${prof === 'interim' || e.etat === 'pourvue' ? '' : ` · ${e.retenus}/${e.nb_postes}`}</span></span>${ic('chev')}</button>`;
+  };
+  const groupes = jours.filter(j => E[j] || j === t || prof === 'interim').map(j => {
+    const d = D[j], dispo = prof === 'interim' && j >= t ? `<button type="button" class="pl-dispo ${d || 'nr'}" data-a="dispo" data-d="${j}" data-e="${d || ''}">${d === 'disponible' ? 'Disponible' : d === 'indisponible' ? 'Indisponible' : 'Disponibilité ?'}</button>` : '';
+    return `<div class="ag-jour" id="ag-${j}"><div class="ag-titre${j === t ? ' auj' : ''}"><b>${j === t ? 'Aujourd\'hui · ' + fdate(j, 'long') : fdate(j, 'long').replace(/^./, c => c.toUpperCase())}</b>${dispo || `<span class="small muted">${(E[j] || []).length ? `${E[j].length} mission${E[j].length > 1 ? 's' : ''}` : ''}</span>`}</div>
+      ${(E[j] || []).map(carte).join('') || '<div class="small muted ag-vide">Aucune mission</div>'}</div>`;
+  }).join('');
+  return `<section class="panel ag">
+    <div class="ag-nav">${btn('', 'left', 'data-a="sem" data-d="-7" aria-label="Semaine précédente"', 'sm')}<b>Semaine ${semaineIso(S.p.sem)}</b>${btn('', 'chev', 'data-a="sem" data-d="7" aria-label="Semaine suivante"', 'sm')}</div>
+    <div class="ag-bande">${jours.map((j, k) => `<button type="button" class="ag-j${j === t ? ' auj' : ''}" data-a="agjour" data-d="${j}"><span>${JOURS_C[k][0]}</span><b>${Number(j.slice(8))}</b><i class="pl-pt ${pire(j) ? 'pl-' + PL_ETAT[pire(j)] : 'pl-vide'}"></i></button>`).join('')}</div>
+    ${legendePlanning(prof)}<div class="ag-liste">${groupes || empty('Aucune mission cette semaine.')}</div>
+    ${prof !== 'interim' ? `<div class="ag-action">${btn(prof === 'client' ? 'Nouvelle demande' : 'Nouvelle mission', 'plus', prof === 'client' ? 'data-a="nav" data-v="demandes"' : 'data-a="newmission"', 'primary')}</div>` : ''}</section>`;
+}
+// Passage ordinateur ↔ téléphone : la vue du planning s'adapte.
+matchMedia('(max-width: 640px)').addEventListener('change', () => { if (S.me && ['planning', 'jour', 'dispo'].includes(S.view)) reload(); });
+
 /* ---------------- Formulaires en fenêtre ---------------- */
 async function missionForm() {
   const cs = (await GET('/clients')).filter(c => !c.suspendu);
@@ -1502,6 +1574,9 @@ const A = {
   hedit: el => openModal(`${modalHead(ic('edit') + 'Corriger les heures prévues')}<form data-f="hedit" data-id="${el.dataset.id}"><div class="panel-b"><label class="f">Heures prévues<input type="number" name="h" step="0.25" min="0.25" max="16" value="${el.dataset.v}" required></label></div>${modalFoot('Enregistrer', 'type="submit"')}</form>`),
   payee: el => act(async () => { await POST(`/factures/${el.dataset.id}/payee`); toast('Facture marquée comme payée'); reload(); }, el),
   sem: el => { const d = Number(el.dataset.d); S.p.sem = d ? addDays(S.p.sem, d) : lundi(S.cfg.aujourdhui); reload(); },
+  plvue: el => { S.p.pv = el.dataset.v; reload(); },
+  plmois: el => { const d = Number(el.dataset.d); S.p.pm = d ? moisDe(S.p.pm + '-01', d) : S.cfg.aujourdhui.slice(0, 7); reload(); },
+  agjour: el => document.getElementById('ag-' + el.dataset.d)?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
   mois: el => { S.p.mo = (S.p.mo || 0) + Number(el.dataset.d); reload(); },
   dispo: el => act(async () => { const nxt = { '': 'disponible', disponible: 'indisponible', indisponible: null }[el.dataset.e]; await PUT('/disponibilites', { date: el.dataset.d, etat: nxt }); reload(); }, el),
   star: el => { const box = el.closest('[data-rate]'), n = Number(el.dataset.n); box.querySelectorAll('button').forEach((b, k) => b.classList.toggle('on', k < n)); el.closest('form').note.value = n; },

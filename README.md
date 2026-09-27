@@ -141,11 +141,23 @@ Dans **Intérimaires › Candidatures intérimaires** et **Clients › Candidatu
 
 ### Calendriers et détail d'une journée
 
-Les trois espaces affichent le planning sous forme de **calendrier mensuel standard** (lundi → dimanche, numéro de semaine en colonne de gauche). La **semaine en cours** est repérée par une flèche ▶ et un liseré doré, le jour même par un cadre bleu nuit. Chaque mission apparaît dans sa case (heure, poste, postes pourvus), en couleur selon son état ; sur mobile, les missions deviennent des barres de couleur.
+Le planning utilise les mêmes onglets dans tous les espaces, aux couleurs de la charte (bandeau bleu nuit, filet doré, mêmes couleurs d'état partout) :
 
-**Importance haute** : une mission du jour même commençant à 16 h ou plus tard (« ce soir ») porte une icône d'alerte rouge dans le calendrier, les listes de missions, le détail du jour et les notifications. Chez l'agence, celles qui ne sont pas encore pourvues passent en tête de « À traiter ».
+- **Mois** : calendrier mensuel, numéro de semaine, semaine en cours fléchée et encadrée d'or, missions dans les cases.
+- **Semaine** : une colonne par jour, de 6 h à 2 h du matin ; chaque mission est un bloc à la hauteur de sa durée (missions simultanées côte à côte), nuit grisée, trait doré à l'heure actuelle.
+- **Intérimaires** : une ligne par intérimaire et par jour (mission confirmée, à confirmer, proposée, disponible, indisponible), besoins non pourvus en tête et total d'heures de la semaine.
 
-Les cases, les missions et les en-têtes de jour sont cliquables (souris, doigt ou clavier : Entrée / Espace). Un clic sur une date ouvre le détail de la journée, structuré par mission, selon le profil :
+| Espace | Vues | Par défaut |
+|---|---|---|
+| Agence | Mois, Semaine, Intérimaires | Intérimaires |
+| Employeur | Mois, Semaine | Mois |
+| Intérimaire | Semaine (disponibilités dans l'en-tête des jours) | Semaine |
+
+**Sur téléphone**, chaque espace bascule automatiquement sur un **agenda en liste** : bande des 7 jours avec une pastille de couleur, puis les missions du jour en cartes (l'urgence du soir mise en avant), bouton « Nouvelle mission » ou « Nouvelle demande » à portée de pouce ; l'intérimaire y indique aussi sa disponibilité.
+
+L'urgence « ce soir » (mission du jour à partir de 16 h) est signalée par une icône d'alerte rouge dans toutes les vues.
+
+Un clic sur une date ouvre le détail de la journée, structuré par mission, selon le profil :
 
 - **Agence** (Planning, onglets « Calendrier du mois » et « Semaine par intérimaire ») : toutes les missions du jour, avec lieu, interlocuteur, taux et motif, et les intérimaires regroupés par état (validés, en attente de l'employeur, refusés, non retenus, sans réponse, ont décliné). Pour chacun : moyen d'envoi, contrat et heures. S'y ajoutent les intérimaires disponibles et indisponibles ce jour-là. L'agence peut accepter ou refuser un candidat depuis cette fenêtre.
 - **Employeur** (Planning) : calendrier du mois ; pour chaque mission, les intérimaires validés (avec leur téléphone une fois la mission verrouillée), en attente de sa décision (boutons Accepter / Refuser) et refusés.

@@ -582,6 +582,8 @@ api.post('/missions/:id/decision', role('agence', 'client'), wrap((req, res) => 
   }
   res.json({ verrouillee });
 }));
+// Agenda (vues Semaine et liste mobile).
+require('./agenda')(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), isDate: (...a) => isDate(...a), missionPourInterim: (...a) => missionPourInterim(...a), missionRow: (...a) => missionRow(...a) });
 // Statistiques de chaque espace.
 require('./stats')(api, { today: () => today() });
 // Annulation (employeur, agence), désistement et indisponibilité de l'intérimaire, avec motif.
@@ -607,22 +609,27 @@ api.get('/planning', role('agence'), wrap((req, res) => {
   const debut = isDate(req.query.debut) ? req.query.debut : today();
   const jours = [...Array(7)].map((_, k) => { const d = new Date(debut + 'T12:00'); d.setDate(d.getDate() + k); return d.toISOString().slice(0, 10); });
   const fin = jours[6];
-  const pris = all(`SELECT r.interim_id, m.date, c.nom AS client FROM reponses r JOIN missions m ON m.id = r.mission_id JOIN clients c ON c.id = m.client_id
+  const pris = all(`SELECT r.interim_id, m.date, m.debut, m.fin, m.poste, c.nom AS client FROM reponses r JOIN missions m ON m.id = r.mission_id JOIN clients c ON c.id = m.client_id
      WHERE r.etat = 'retenu' AND m.statut = 'verrouillee' AND m.date BETWEEN ? AND ?`, debut, fin);
-  const attente = all(`SELECT e.interim_id, m.date, c.nom AS client FROM envois e JOIN missions m ON m.id = e.mission_id JOIN clients c ON c.id = m.client_id
+  const attente = all(`SELECT e.interim_id, m.date, m.debut, m.fin, m.poste, c.nom AS client, r.etat FROM envois e JOIN missions m ON m.id = e.mission_id JOIN clients c ON c.id = m.client_id
      LEFT JOIN reponses r ON r.mission_id = e.mission_id AND r.interim_id = e.interim_id
-     WHERE m.statut = 'diffusee' AND m.date BETWEEN ? AND ? AND (r.etat IS NULL OR r.etat IN ('accepte','refuse_client'))`, debut, fin);
+     WHERE m.statut = 'diffusee' AND m.date BETWEEN ? AND ? AND (r.etat IS NULL OR r.etat = 'accepte')`, debut, fin);
+  // Besoins non pourvus de la semaine (missions à diffuser ou pas encore complètes)
+  const besoins = all(`SELECT m.id, m.date, m.debut, m.fin, m.poste, m.nb_postes, m.statut, c.nom AS client,
+      (SELECT COUNT(*) FROM reponses r WHERE r.mission_id = m.id AND r.etat = 'retenu') AS retenus
+     FROM missions m JOIN clients c ON c.id = m.client_id WHERE m.statut IN ('nouvelle', 'diffusee') AND m.date BETWEEN ? AND ? ORDER BY m.date, m.debut`, debut, fin);
   const dispo = all('SELECT * FROM disponibilites WHERE date BETWEEN ? AND ?', debut, fin);
   const interims = all('SELECT id, prenom, nom, poste, secteur FROM interimaires WHERE suspendu = 0 ORDER BY nom');
   const key = (a, b) => a + '|' + b, P = {}, A = {}, Dp = {};
-  pris.forEach(x => P[key(x.interim_id, x.date)] = x.client);
-  attente.forEach(x => A[key(x.interim_id, x.date)] = x.client);
+  pris.forEach(x => P[key(x.interim_id, x.date)] = x);
+  attente.forEach(x => A[key(x.interim_id, x.date)] = x);
   dispo.forEach(x => Dp[key(x.interim_id, x.date)] = x.etat);
-  res.json({ jours, lignes: interims.map(i => ({
-    ...i, cases: jours.map(j => {
-      const k = key(i.id, j);
-      if (P[k]) return { statut: 'pris', client: P[k] };
-      if (A[k]) return { statut: 'attente', client: A[k] };
+  res.json({ jours, besoins, lignes: interims.map(i => ({
+    ...i, heures: pris.filter(x => x.interim_id === i.id).reduce((a, x) => a + dureeHeures(x.debut, x.fin), 0),
+    cases: jours.map(j => {
+      const k = key(i.id, j), x = P[k] || A[k], d = x ? { client: x.client, debut: x.debut, fin: x.fin, poste: x.poste } : {};
+      if (P[k]) return { statut: 'pris', ...d };
+      if (A[k]) return { statut: 'attente', accepte: A[k].etat === 'accepte', ...d };
       if (Dp[k] === 'indisponible') return { statut: 'off' };
       if (Dp[k] === 'disponible') return { statut: 'libre' };
       return { statut: 'inconnu' };

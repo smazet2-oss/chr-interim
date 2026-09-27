@@ -141,6 +141,16 @@ function agence(api, h) {
       date_relance: b.date_relance || null, statut: b.date_relance ? 'a_relancer' : 'nouveau', notes_agence: String(b.notes_agence || '').slice(0, 3000) });
     res.status(201).json(lire(one('SELECT * FROM prospects WHERE id = ?', id)));
   }));
+  /** Texte proposé avant l'envoi, puis décision (acceptée : rendez-vous sous 48 h ; refusée). */
+  api.get('/prospects/:id/modele', role('agence'), wrap((req, res) => {
+    const p = one('SELECT * FROM prospects WHERE id = ?', req.params.id); if (!p) fail(404, 'Prospect introuvable.');
+    res.json({ ...require('./decisions').modele('prospect', req.query.decision === 'refusee' ? 'refusee' : 'acceptee', p, req.query.rdv || null), email: p.email, telephone: p.telephone });
+  }));
+  api.post('/prospects/:id/decision', role('agence'), wrap(async (req, res) => {
+    const p = one('SELECT * FROM prospects WHERE id = ?', req.params.id); if (!p) fail(404, 'Prospect introuvable.');
+    if (p.client_id) fail(409, 'Ce prospect est déjà client.');
+    res.json(await require('./decisions').decider('prospects', 'prospect', p, req.body || {}, today()));
+  }));
   /** Suivi : statut, date de relance, notes. */
   api.put('/prospects/:id', role('agence'), wrap((req, res) => {
     const p = one('SELECT * FROM prospects WHERE id = ?', req.params.id); if (!p) fail(404, 'Prospect introuvable.');

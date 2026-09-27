@@ -647,3 +647,16 @@ a.brand:focus-visible,.auth-banner-lien:focus-visible{outline:2px solid #C99948;
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .barre.cur .barre-b,:root:not([data-theme="light"]) .cl-b span{background:#C99948}}
 :root[data-theme="dark"] .barre.cur .barre-b,:root[data-theme="dark"] .cl-b span{background:#C99948}
 @media (max-width:600px){.barres{height:160px}.barre-v{font-size:9.5px}.cl-l{grid-template-columns:1fr auto;}.cl-b{grid-column:1/-1;grid-row:2}}
+
+/* ---------- Avis et alertes de note ---------- */
+.alerte-note{display:inline-flex;align-items:center;gap:3px;margin-left:6px;padding:1px 6px;border-radius:9px;background:var(--danger-bg);color:var(--danger-fg);font-size:11px;font-weight:700;vertical-align:middle}
+.alerte-note svg{width:11px;height:11px}
+.alerte-bloc{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border-radius:8px;background:var(--danger-bg);color:var(--danger-fg);border:1px solid var(--danger-dot)}
+.alerte-bloc svg{width:18px;height:18px;flex:none;margin-top:1px}
+.repartition{display:flex;flex-direction:column;gap:5px}
+.rep-l{display:grid;grid-template-columns:34px 1fr 26px;gap:8px;align-items:center;font-size:12px}
+.avis-l{display:flex;flex-direction:column;gap:3px;padding:10px 12px;border:1px solid var(--line);border-radius:8px}
+.avis-tous summary{cursor:pointer;font-size:13px;font-weight:600;color:#7E5F24}
+.note-etab{display:flex;flex-direction:column;gap:8px;padding:12px;border:1px solid var(--line);border-left:3px solid #C99948;border-radius:8px;background:var(--surface)}
+.stats-titre{display:flex;align-items:center;gap:8px;font-size:17px;margin:10px 0 0}
+.stats-titre svg{width:18px;height:18px;color:#C99948}

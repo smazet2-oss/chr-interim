@@ -117,7 +117,8 @@ test('expériences, dossier légal, contrat et paie', async () => {
   assert.equal(enCours.length, 1);
   assert.equal(enCours[0].bloquees[0].manque, 'Confirmation de vos heures');
   const hId = (await ines.get('/heures')).data[0].id;
-  await ines.post(`/heures/${hId}/confirmer`, {});
+  assert.equal((await ines.post(`/heures/${hId}/confirmer`, {})).status, 400, 'note de l\'établissement obligatoire');
+  await ines.post(`/heures/${hId}/confirmer`, { note: 4 });
   enCours = (await ines.get('/paie/en-cours')).data;
   assert.equal(enCours[0].bloquees[0].manque, 'Validation par l\'employeur');
   // Fiche générée alors que les heures ne sont pas validées : aucune fiche.

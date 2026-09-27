@@ -170,7 +170,7 @@ const candidats = require('./candidats');
 candidats.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), HttpError });
 api.use(auth);
 prospects.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
-candidats.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a) });
+candidats.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
 const contratsClients = require('./contrats-clients')(api, { fail: (...a) => fail(...a), isDate: (...a) => isDate(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), str: (...a) => str(...a), today: () => today() });
 const relances = require('./relances')(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
@@ -680,7 +680,14 @@ api.post('/heures/:id/confirmer', role('interim', 'agence'), wrap((req, res) => 
   if (extra > 8) fail(400, 'Nombre d\'heures supplémentaires invalide.');
   const justif = str(req.body.justification, 500);
   if (extra > 0 && !justif) fail(400, 'Une justification est obligatoire pour les heures supplémentaires.');
-  run('UPDATE heures SET valide_interim = 1, extra = ?, justification = ?, extra_statut = ? WHERE id = ?', extra, justif || null, extra > 0 ? 'attente' : 'aucun', h.id);
+  // Fiabilité de l'établissement : l'intérimaire le note en confirmant ses heures (obligatoire pour lui).
+  const note = parseInt(req.body.note, 10);
+  if (req.user.profil === 'interim' && !(note >= 1 && note <= 5)) fail(400, 'Notez l\'établissement (1 à 5 étoiles) pour confirmer vos heures.');
+  const points = (Array.isArray(req.body.points) ? req.body.points : []).filter(x => POINTS_ETAB.includes(x));
+  tx(() => {
+    run('UPDATE heures SET valide_interim = 1, extra = ?, justification = ?, extra_statut = ? WHERE id = ?', extra, justif || null, extra > 0 ? 'attente' : 'aucun', h.id);
+    if (note >= 1 && note <= 5) enregistrerNote(h, 'interim_vers_client', note, str(req.body.commentaire, 1000), points.join(' · '));
+  });
   res.json(one(HEURES_SQL + ' WHERE h.id = ?', h.id));
 }));
 api.post('/heures/:id/valider', role('client', 'agence'), wrap((req, res) => {
@@ -705,10 +712,34 @@ api.post('/heures/:id/evaluer', role('client', 'interim'), wrap((req, res) => {
   if (h.date > today()) fail(409, 'La note se donne en fin de service.');
   const note = parseInt(req.body.note, 10); if (!(note >= 1 && note <= 5)) fail(400, 'La note doit être comprise entre 1 et 5.');
   const sens = req.user.profil === 'client' ? 'client_vers_interim' : 'interim_vers_client';
-  run(`INSERT INTO evaluations (heure_id, sens, note, commentaire, axe) VALUES (?,?,?,?,?)
-       ON CONFLICT(heure_id, sens) DO UPDATE SET note = excluded.note, commentaire = excluded.commentaire, axe = excluded.axe`,
-  h.id, sens, note, str(req.body.commentaire, 1000) || null, str(req.body.axe, 200) || null);
+  enregistrerNote(h, sens, note, str(req.body.commentaire, 1000), str(req.body.axe, 200));
   res.json({ ok: true });
+}));
+/** Points signalés par l'intérimaire sur l'établissement (fiabilité). */
+const POINTS_ETAB = ['Horaires non respectés', 'Accueil et consignes insuffisants', 'Tâches différentes du poste', 'Conditions de travail difficiles', 'Pause ou repas non accordés'];
+const NOTE_BASSE = 2;
+/** Enregistre une note ; une note basse (2 ou moins) déclenche une alerte pour l'agence. */
+function enregistrerNote(h, sens, note, commentaire, axe) {
+  run(`INSERT INTO evaluations (heure_id, sens, note, commentaire, axe) VALUES (?,?,?,?,?)
+       ON CONFLICT(heure_id, sens) DO UPDATE SET note = excluded.note, commentaire = excluded.commentaire, axe = excluded.axe, created_at = datetime('now')`,
+  h.id, sens, note, commentaire || null, axe || null);
+  if (note <= NOTE_BASSE) {
+    const x = one('SELECT m.date, m.poste, c.nom AS client_nom, i.prenom, i.nom FROM heures h JOIN missions m ON m.id = h.mission_id JOIN clients c ON c.id = m.client_id JOIN interimaires i ON i.id = h.interim_id WHERE h.id = ?', h.id);
+    const d = new Date(x.date + 'T12:00').toLocaleDateString('fr-FR');
+    run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', sens === 'interim_vers_client'
+      ? `Note basse : ${x.client_nom} noté ${note}/5 par ${x.prenom} ${x.nom} (${x.poste}, ${d})${axe ? ` · ${axe}` : ''}${commentaire ? ` · « ${commentaire} »` : ''}`
+      : `Note basse : ${x.prenom} ${x.nom} noté(e) ${note}/5 par ${x.client_nom} (${x.poste}, ${d})${commentaire ? ` · « ${commentaire} »` : ''}`);
+  }
+}
+/** Avis sur un intérimaire ou un client (agence) : moyenne, répartition, liste complète. */
+api.get('/avis', role('agence'), wrap((req, res) => {
+  const iid = Number(req.query.interim_id) || null, cid = Number(req.query.client_id) || null;
+  if (!iid && !cid) fail(400, 'Précisez un intérimaire ou un client.');
+  const L = all(`SELECT e.note, e.commentaire, e.axe, e.created_at, m.date, m.poste, c.nom AS client_nom, i.prenom, i.nom AS interim_nom
+    FROM evaluations e JOIN heures h ON h.id = e.heure_id JOIN missions m ON m.id = h.mission_id JOIN clients c ON c.id = m.client_id JOIN interimaires i ON i.id = h.interim_id
+    WHERE ${iid ? 'h.interim_id = ? AND e.sens = \'client_vers_interim\'' : 'm.client_id = ? AND e.sens = \'interim_vers_client\''} ORDER BY m.date DESC, e.id DESC`, iid || cid);
+  const moyenne = L.length ? Math.round(L.reduce((a, x) => a + x.note, 0) / L.length * 10) / 10 : null;
+  res.json({ moyenne, nombre: L.length, basses: L.filter(x => x.note <= NOTE_BASSE).length, repartition: [5, 4, 3, 2, 1].map(n => ({ note: n, nombre: L.filter(x => x.note === n).length })), avis: L });
 }));
 api.get('/evaluations', (req, res) => {
   const base = `SELECT e.*, m.date, c.nom AS client_nom, c.secteur AS client_secteur, i.prenom, i.nom AS interim_nom FROM evaluations e
@@ -875,7 +906,7 @@ ${lignes.map(l => { const fm = hcr.facteur(l.date, l.debut, l.fin), maj = Math.r
 }));
 
 api.get('/journal', role('agence'), (req, res) => res.json(all('SELECT * FROM envois_messages ORDER BY id DESC LIMIT 200')));
-api.get('/config', (req, res) => res.json({ canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES,
+api.get('/config', (req, res) => res.json({ points_etab: POINTS_ETAB, note_basse: NOTE_BASSE, canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES,
   taux_postes: hcr.tauxPostes(), smic: hcr.smic(), coefficient_minimum: contratsClients.coefMin(),
   // Coût d'une heure pour l'agence ÷ taux horaire brut (fin de mission, congés payés, charges) : sert au calcul de marge d'un contrat.
   ...(req.user.profil === 'agence' ? { facteur_cout: (1 + P.num('ifm_taux', 10) / 100) * (1 + P.num('iccp_taux', 10) / 100) * (1 + P.num('charges_patronales_taux', 20) / 100) } : {}) }));

@@ -78,14 +78,16 @@ tx(() => {
   const HIST = [[C[0], 'Serveur', I[4], '18:00', '23:30', 12.2], [C[0], 'Commis de cuisine', I[0], '10:00', '15:00', 12.5], [C[1], 'Femme de chambre', I[1], '08:00', '13:00', 12.1],
     [C[2], 'Barman', I[2], '19:00', '02:00', 12.9], [C[0], 'Plongeur', I[3], '18:00', '00:00', 12.1], [C[1], 'Réceptionniste', I[5], '07:00', '15:00', 12.4]];
   for (let k = 150; k >= 8; k -= 4) {
-    const [c, poste, i, debut, fin, taux] = HIST[k % HIST.length];
+    const [c, poste, i, debut, fin, taux] = HIST[((150 - k) / 4) % HIST.length];
     const mh = mission(c, poste, jour(-k), debut, fin, 1, taux, 'verrouillee');
     run('UPDATE missions SET created_at = datetime(?, \'-3 days\'), verrouillee_at = datetime(?, \'-2 days\', \'+' + (k % 30) + ' hours\'), validee_le = datetime(?, \'-1 days\') WHERE id = ?', jour(-k), jour(-k), jour(-k), mh);
     envoi(mh, i, 'sms'); rep(mh, i, 'retenu');
     const [h1, m1] = debut.split(':').map(Number), [h2, m2] = fin.split(':').map(Number);
     const hh = run('INSERT INTO heures (mission_id, interim_id, heures_prevues, valide_interim, valide_client) VALUES (?,?,?,1,1)', mh, i, ((h2 * 60 + m2 - h1 * 60 - m1 + 1440) % 1440 || 1440) / 60).lastInsertRowid;
     run('INSERT INTO evaluations (heure_id, sens, note, commentaire) VALUES (?,\'client_vers_interim\',?,?)', hh, 4 + (k % 2), 'Bon service.');
-    run('INSERT INTO evaluations (heure_id, sens, note, commentaire) VALUES (?,\'interim_vers_client\',?,?)', hh, 4, 'Équipe accueillante.');
+    // Le Zinc : fiabilité en baisse (retards de prise de poste signalés), pour illustrer l'alerte note basse.
+    if (c === C[2]) run('INSERT INTO evaluations (heure_id, sens, note, commentaire, axe) VALUES (?,\'interim_vers_client\',?,?,?)', hh, ((150 - k) / 4) % 12 < 6 ? 2 : 3, 'Personne pour ouvrir à l\'heure prévue.', 'Horaires non respectés');
+    else run('INSERT INTO evaluations (heure_id, sens, note, commentaire) VALUES (?,\'interim_vers_client\',?,?)', hh, 4, 'Équipe accueillante.');
   }
 
   // Mission à venir pourvue : contrat en cours de signature (Yanis et l'employeur).

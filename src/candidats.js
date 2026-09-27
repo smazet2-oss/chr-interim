@@ -21,6 +21,8 @@ db.exec(`CREATE TABLE IF NOT EXISTS candidats (
   interim_id INTEGER REFERENCES interimaires(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')), updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
+// Colonnes de décision (après la création de la table)
+const decisions = require('./decisions');
 const CV_DIR = path.join(DATA_DIR, 'cv');
 fs.mkdirSync(CV_DIR, { recursive: true });
 
@@ -103,6 +105,16 @@ function publiques(api, h) {
 function agence(api, h) {
   const { fail, wrap, role } = h;
   api.get('/candidats', role('agence'), (req, res) => res.json(all('SELECT * FROM candidats ORDER BY CASE WHEN statut IN (\'inscrit\', \'refuse\') THEN 1 ELSE 0 END, COALESCE(date_relance, \'9999\'), id DESC').map(lire)));
+  /** Texte proposé avant l'envoi, puis décision (acceptée : demande de rendez-vous sous 48 h ; refusée). */
+  api.get('/candidats/:id/modele', role('agence'), wrap((req, res) => {
+    const c = one('SELECT * FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');
+    res.json({ ...decisions.modele('candidat', req.query.decision === 'refusee' ? 'refusee' : 'acceptee', c, req.query.rdv || null), email: c.email, telephone: c.telephone });
+  }));
+  api.post('/candidats/:id/decision', role('agence'), wrap(async (req, res) => {
+    const c = one('SELECT * FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');
+    if (c.interim_id) fail(409, 'Cette personne est déjà inscrite.');
+    res.json(await decisions.decider('candidats', 'candidat', c, req.body || {}, h.today()));
+  }));
   api.put('/candidats/:id', role('agence'), wrap((req, res) => {
     const c = one('SELECT * FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');
     const b = req.body || {};

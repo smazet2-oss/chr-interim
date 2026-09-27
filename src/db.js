@@ -251,4 +251,4 @@ const one = (sql, ...p) => db.prepare(sql).get(...p);
 const all = (sql, ...p) => db.prepare(sql).all(...p);
 const run = (sql, ...p) => db.prepare(sql).run(...p);
 
-module.exports = { db, tx, one, all, run, DATA_DIR };
+module.exports = { db, tx, one, all, run, DATA_DIR, addColumn };

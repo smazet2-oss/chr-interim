@@ -94,7 +94,7 @@ test('paramètres de l\'agence', async () => {
   assert.match(doc, /Atradius/);
   run('UPDATE missions SET date = ? WHERE id = ?', plusJours(-1), m.id);
   const h = (await tom.get('/heures')).data[0];
-  await tom.post(`/heures/${h.id}/confirmer`, {});
+  await tom.post(`/heures/${h.id}/confirmer`, { note: 5 });
   await cl.post(`/heures/${h.id}/valider`, {});
   await ag.put('/parametres', { valeurs: { facture_prefixe: 'CHR', tva_taux: '20' } });
   const g = (await ag.post('/factures/generer', { debut: plusJours(-10), fin: plusJours(0) })).data;

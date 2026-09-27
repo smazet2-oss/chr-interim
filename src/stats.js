@@ -27,6 +27,22 @@ const serie = (mois6, L, k) => mois6.map(m => ({ mois: m, valeur: r2(somme(L.fil
 const top = (L, cle, val, n = 5) => Object.values(L.reduce((o, x) => { const c = x[cle] || '—'; (o[c] = o[c] || { nom: c, valeur: 0 }).valeur += val(x); return o; }, {}))
   .sort((a, b) => b.valeur - a.valeur).slice(0, n).map(x => ({ ...x, valeur: r2(x.valeur) }));
 
+/** Notes : moyenne, nombre, notes basses (2 ou moins), répartition 5 → 1. where porte sur e (evaluations), h (heures), m (missions). */
+function notes(where, ...args) {
+  const L = all(`SELECT e.note, e.created_at FROM evaluations e JOIN heures h ON h.id = e.heure_id JOIN missions m ON m.id = h.mission_id WHERE ${where}`, ...args);
+  return {
+    moyenne: L.length ? Math.round(L.reduce((a, x) => a + x.note, 0) / L.length * 10) / 10 : null, nombre: L.length,
+    basses: L.filter(x => x.note <= 2).length,
+    repartition: [5, 4, 3, 2, 1].map(n => ({ nom: n + ' étoile' + (n > 1 ? 's' : ''), valeur: L.filter(x => x.note === n).length })),
+  };
+}
+/** Les moins bien notés (au moins 1 note), du plus bas au plus haut. */
+function moinsBienNotes(sens, cle, nom) {
+  return all(`SELECT ${nom} AS nom, ROUND(AVG(e.note), 1) AS valeur, COUNT(*) AS n FROM evaluations e JOIN heures h ON h.id = e.heure_id JOIN missions m ON m.id = h.mission_id
+      JOIN clients c ON c.id = m.client_id JOIN interimaires i ON i.id = h.interim_id WHERE e.sens = ? GROUP BY ${cle} ORDER BY valeur ASC, n DESC LIMIT 5`, sens)
+    .map(x => ({ nom: `${x.nom} (${x.n} avis)`, valeur: x.valeur }));
+}
+
 module.exports = function register(api, h) {
   const { today } = h;
   api.get('/stats', (req, res) => {
@@ -60,6 +76,12 @@ module.exports = function register(api, h) {
           prospects_actifs: one('SELECT COUNT(*) n FROM prospects WHERE statut NOT IN (\'client\', \'perdu\')').n,
           candidatures_mois: one('SELECT COUNT(*) n FROM candidats WHERE substr(created_at, 1, 7) = ?', mc).n,
         },
+        notes: {
+          interimaires: notes('e.sens = \'client_vers_interim\''), clients: notes('e.sens = \'interim_vers_client\''),
+          basses_mois: one('SELECT COUNT(*) n FROM evaluations WHERE note <= 2 AND substr(created_at, 1, 7) = ?', mc).n,
+          interimaires_bas: moinsBienNotes('client_vers_interim', 'h.interim_id', 'i.prenom || \' \' || i.nom'),
+          clients_bas: moinsBienNotes('interim_vers_client', 'm.client_id', 'c.nom'),
+        },
         series: { ca_ht: serie(mois6, H, 'ht'), heures: serie(mois6, H, 'total'), missions: mois6.map(m => ({ mois: m, valeur: M.filter(x => x.mois === m && x.statut !== 'annulee').length })) },
         tops: { clients: top(H.filter(x => x.date.startsWith(an)), 'client_id', x => x.ht).map(x => ({ ...x, nom: one('SELECT nom FROM clients WHERE id = ?', x.nom)?.nom || '—' })),
           postes: top(M.filter(m => m.statut !== 'annulee'), 'poste', m => m.nb_postes) },
@@ -85,6 +107,7 @@ module.exports = function register(api, h) {
           note_donnee: one(`SELECT ROUND(AVG(e.note), 1) n FROM evaluations e JOIN heures h ON h.id = e.heure_id JOIN missions m ON m.id = h.mission_id WHERE m.client_id = ? AND e.sens = 'client_vers_interim'`, cid).n,
           note_recue: one(`SELECT ROUND(AVG(e.note), 1) n FROM evaluations e JOIN heures h ON h.id = e.heure_id JOIN missions m ON m.id = h.mission_id WHERE m.client_id = ? AND e.sens = 'interim_vers_client'`, cid).n,
         },
+        notes: { recues: notes('m.client_id = ? AND e.sens = \'interim_vers_client\'', cid), donnees: notes('m.client_id = ? AND e.sens = \'client_vers_interim\'', cid) },
         series: { depenses_ht: serie(mois6, H6, 'ht'), heures: serie(mois6, H6, 'total') },
         tops: { postes: top(Ma, 'poste', m => m.nb_postes) },
       });
@@ -105,6 +128,7 @@ module.exports = function register(api, h) {
         taux_acceptation: pc(env.acc || 0, env.n), desistements: one('SELECT COUNT(*) n FROM desistements WHERE interim_id = ?', iid).n,
         note: one(`SELECT ROUND(AVG(e.note), 1) n FROM evaluations e JOIN heures h ON h.id = e.heure_id WHERE h.interim_id = ? AND e.sens = 'client_vers_interim'`, iid).n,
       },
+      notes: { recues: notes('h.interim_id = ? AND e.sens = \'client_vers_interim\'', iid) },
       series: { gains_brut: serie(mois6, H6, 'total_brut'), heures: serie(mois6, H6, 'total') },
       tops: { postes: top(H, 'poste', x => x.total) },
     });

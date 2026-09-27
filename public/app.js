@@ -110,9 +110,9 @@ const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, b
 const NAV = {
   // Agence : l'essentiel en premier, puis des listes déroulantes ['+', titre, icône, [entrées]] par domaine.
   agence: [['accueil', 'Tableau de bord', 'dash'], ['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'], ['stats', 'Statistiques', 'chart'],
-    ['+', 'Intérimaires', 'users', [['interimaires', 'Fiches intérimaires', 'users'], ['candidats', 'Candidatures', 'idcard'], ['contrats', 'Contrats de mission', 'file'],
+    ['+', 'Intérimaires', 'users', [['interimaires', 'Fiches intérimaires', 'users'], ['candidats', 'Candidatures intérimaires', 'idcard'], ['contrats', 'Contrats de mission', 'file'],
       ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star']]],
-    ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Prospects', 'target']]],
+    ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target']]],
     ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
     ['-', 'Administration'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
   // Employeur et intérimaire : par ordre d'importance, l'administratif et le social en dernier. ['-', titre] = intertitre.
@@ -264,6 +264,9 @@ async function refreshCounts() {
       const [ms, hs] = await Promise.all([GET('/missions'), GET('/heures')]);
       set('missions', ms.filter(m => m.statut === 'nouvelle' || (m.statut === 'diffusee' && m.envois.some(e => e.etat === 'accepte'))).length);
       set('heures', hs.filter(h => h.ouvert && !(h.valide_interim && h.valide_client)).length);
+      const [cs, ps] = await Promise.all([GET('/candidats'), GET('/prospects')]);
+      set('candidats', cs.filter(x => x.statut === 'nouveau').length);
+      set('prospects', ps.filter(x => x.statut === 'nouveau').length);
     } else if (prof === 'client') {
       const [ms, hs] = await Promise.all([GET('/missions'), GET('/heures')]);
       set('demandes', ms.reduce((a, m) => a + (m.statut === 'diffusee' ? m.candidats.filter(c => c.etat === 'accepte').length : 0), 0));
@@ -626,9 +629,9 @@ V.agence.accueil = async () => {
     ...decisions.map(m => ['n', 'users', `Candidats en attente de l'employeur : ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
     ...retard.map(f => ['e', 'alert', `Facture ${f.numero} en retard`, `${f.client_nom} · ${eur(f.montant_ttc)} TTC${f.nb_relances ? ` · ${f.nb_relances} relance(s)` : ''}`, 'facturation']),
     ...(kSig.length ? [['w', 'edit', `${kSig.length} contrat${kSig.length > 1 ? 's' : ''} de mission en attente de signature`, 'Relancez l\'intérimaire ou l\'employeur si besoin', 'contrats']] : []),
-    ...pNouv.map(x => ['n', 'target', `Nouveau contact : ${x.etablissement}`, `Formulaire du site · ${x.repondant || ''}`, 'prospects']),
+
     ...pRel.map(x => ['w', 'target', `Prospect à relancer : ${x.etablissement}`, `Relance prévue le ${fdate(x.date_relance, 'num')}`, 'prospects']),
-    ...cNouv.map(x => ['n', 'idcard', `Nouvelle candidature : ${x.prenom} ${x.nom}`, `${x.poste || 'Poste non précisé'}${x.ville ? ' · ' + x.ville : ''}`, 'candidats']),
+
     ...cRel.map(x => ['w', 'idcard', `Candidat à rappeler : ${x.prenom} ${x.nom}`, `Rappel prévu le ${fdate(x.date_relance, 'num')}`, 'candidats']),
     ...(hAttente.length ? [['w', 'clock', `${hAttente.length} relevé${hAttente.length > 1 ? 's' : ''} d'heures à finaliser`, 'Confirmation intérimaire ou validation employeur manquante', 'heures']] : []),
   ];
@@ -637,6 +640,9 @@ V.agence.accueil = async () => {
     ${kpi('Heures à finaliser', 'clock', hAttente.length, 'Missions terminées')}${kpi('Encours clients TTC', 'receipt', eur(du.reduce((a, f) => a + f.montant_ttc, 0)), retard.length ? `${retard.length} en retard` : 'Aucun retard', retard.length ? 'down' : '')}</div>
     <div class="grid-main">${panel('Missions en cours', btn('Toutes les missions', 'chev', 'data-a="nav" data-v="missions"', 'sm'), enCours.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Client</th><th>Poste</th><th>Statut</th><th></th></tr></thead><tbody>
       ${enCours.map(m => `<tr><td>${fdate(m.date)}${iconeCeSoir(m)}</td><td>${esc(m.client_nom)}</td><td>${m.nb_postes} × ${esc(m.poste)}</td><td>${badge(...missionStatut(m))}</td><td class="r">${m.statut === 'nouvelle' ? btn('Diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary') : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune mission en cours.'))}
+    ${panel('Candidatures à analyser', cNouv.length + pNouv.length ? badge('danger', cNouv.length + pNouv.length) : '', cNouv.length + pNouv.length ? `<div class="list">${[
+      ...cNouv.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:180px"><b>${esc(x.prenom)} ${esc(x.nom)}</b> ${badge('pris', 'Intérimaire')}<div class="small muted">${esc(x.poste || 'Poste non précisé')}${x.ville ? ' · ' + esc(x.ville) : ''} · reçue le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div><div class="row">${btn('Voir', '', `data-a="candidat" data-id="${x.id}"`, 'sm ghost')}${boutonsDecision('candidat', x)}</div></div>`),
+      ...pNouv.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:180px"><b>${esc(x.etablissement)}</b> ${badge('attente', 'Client')}<div class="small muted">${esc(x.repondant || '')}${x.type_etab ? ' · ' + esc(x.type_etab) : ''} · reçue le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div><div class="row">${btn('Voir', '', `data-a="prospect" data-id="${x.id}"`, 'sm ghost')}${boutonsDecision('prospect', x)}</div></div>`)].join('')}</div>` : empty('Aucune candidature en attente.'))}
     ${panel('À traiter', tasks.length ? badge('danger', tasks.length) : '', tasks.length ? tasks.map(([c, i, t, d, v]) => `<div class="task"><div class="ic ${c}">${ic(i)}</div><div><b>${esc(t)}</b><div class="small muted">${esc(d)}</div></div><button class="btn sm ghost" data-a="nav" data-v="${v}" aria-label="Ouvrir">${ic('chev')}</button></div>`).join('') : empty('Rien à traiter.'))}</div>`;
 };
 
@@ -677,11 +683,11 @@ V.agence.planning = async () => {
 V.agence.interimaires = async () => {
   const L = await GET('/interimaires');
   const s = L.find(i => i.id === S.p.isel) || L[0];
-  const [xp, dos, ks, types] = s ? await Promise.all([GET(`/interimaires/${s.id}/experiences`), GET(`/interimaires/${s.id}/pieces`), GET('/contrats?interim_id=' + s.id), piecesTypes()]) : [];
+  const [xp, dos, ks, types, av] = s ? await Promise.all([GET(`/interimaires/${s.id}/experiences`), GET(`/interimaires/${s.id}/pieces`), GET('/contrats?interim_id=' + s.id), piecesTypes(), GET('/avis?interim_id=' + s.id)]) : [];
   return head('Intérimaires', 'Fiches candidats, dossier administratif, contrats et accès à l\'espace intérimaire.', btn('Nouvel intérimaire', 'plus', 'data-a="interimform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun intérimaire. Créez la première fiche.')) :
       `<div class="grid-main side">
-      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
+      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}${alerteNote(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
       <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}${gestionProfil('interimaires', s)}</div></div>
       <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
       <dt>Naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}${s.lieu_naissance ? ' à ' + esc(s.lieu_naissance) : ''}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
@@ -689,20 +695,20 @@ V.agence.interimaires = async () => {
       <dt>Taux horaire brut</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>
       <dt>Dossier administratif</dt><dd>${s.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd><dt>Note moyenne</dt><dd>${stars(s.note)}</dd></dl>
       ${accessBox('interim', s.id, s.acces)}</div></section>
-      ${piecesPanel(s.id, dos, types)}${experiencesPanel(s.id, xp)}${panel('Contrats de mission', '', contratsPanel(ks))}</div></div>`);
+      ${avisPanel(av, 'interim')}${piecesPanel(s.id, dos, types)}${experiencesPanel(s.id, xp)}${panel('Contrats de mission', '', contratsPanel(ks))}</div></div>`);
 };
 V.agence.clients = async () => {
   const L = await GET('/clients');
   const s = L.find(c => c.id === S.p.csel) || L[0];
-  const [docs, cc] = s ? await Promise.all([GET('/documents?client_id=' + s.id), GET('/contrats-clients?client_id=' + s.id)]) : [[], null];
+  const [docs, cc, av] = s ? await Promise.all([GET('/documents?client_id=' + s.id), GET('/contrats-clients?client_id=' + s.id), GET('/avis?client_id=' + s.id)]) : [[], null, null];
   return head('Clients', 'Fiches entreprises, conditions, documents et accès à l\'espace employeur.', btn('Nouveau client', 'plus', 'data-a="clientform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun client. Créez la première fiche.')) :
       panel(`${L.length} client${L.length > 1 ? 's' : ''}`, '', `<div class="scroll"><table><thead><tr><th>Client</th><th>Secteur</th><th class="r">Missions</th><th class="r">Pourvues</th><th>Note des intérimaires</th><th>Accès</th></tr></thead><tbody>
-      ${L.map(c => `<tr class="clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0"><td><b>${esc(c.nom)}</b> ${c.suspendu ? badge('off', 'Suspendu') : ''}<div class="small muted">${esc(c.ville || '')}</div></td><td>${esc(c.secteur)}</td><td class="r num">${c.nb_missions}</td><td class="r num">${c.nb_pourvues}</td><td>${stars(c.note)}</td><td>${c.acces ? `<span class="mono">${esc(c.acces)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>`) +
+      ${L.map(c => `<tr class="clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0"><td><b>${esc(c.nom)}</b> ${c.suspendu ? badge('off', 'Suspendu') : ''}<div class="small muted">${esc(c.ville || '')}</div></td><td>${esc(c.secteur)}</td><td class="r num">${c.nb_missions}</td><td class="r num">${c.nb_pourvues}</td><td>${stars(c.note)}${alerteNote(c.note)}</td><td>${c.acces ? `<span class="mono">${esc(c.acces)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>`) +
       `<div class="grid2"><section class="panel"><div class="panel-h"><h2>${esc(s.nom)}</h2><div class="row">${btn('Modifier', 'edit', `data-a="clientform" data-id="${s.id}"`, 'sm')}${gestionProfil('clients', s)}</div></div><div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}
       <dl class="kv"><dt>SIRET</dt><dd>${esc(s.siret || '—')}</dd><dt>Adresse</dt><dd>${esc([s.adresse, s.ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc(s.contact || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd>
       <dt>Coefficient</dt><dd><b>${num(s.coefficient)}</b> <span class="small muted">${origineCoef(cc)}</span></dd><dt>Paiement</dt><dd>${s.delai_paiement} jours</dd><dt>Convention</dt><dd>${esc(s.convention)}</dd></dl>${accessBox('client', s.id, s.acces)}</div></section>
-      <div style="display:flex;flex-direction:column;gap:18px;min-width:0">${contratsClientPanel(s, cc, 'agence')}${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div></div>`);
+      <div style="display:flex;flex-direction:column;gap:18px;min-width:0">${avisPanel(av, 'client')}${contratsClientPanel(s, cc, 'agence')}${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div></div>`);
 };
 /* ----- Contrat commercial de l'entreprise : coefficient et délai de paiement ----- */
 const CC_ETAT = { a_signer: ['attente', 'En attente de signature'], signe: ['libre', 'Signé · en vigueur'], remplace: ['off', 'Remplacé'], annule: ['off', 'Annulé'] };
@@ -1005,9 +1011,13 @@ V.interim.heures = async () => {
   const hs = await GET('/heures');
   return head('Mes heures', 'Vos horaires sont ceux prévus par l\'employeur. Si vous avez fait des heures en plus, déclarez-les avec une justification : elles sont payées après accord de l\'employeur.') +
     panel(null, '', hs.length ? hs.map(h => `<div class="shift"><div class="time"><b>${h.debut}</b>${h.fin}</div><div><b>${esc(h.client_nom)}</b><div class="small muted">${fdate(h.date)} · ${esc(h.poste)} · ${num(h.heures_prevues)} h prévues${h.extra ? ` · +${num(h.extra)} h déclarées` : ''}</div>
-    ${h.ouvert && !h.valide_interim ? `<form data-f="confirmer" data-id="${h.id}" style="margin-top:8px;display:flex;flex-direction:column;gap:8px"><label class="check"><input type="checkbox" name="avec_extra" data-a="toggleextra"> J'ai fait des heures en plus</label>
+    ${h.ouvert && !h.valide_interim ? `<form data-f="confirmer" data-id="${h.id}" style="margin-top:8px;display:flex;flex-direction:column;gap:10px"><label class="check"><input type="checkbox" name="avec_extra" data-a="toggleextra"> J'ai fait des heures en plus</label>
       <div class="extra" hidden><label class="f">Heures supplémentaires<input type="number" name="extra" step="0.25" min="0.25" max="8" value="1"></label><label class="f full">Justification<textarea name="justification" maxlength="500"></textarea></label></div>
-      <div><button class="btn primary sm" type="submit">${ic('check')}Confirmer mes heures</button></div></form>` : ''}
+      <div class="note-etab"><div class="small" style="font-weight:600">Notez l'établissement <span class="req">*</span> <span class="muted" style="font-weight:400">· votre avis aide l'agence à évaluer sa fiabilité</span></div>
+        <div class="rate" data-rate>${[1, 2, 3, 4, 5].map(n => `<button type="button" data-a="star" data-n="${n}" aria-label="${n} étoile${n > 1 ? 's' : ''}">★</button>`).join('')}</div><input type="hidden" name="note">
+        <div class="small muted">Un point à signaler ? (facultatif)</div><div class="choix">${(S.cfg?.points_etab || []).map(x => `<label><input type="checkbox" name="points" value="${esc(x)}"><span>${esc(x)}</span></label>`).join('')}</div>
+        <label class="f">Commentaire (facultatif)<input type="text" name="commentaire" maxlength="1000"></label></div>
+      <div class="err" hidden></div><div><button class="btn primary sm" type="submit">${ic('check')}Confirmer mes heures et envoyer ma note</button></div></form>` : ''}
     ${h.valide_interim && !h.note_interim ? rateForm(h.id, false) : h.note_interim ? `<div class="row small" style="margin-top:6px">Votre note pour l'établissement : ${stars(h.note_interim)}</div>` : ''}</div>
     <div class="row">${!h.ouvert ? badge('off', 'Mission à venir') : !h.valide_interim ? badge('attente', 'À confirmer') : h.extra_statut === 'attente' ? badge('attente', 'Extra en attente de l\'employeur') : h.valide_client ? badge('libre', 'Validé') : badge('pris', 'Confirmé, attente employeur')}</div></div>`).join('') : empty('Aucune mission confirmée pour le moment.'));
 };
@@ -1110,21 +1120,21 @@ function contactMerci() {
     <a class="btn" href="/">Retour à l'accueil</a></div>`;
 }
 
-const P_ST = { nouveau: ['pris', 'Nouveau'], a_relancer: ['attente', 'À relancer'], en_discussion: ['pris', 'En discussion'], client: ['libre', 'Client'], perdu: ['off', 'Sans suite'] };
+const P_ST = { nouveau: ['danger', 'À analyser'], a_relancer: ['attente', 'À relancer'], en_discussion: ['libre', 'Acceptée · RDV'], client: ['libre', 'Client'], perdu: ['off', 'Refusée'] };
 V.agence.prospects = async () => {
   const L = await GET('/prospects'), t = S.cfg?.aujourdhui || '';
-  const f = S.p.pf || 'actifs', vis = L.filter(x => f === 'tous' || (f === 'actifs' ? !['client', 'perdu'].includes(x.statut) : x.statut === f));
+  const f = S.p.pf || 'nouveau', vis = L.filter(x => f === 'tous' || (f === 'actifs' ? !['client', 'perdu'].includes(x.statut) : x.statut === f));
   const dus = L.filter(x => x.date_relance && x.date_relance <= t && !['client', 'perdu'].includes(x.statut)).length;
-  return head('Prospects', 'Établissements intéressés par des renforts : demandes reçues par la page publique <a class="link" href="/contact" target="_blank" rel="noopener">/contact</a> et visites terrain. Fixez une date de relance, puis transformez le prospect en client.', btn('Nouvelle visite terrain', 'plus', 'data-a="visite"', 'primary')) +
+  return head('Candidatures clients', 'Établissements qui demandent des renforts (page publique <a class="link" href="/contact" target="_blank" rel="noopener">/contact</a>) et visites terrain. Acceptez (e-mail de proposition de rendez-vous sous 48 h) ou refusez (e-mail de refus), puis créez la fiche client.', btn('Nouvelle visite terrain', 'plus', 'data-a="visite"', 'primary')) +
     `<div class="kpis">${kpi('Prospects actifs', 'target', L.filter(x => !['client', 'perdu'].includes(x.statut)).length)}${kpi('À relancer aujourd\'hui', 'clock', dus, dus ? 'Relances en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Demandes du site', 'send', L.filter(x => x.source === 'site').length)}${kpi('Devenus clients', 'building', L.filter(x => x.statut === 'client').length)}</div>` +
-    panel(null, `<div class="seg">${[['actifs', 'Actifs'], ['a_relancer', 'À relancer'], ['client', 'Clients'], ['perdu', 'Sans suite'], ['tous', 'Tous']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="pfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
-      vis.length ? `<div class="scroll"><table><thead><tr><th>Établissement</th><th>Contact</th><th>Besoins</th><th>Source</th><th>Relance</th><th>Statut</th></tr></thead><tbody>
+    panel(null, `<div class="seg">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_relancer', 'À relancer'], ['en_discussion', 'Rendez-vous'], ['actifs', 'En cours'], ['client', 'Clients'], ['perdu', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="pfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
+      vis.length ? `<div class="scroll"><table><thead><tr><th>Établissement</th><th>Contact</th><th>Besoins</th><th>Source</th><th>Relance</th><th>Statut</th><th></th></tr></thead><tbody>
       ${vis.map(x => `<tr class="clickable" data-a="prospect" data-id="${x.id}" tabindex="0"><td><b>${esc(x.etablissement)}</b><div class="small muted">${esc(x.type_etab || '')}${x.adresse ? ' · ' + esc(x.adresse) : ''}</div></td>
         <td>${esc(x.repondant || '—')}<div class="small muted">${esc([x.telephone, x.email].filter(Boolean).join(' · '))}</div></td>
         <td class="small">${esc(x.reponses.frequence || '—')}${x.reponses.postes ? `<div class="muted">${esc(x.reponses.postes.join(', '))}</div>` : ''}</td>
         <td>${x.source === 'site' ? badge('pris', 'Site') : badge('off', 'Visite')}<div class="small muted">${fdate((x.date_visite || x.created_at).slice(0, 10), 'num')}</div></td>
         <td>${x.date_relance ? (x.date_relance <= t && !['client', 'perdu'].includes(x.statut) ? badge('danger', fdate(x.date_relance, 'num')) : fdate(x.date_relance, 'num')) : '<span class="muted">—</span>'}</td>
-        <td>${badge(...P_ST[x.statut])}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucun prospect dans cette liste.'));
+        <td>${badge(...P_ST[x.statut])}${decisionInfo(x)}</td><td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${boutonsDecision('prospect', x)}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune candidature dans cette liste.'));
 };
 async function prospectModal(id) {
   const [L, d] = await Promise.all([GET('/prospects'), GET('/public/questionnaire')]);
@@ -1137,7 +1147,8 @@ async function prospectModal(id) {
       <label class="f">Statut<select name="statut">${Object.entries(P_ST).map(([k, [, l]]) => `<option value="${k}" ${k === x.statut ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="f">Date de relance / prochain contact<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
       <label class="f full">Notes de l'agence<textarea name="notes_agence" maxlength="3000">${esc(x.notes_agence || '')}</textarea></label>
-      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${x.client_id ? badge('libre', 'Fiche client créée') : btn('Créer la fiche client', 'building', `data-a="pclient" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="pdel" data-id="${x.id}"`, 'sm danger')}</div>
+      ${decisionInfo(x) ? `<div class="full">${decisionInfo(x)}</div>` : ''}
+      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('prospect', x)}${x.client_id ? badge('libre', 'Fiche client créée') : btn('Créer la fiche client', 'building', `data-a="pclient" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="pdel" data-id="${x.id}"`, 'sm danger')}</div>
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
 }
 async function visiteModal() {
@@ -1152,21 +1163,21 @@ async function visiteModal() {
     <div class="err" hidden></div></div>${modalFoot('Enregistrer la visite', 'type="submit"')}</form>`);
 }
 
-const C_ST = { nouveau: ['pris', 'Nouvelle'], a_rappeler: ['attente', 'À rappeler'], entretien: ['pris', 'Entretien prévu'], inscrit: ['libre', 'Inscrit(e)'], refuse: ['off', 'Sans suite'] };
+const C_ST = { nouveau: ['danger', 'À analyser'], a_rappeler: ['attente', 'À rappeler'], entretien: ['libre', 'Acceptée · RDV'], inscrit: ['libre', 'Inscrit(e)'], refuse: ['off', 'Sans suite'] };
 V.agence.candidats = async () => {
   const L = await GET('/candidats'), t = S.cfg?.aujourdhui || '';
-  const f = S.p.cf || 'actifs', vis = L.filter(x => f === 'tous' || (f === 'actifs' ? !['inscrit', 'refuse'].includes(x.statut) : x.statut === f));
+  const f = S.p.cf || 'nouveau', vis = L.filter(x => f === 'tous' || (f === 'actifs' ? !['inscrit', 'refuse'].includes(x.statut) : x.statut === f));
   const dus = L.filter(x => x.date_relance && x.date_relance <= t && !['inscrit', 'refuse'].includes(x.statut)).length;
-  return head('Candidatures', 'Personnes qui souhaitent travailler en intérim, reçues par la page publique <a class="link" href="/candidature" target="_blank" rel="noopener">/candidature</a>. Fixez une date de rappel, puis créez la fiche intérimaire.') +
+  return head('Candidatures intérimaires', 'Candidatures reçues par la page publique <a class="link" href="/candidature" target="_blank" rel="noopener">/candidature</a>. Acceptez-les (e-mail de demande de rendez-vous sous 48 h) ou refusez-les (e-mail de refus), puis créez la fiche intérimaire.') +
     `<div class="kpis">${kpi('Candidatures actives', 'idcard', L.filter(x => !['inscrit', 'refuse'].includes(x.statut)).length)}${kpi('À rappeler aujourd\'hui', 'clock', dus, dus ? 'Rappels en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Nouvelles', 'send', L.filter(x => x.statut === 'nouveau').length)}${kpi('Inscrits', 'users', L.filter(x => x.statut === 'inscrit').length)}</div>` +
-    panel(null, `<div class="seg">${[['actifs', 'Actives'], ['a_rappeler', 'À rappeler'], ['entretien', 'Entretien'], ['inscrit', 'Inscrits'], ['refuse', 'Sans suite'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
-      vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th></tr></thead><tbody>
+    panel(null, `<div class="seg">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_rappeler', 'À rappeler'], ['entretien', 'Rendez-vous'], ['actifs', 'En cours'], ['inscrit', 'Inscrits'], ['refuse', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
+      vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th><th></th></tr></thead><tbody>
       ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0"><td><b>${esc(x.prenom)} ${esc(x.nom)}</b><div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div></td>
         <td class="small"><b>${esc(x.poste || '—')}</b>${x.reponses.experience ? `<div class="muted">${esc(x.reponses.experience)}</div>` : ''}</td>
         <td class="small">${esc((x.reponses.creneaux || []).join(', ') || '—')}${x.reponses.type_mission ? `<div class="muted">${esc(x.reponses.type_mission)}</div>` : ''}</td>
         <td>${fdate(x.created_at.slice(0, 10), 'num')}${x.cv_fichier ? `<div class="small muted">${ic('file', 'style="width:12px;height:12px;vertical-align:-2px"')} CV joint</div>` : ''}</td>
         <td>${x.date_relance ? (x.date_relance <= t && !['inscrit', 'refuse'].includes(x.statut) ? badge('danger', fdate(x.date_relance, 'num')) : fdate(x.date_relance, 'num')) : '<span class="muted">—</span>'}</td>
-        <td>${badge(...C_ST[x.statut])}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune candidature dans cette liste.'));
+        <td>${badge(...C_ST[x.statut])}${decisionInfo(x)}</td><td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${boutonsDecision('candidat', x)}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune candidature dans cette liste.'));
 };
 async function candidatModal(id) {
   const [L, d] = await Promise.all([GET('/candidats'), GET('/public/candidature')]);
@@ -1179,7 +1190,8 @@ async function candidatModal(id) {
       <label class="f">Statut<select name="statut">${Object.entries(C_ST).map(([k, [, l]]) => `<option value="${k}" ${k === x.statut ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="f">Date de rappel / d'entretien<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
       <label class="f full">Notes de l'agence<textarea name="notes_agence" maxlength="3000">${esc(x.notes_agence || '')}</textarea></label>
-      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${x.interim_id ? badge('libre', 'Fiche intérimaire créée') : btn('Créer la fiche intérimaire', 'users', `data-a="cinterim" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="cdel" data-id="${x.id}"`, 'sm danger')}</div>
+      ${decisionInfo(x) ? `<div class="full">${decisionInfo(x)}</div>` : ''}
+      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('candidat', x)}${x.interim_id ? badge('libre', 'Fiche intérimaire créée') : btn('Créer la fiche intérimaire', 'users', `data-a="cinterim" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="cdel" data-id="${x.id}"`, 'sm danger')}</div>
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
 }
 
@@ -1249,7 +1261,12 @@ V.agence.stats = async () => {
     ${tuile('Prospects actifs', 'target', k.prospects_actifs, num)}${tuile('Candidatures du mois', 'idcard', k.candidatures_mois, num)}</div>
     <div class="grid2">${histogramme('Chiffre d\'affaires HT', d.series.ca_ht, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
     <div class="grid2">${histogramme('Missions (hors annulées)', d.series.missions, num)}${classement('Meilleurs clients de l\'année (CA HT)', d.tops.clients, eur0, 'Aucune heure facturable cette année.')}</div>
-    ${classement('Postes les plus demandés (6 mois, en postes)', d.tops.postes, num, 'Aucune mission.')}`;
+    ${classement('Postes les plus demandés (6 mois, en postes)', d.tops.postes, num, 'Aucune mission.')}
+    <h2 class="stats-titre">${ic('star')}Notes et fiabilité</h2>
+    <div class="kpis">${tuile('Note moyenne des intérimaires', 'star', d.notes.interimaires.moyenne, v => num(v) + ' / 5', undefined, `${d.notes.interimaires.nombre} avis des employeurs`)}${tuile('Note moyenne des établissements', 'building', d.notes.clients.moyenne, v => num(v) + ' / 5', undefined, `${d.notes.clients.nombre} avis des intérimaires (fiabilité)`)}
+    ${kpi('Notes basses du mois', 'alert', d.notes.basses_mois, 'Avis à 2 étoiles ou moins', d.notes.basses_mois ? 'down' : '')}${kpi('Notes basses au total', 'alert', d.notes.interimaires.basses + d.notes.clients.basses, `${d.notes.interimaires.basses} intérimaire(s) · ${d.notes.clients.basses} établissement(s)`, d.notes.interimaires.basses + d.notes.clients.basses ? 'down' : '')}</div>
+    <div class="grid2">${classement('Répartition des notes des intérimaires', d.notes.interimaires.repartition, num, 'Aucun avis.')}${classement('Répartition des notes des établissements', d.notes.clients.repartition, num, 'Aucun avis.')}</div>
+    <div class="grid2">${classement('Intérimaires les moins bien notés', d.notes.interimaires_bas, v => num(v) + ' / 5', 'Aucun avis.')}${classement('Établissements les moins bien notés', d.notes.clients_bas, v => num(v) + ' / 5', 'Aucun avis.')}</div>`;
 };
 V.client.stats = async () => {
   const d = await GET('/stats'), k = d.cles;
@@ -1259,7 +1276,9 @@ V.client.stats = async () => {
     <div class="kpis">${tuile('Missions de l\'année', 'briefcase', k.missions_an, num, undefined, `${k.missions_mois} ce mois-ci · ${k.annulations_an} annulée(s)`)}${tuile('Taux de pourvoi', 'check', k.taux_pourvoi, pct, undefined, 'Missions pourvues sur missions diffusées')}
     ${tuile('Intérimaires venus', 'users', k.interimaires_differents, num, undefined, `${k.interimaires_fideles} revenu(s) au moins 2 fois`)}${tuile('Note moyenne donnée', 'star', k.note_donnee, v => num(v) + ' / 5', undefined, k.note_recue ? `Note reçue des intérimaires : ${num(k.note_recue)} / 5` : 'Aucune note reçue pour l\'instant')}</div>
     <div class="grid2">${histogramme('Dépenses HT', d.series.depenses_ht, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
-    ${classement('Vos postes les plus demandés (année, en postes)', d.tops.postes, num, 'Aucune mission cette année.')}`;
+    ${classement('Vos postes les plus demandés (année, en postes)', d.tops.postes, num, 'Aucune mission cette année.')}
+    <h2 class="stats-titre">${ic('star')}Notes</h2>
+    <div class="grid2">${classement(`Notes reçues des intérimaires${d.notes.recues.moyenne ? ` · moyenne ${num(d.notes.recues.moyenne)} / 5` : ''}`, d.notes.recues.repartition, num, 'Aucun avis reçu.')}${classement(`Notes que vous avez données${d.notes.donnees.moyenne ? ` · moyenne ${num(d.notes.donnees.moyenne)} / 5` : ''}`, d.notes.donnees.repartition, num, 'Aucune note donnée.')}</div>`;
 };
 V.interim.stats = async () => {
   const d = await GET('/stats'), k = d.cles;
@@ -1269,8 +1288,41 @@ V.interim.stats = async () => {
     <div class="kpis">${tuile('Missions réalisées', 'briefcase', k.missions_an, num, undefined, `${k.missions_mois} ce mois-ci · ${k.missions_a_venir} à venir`)}${tuile('Établissements', 'building', k.etablissements, num, undefined, 'Différents cette année')}
     ${tuile('Taux d\'acceptation', 'check', k.taux_acceptation, pct, undefined, `Missions acceptées sur missions proposées${k.desistements ? ` · ${k.desistements} désistement(s)` : ''}`)}${tuile('Note moyenne', 'star', k.note, v => num(v) + ' / 5', undefined, 'Avis des employeurs')}</div>
     <div class="grid2">${histogramme('Gains bruts', d.series.gains_brut, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
-    ${classement('Mes postes (heures de l\'année)', d.tops.postes, fmtH, 'Aucune heure validée cette année.')}`;
+    <div class="grid2">${classement('Mes postes (heures de l\'année)', d.tops.postes, fmtH, 'Aucune heure validée cette année.')}${classement(`Mes notes${d.notes.recues.moyenne ? ` · moyenne ${num(d.notes.recues.moyenne)} / 5` : ''}`, d.notes.recues.repartition, num, 'Aucun avis reçu.')}</div>`;
 };
+
+/* ---------------- Avis : note globale, dernier avis, alerte note basse ---------------- */
+const noteBasse = n => n !== null && n !== undefined && n < 3;
+const alerteNote = n => noteBasse(n) ? `<span class="alerte-note" title="Note moyenne basse">${ic('alert')}${num(n)}</span>` : '';
+function avisPanel(A, titre) {
+  const bas = noteBasse(A.moyenne) || A.basses;
+  const ligne = a => `<div class="avis-l"><div class="row" style="justify-content:space-between;gap:8px"><b>${stars(a.note)} <span class="small">${a.note}/5</span></b><span class="small muted">${fdate(a.date, 'num')} · ${esc(a.poste)}</span></div>
+    <div class="small muted">${esc(titre === 'client' ? `${a.prenom} ${a.interim_nom}` : a.client_nom)}</div>${a.axe ? `<div class="small" style="color:var(--danger-fg)">${esc(a.axe)}</div>` : ''}${a.commentaire ? `<div class="small">« ${esc(a.commentaire)} »</div>` : ''}</div>`;
+  const max = Math.max(...A.repartition.map(r => r.nombre), 1);
+  return panel(titre === 'client' ? 'Avis des intérimaires' : 'Avis des employeurs', A.nombre ? `<span class="row" style="gap:6px">${stars(A.moyenne)}<b class="num">${num(A.moyenne)}</b><span class="small muted">/ 5 · ${A.nombre} avis</span></span>` : '',
+    !A.nombre ? empty('Aucun avis pour le moment.') : `<div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+      ${bas ? `<div class="alerte-bloc">${ic('alert')}<div><b>Alerte note basse</b><div class="small">${noteBasse(A.moyenne) ? `Moyenne de ${num(A.moyenne)} / 5. ` : ''}${A.basses ? `${A.basses} avis à 2 étoiles ou moins.` : ''} ${titre === 'client' ? 'Vérifiez la fiabilité de l\'établissement avant de nouvelles missions.' : 'Faites un point avec l\'intérimaire.'}</div></div></div>` : ''}
+      <div class="repartition">${A.repartition.map(r => `<div class="rep-l"><span>${r.note} ★</span><span class="cl-b"><span style="width:${r.nombre / max * 100}%;${r.note <= 2 ? 'background:var(--danger-dot)' : ''}"></span></span><span class="num small">${r.nombre}</span></div>`).join('')}</div>
+      <div><div class="small muted" style="margin-bottom:4px;font-weight:600">Dernier avis</div>${ligne(A.avis[0])}</div>
+      ${A.avis.length > 1 ? `<details class="avis-tous"><summary>Voir tous les avis (${A.avis.length})</summary><div style="display:flex;flex-direction:column;gap:8px;margin-top:8px">${A.avis.slice(1).map(ligne).join('')}</div></details>` : ''}</div>`);
+}
+
+/* ---------------- Candidatures : accepter (rendez-vous sous 48 h) ou refuser, avec message ---------------- */
+async function decisionModal(type, id, decision) {
+  const url = type === 'candidat' ? `/candidats/${id}` : `/prospects/${id}`;
+  const m = await GET(`${url}/modele?decision=${decision}`), ok = decision === 'acceptee';
+  const dest = m.email ? `par e-mail à ${esc(m.email)}` : m.telephone ? `par SMS au ${esc(m.telephone)} (pas d'e-mail)` : 'aucun e-mail ni téléphone : la décision est seulement enregistrée';
+  const n = new Date(), min = new Date(n.getTime() + 3600e3), max = new Date(n.getTime() + 48 * 3600e3), loc = d => new Date(d.getTime() - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
+  openModal(`${modalHead(ic(ok ? 'check' : 'ban') + (ok ? 'Accepter la candidature' : 'Refuser la candidature'), `Envoi ${dest}`)}<form data-f="decision" data-url="${url}" data-d="${decision}" data-type="${type}"><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    ${ok ? `<label class="f">Proposer un créneau de rendez-vous (facultatif, dans les 48 h)<input type="datetime-local" name="rdv" min="${loc(min)}" max="${loc(max)}" data-rdv></label><p class="hint">Sans créneau, le message demande ses disponibilités. Une date de rappel est fixée à 48 h.</p>` : ''}
+    <label class="f">Objet<input type="text" name="sujet" value="${esc(m.sujet)}" maxlength="200" required></label>
+    <label class="f">Message (modifiable)<textarea name="texte" rows="12" maxlength="4000" required data-texte>${esc(m.texte)}</textarea></label>
+    <div class="err" hidden></div></div>
+    <div class="panel-f" style="justify-content:flex-end">${btn('Retour', '', 'data-a="close"')}<button class="btn primary" type="submit"${ok ? '' : ' style="background:var(--danger-dot);border-color:var(--danger-dot)"'}>${ic('send')}${ok ? 'Accepter et envoyer' : 'Refuser et envoyer'}</button></div></form>`);
+}
+const boutonsDecision = (type, x) => ['nouveau', 'a_rappeler', 'a_relancer'].includes(x.statut)
+  ? btn('Accepter', 'check', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="acceptee"`, 'sm primary') + btn('Refuser', 'ban', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="refusee"`, 'sm danger') : '';
+const decisionInfo = x => x.decision ? `<div class="small ${x.decision === 'refusee' ? 'muted' : ''}" style="margin-top:2px">${x.decision === 'acceptee' ? `${ic('check', 'style="width:12px;height:12px;vertical-align:-2px"')} Acceptée le ${fdate(x.decision_le.slice(0, 10), 'num')}${x.rdv_propose ? ` · RDV proposé ${new Date(x.rdv_propose).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : ' · RDV sous 48 h demandé'}` : `Refusée le ${fdate(x.decision_le.slice(0, 10), 'num')}`}</div>` : '';
 
 /* ---------------- Formulaires en fenêtre ---------------- */
 async function missionForm() {
@@ -1431,6 +1483,7 @@ const A = {
   prospect: el => act(() => prospectModal(Number(el.dataset.id)), el),
   visite: () => visiteModal(),
   pfiltre: el => go('prospects', { pf: el.dataset.f }),
+  decider: (el, e) => { e.stopPropagation(); act(() => decisionModal(el.dataset.t, Number(el.dataset.id), el.dataset.d), el); },
   cfiltre: el => go('candidats', { cf: el.dataset.f }),
   contactonglet: el => renderContact(el.dataset.o),
   candidat: el => act(() => candidatModal(Number(el.dataset.id)), el),
@@ -1543,6 +1596,14 @@ const F = {
     if (r.conflits.length) return indispoConflits(r.conflits, motif);
     toast(`Indisponibilité enregistrée (${r.jours} jour${r.jours > 1 ? 's' : ''}). L'agence est prévenue.`); reload();
   }),
+  decision: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    let r; try { r = await POST(`${f.dataset.url}/decision`, { decision: f.dataset.d, rdv: fd.get('rdv') || null, sujet: fd.get('sujet'), texte: fd.get('texte') }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    closeModal();
+    const e = r.envois[0], canal = e ? (e.canal === 'mail' ? 'E-mail' : 'SMS') : '';
+    toast(`${r.decision === 'acceptee' ? 'Candidature acceptée' : 'Candidature refusée'}. ${e ? (e.statut === 'envoye' ? `${canal} envoyé.` : e.statut === 'simule' ? `${canal} simulé (messagerie non configurée, voir le journal).` : `${canal} non envoyé : ${e.detail}`) : 'Aucun moyen de contact : décision enregistrée.'}`, e && e.statut === 'echec');
+    reload();
+  }),
   csuivi: (fd, f) => act(async () => { await PUT(`/candidats/${f.dataset.id}`, Object.fromEntries(fd)); closeModal(); toast('Suivi enregistré'); reload(); }),
   candidature: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;
@@ -1564,7 +1625,12 @@ const F = {
   demande: fd => act(async () => { await POST('/missions', Object.fromEntries(fd)); toast('Demande envoyée. L\'agence va la valider et la diffuser.'); reload(); }),
   jour: fd => { S.p.jd = fd.get('date'); reload(); },
   evaluer: (fd, f) => act(async () => { if (!fd.get('note')) throw new Error('Choisissez une note de 1 à 5 étoiles.'); await POST(`/heures/${f.dataset.id}/evaluer`, Object.fromEntries(fd)); toast('Note enregistrée'); reload(); }),
-  confirmer: (fd, f) => act(async () => { const x = fd.has('avec_extra'); await POST(`/heures/${f.dataset.id}/confirmer`, x ? { extra: Number(fd.get('extra')), justification: fd.get('justification') } : {}); toast(x ? 'Heures envoyées. L\'employeur doit accepter les heures en plus.' : 'Heures confirmées'); reload(); }),
+  confirmer: (fd, f) => act(async () => {
+    const x = fd.has('avec_extra'), err = f.querySelector('.err'); if (err) err.hidden = true;
+    const b = { ...(x ? { extra: Number(fd.get('extra')), justification: fd.get('justification') } : {}), note: Number(fd.get('note')) || undefined, points: fd.getAll('points'), commentaire: fd.get('commentaire') || '' };
+    try { await POST(`/heures/${f.dataset.id}/confirmer`, b); } catch (e) { if (err) { err.textContent = e.message; err.hidden = false; return; } throw e; }
+    toast(x ? 'Heures et note envoyées. L\'employeur doit accepter les heures en plus.' : 'Heures confirmées, merci pour votre note.'); reload();
+  }),
   noteprivee: (fd, f) => act(async () => { await PUT(`/notes-privees/${f.dataset.id}`, { texte: fd.get('texte') }); toast('Note privée enregistrée'); }),
   hedit: (fd, f) => act(async () => { await PUT(`/heures/${f.dataset.id}`, { heures_prevues: Number(fd.get('h')) }); closeModal(); toast('Heures corrigées'); reload(); }),
   facturer: fd => act(async () => { const r = await POST('/factures/generer', Object.fromEntries(fd)); toast(r.creees.length ? `${r.creees.length} facture(s) créée(s) : ${r.creees.join(', ')}` : 'Aucune heure validée à facturer sur cette période.'); reload(); }),
@@ -1590,6 +1656,12 @@ document.addEventListener('input', e => {
   }
 });
 document.addEventListener('input', e => { if (e.target.matches?.('[data-coef-saisie]')) margeCoef(); });
+// Créneau de rendez-vous choisi : le message proposé est mis à jour
+document.addEventListener('change', async e => {
+  if (!e.target.matches?.('[data-rdv]')) return;
+  const f = e.target.form, m = await GET(`${f.dataset.url}/modele?decision=${f.dataset.d}&rdv=${encodeURIComponent(e.target.value)}`).catch(() => null);
+  if (m) f.querySelector('[data-texte]').value = m.texte;
+});
 document.addEventListener('change', e => {
   if (e.target.name === 'quand') { const z = e.target.form.querySelector('[data-periode]'); if (z) z.hidden = e.target.value !== 'periode'; }
   // Motif « remplacement » : nom et poste du salarié remplacé (mentions obligatoires)

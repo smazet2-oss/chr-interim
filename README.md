@@ -124,6 +124,21 @@ Une page « Statistiques » dans chaque espace : chiffres clés du mois comparé
 
 Les calculs reposent sur les heures validées par les deux parties (majorations comprises).
 
+### Réponse aux candidatures
+
+Dans **Intérimaires › Candidatures intérimaires** et **Clients › Candidatures clients** (onglet « À analyser » par défaut, badge dans le menu), et directement depuis le panneau « Candidatures à analyser » du tableau de bord :
+
+- **Accepter** : e-mail de demande de rendez-vous sous 48 h (créneau proposé facultatif, date de rappel fixée à 48 h), statut « Acceptée · RDV ».
+- **Refuser** : e-mail informant du refus, statut « Refusée ».
+- Le message proposé est modifiable avant l'envoi ; sans e-mail connu, un SMS est envoyé. Tout est tracé dans le journal des envois.
+
+### Notes et fiabilité
+
+- **L'intérimaire note l'établissement en confirmant ses heures** (obligatoire) : étoiles, points à signaler (horaires non respectés, accueil insuffisant, tâches différentes du poste…) et commentaire. L'employeur note l'intérimaire après validation des heures.
+- **Fiches intérimaire et client** (agence) : note globale, répartition des notes, dernier avis et liste déroulante de tous les avis.
+- **Alerte note basse** : chaque avis à 2 étoiles ou moins prévient l'agence (cloche et tableau de bord) ; une moyenne sous 3 est signalée en rouge dans les listes et sur la fiche.
+- **Statistiques** : notes moyennes des intérimaires et des établissements, répartitions, notes basses du mois, moins bien notés (agence) ; notes reçues et données (employeur, intérimaire).
+
 ### Calendriers et détail d'une journée
 
 Les trois espaces affichent le planning sous forme de **calendrier mensuel standard** (lundi → dimanche, numéro de semaine en colonne de gauche). La **semaine en cours** est repérée par une flèche ▶ et un liseré doré, le jour même par un cadre bleu nuit. Chaque mission apparaît dans sa case (heure, poste, postes pourvus), en couleur selon son état ; sur mobile, les missions deviennent des barres de couleur.

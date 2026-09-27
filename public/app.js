@@ -35,6 +35,10 @@ const P = {
   left: '<path d="m15 18-6-6 6-6"/>',
   alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/>',
   send: '<path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/>',
+  chart: '<path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6" rx="1"/><rect x="12" y="8" width="3" height="10" rx="1"/><rect x="17" y="5" width="3" height="13" rx="1"/>',
+  eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
+  eyeoff: '<path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
+  ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>',
   phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
@@ -75,6 +79,16 @@ function toast(msg, err) {
   t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => (t.hidden = true), err ? 5000 : 3000);
 }
 
+/* ---------------- Afficher le mot de passe pendant la saisie ---------------- */
+function oeilMotDePasse(racine) {
+  racine.querySelectorAll?.('input[type="password"]:not([data-oeil])').forEach(i => {
+    i.dataset.oeil = '1';
+    const w = document.createElement('span'); w.className = 'mdp'; i.replaceWith(w); w.append(i);
+    w.insertAdjacentHTML('beforeend', `<button type="button" class="mdp-oeil" data-a="oeil" aria-label="Afficher le mot de passe" aria-pressed="false" title="Afficher le mot de passe">${ic('eye')}</button>`);
+  });
+}
+new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(n => n.nodeType === 1 && oeilMotDePasse(n)))).observe(document.documentElement, { childList: true, subtree: true });
+
 /* ---------------- API ---------------- */
 async function api(method, url, body) {
   const form = body instanceof FormData;
@@ -95,7 +109,7 @@ const GET = u => api('GET', u), POST = (u, b = {}) => api('POST', u, b), PUT = (
 const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, busy: false };
 const NAV = {
   // Agence : l'essentiel en premier, puis des listes déroulantes ['+', titre, icône, [entrées]] par domaine.
-  agence: [['accueil', 'Tableau de bord', 'dash'], ['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'],
+  agence: [['accueil', 'Tableau de bord', 'dash'], ['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'], ['stats', 'Statistiques', 'chart'],
     ['+', 'Intérimaires', 'users', [['interimaires', 'Fiches intérimaires', 'users'], ['candidats', 'Candidatures', 'idcard'], ['contrats', 'Contrats de mission', 'file'],
       ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star']]],
     ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Prospects', 'target']]],
@@ -103,10 +117,10 @@ const NAV = {
     ['-', 'Administration'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
   // Employeur et intérimaire : par ordre d'importance, l'administratif et le social en dernier. ['-', titre] = intertitre.
   client: [['-', 'Activité'], ['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
-    ['-', 'Suivi'], ['interimaires', 'Intérimaires', 'users'],
+    ['-', 'Suivi'], ['stats', 'Statistiques', 'chart'], ['interimaires', 'Intérimaires', 'users'],
     ['-', 'Administratif et social'], ['documents', 'Documents', 'folder'], ['contrats', 'Contrats de mission', 'edit'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']],
   interim: [['-', 'Activité'], ['accueil', 'Accueil', 'dash'], ['missions', 'Missions proposées', 'send'], ['dispo', 'Mon planning', 'cal'], ['heures', 'Mes heures', 'clock'],
-    ['-', 'Suivi'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star'],
+    ['-', 'Suivi'], ['stats', 'Mes statistiques', 'chart'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star'],
     ['-', 'Administratif et social'], ['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']],
 };
 /** Menu à plat (listes déroulantes dépliées) et groupe d'une rubrique. */
@@ -262,7 +276,7 @@ async function refreshCounts() {
       set('paie', ec.filter(p => p.bloquees.length).length);
       set('documents', dos.manquantes.length);
     }
-    const n = prof === 'agence' ? [] : await GET('/notifications');
+    const n = await GET('/notifications');
     document.querySelectorAll('.bell').forEach(b => { b.innerHTML = ic('bell') + (n.length ? '<span class="dot"></span>' : ''); });
     $('#menu-btn .dot').hidden = ![...document.querySelectorAll('[data-count]')].some(c => !c.hidden);
   } catch { /* compteurs non essentiels */ }
@@ -304,28 +318,30 @@ function missionStatut(m) {
   if (m.actifs >= m.nb_postes) return ['pris', `Complète · ${m.retenus}/${m.nb_postes} confirmé${m.nb_postes > 1 ? 's' : ''} par l'employeur`];
   return ['pris', `Diffusée · ${m.actifs}/${m.nb_postes} acceptation${m.nb_postes > 1 ? 's' : ''}`];
 }
-const REP = { null: ['off', 'Envoyée, sans réponse'], accepte: ['attente', 'A accepté · attente employeur'], retenu: ['libre', 'Retenu'], refuse_client: ['danger', 'Refusé par l\'employeur'], decline: ['off', 'A décliné'], non_retenu: ['off', 'Non retenu'] };
+const REP = { desiste: ['danger', 'S\'est désisté(e)'], null: ['off', 'Envoyée, sans réponse'], accepte: ['attente', 'A accepté · attente employeur'], retenu: ['libre', 'Retenu'], refuse_client: ['danger', 'Refusé par l\'employeur'], decline: ['off', 'A décliné'], non_retenu: ['off', 'Non retenu'] };
 const docLinks = docs => docs.map(d => d.id ? `<a class="link" href="/api/documents/${d.id}/fichier">${esc(d.nom)}</a>` : d.contrat_id ? `<a class="link" href="/api/contrats/${d.contrat_id}/document" target="_blank" rel="noopener">${esc(d.nom)}</a>` : esc(d.nom)).join(' · ');
 
 function missionCard(m, mode) {
   const [sc, sl] = missionStatut(m), locked = m.statut === 'verrouillee';
-  const rows = mode === 'agence' ? m.envois.map(e => ({ id: e.interim_id, nom: e.nom, poste: e.poste, etat: e.etat, canaux: e.canaux, contrat: e.contrat }))
+  const rows = mode === 'agence' ? m.envois.map(e => ({ id: e.interim_id, nom: e.nom, poste: e.poste, etat: e.desistement ? 'desiste' : e.etat, canaux: e.canaux, contrat: e.contrat, desistement: e.desistement }))
     : m.candidats.map(c => ({ id: c.interim_id, nom: `${c.prenom} ${c.nom}`, poste: c.poste, etat: c.etat, note: c.note, comp: c.competences, contrat: c.contrat }));
-  const actions = mode === 'agence' && !locked && m.statut !== 'annulee'
-    ? btn(m.statut === 'nouvelle' ? 'Valider et diffuser' : 'Envoyer à d\'autres', 'send', `data-a="diffuser" data-id="${m.id}"`, m.statut === 'nouvelle' ? 'sm primary' : 'sm') + btn('Annuler', '', `data-a="annuler" data-id="${m.id}"`, 'sm ghost') : '';
+  const nomM = esc(`${m.nb_postes} × ${m.poste} · ${fdate(m.date, 'long')} ${m.debut}–${m.fin}`), futur = m.date >= (S.cfg?.aujourdhui || '');
+  const annulBtn = m.statut !== 'annulee' && (mode === 'agence' || futur) ? btn(mode === 'agence' ? 'Annuler' : 'Annuler la mission', 'ban', `data-a="annuler" data-id="${m.id}" data-n="${nomM}"`, 'sm ghost') : '';
+  const actions = (mode === 'agence' && !locked && m.statut !== 'annulee'
+    ? btn(m.statut === 'nouvelle' ? 'Valider et diffuser' : 'Envoyer à d\'autres', 'send', `data-a="diffuser" data-id="${m.id}"`, m.statut === 'nouvelle' ? 'sm primary' : 'sm') : '') + annulBtn;
   const body = m.statut === 'nouvelle' ? empty(mode === 'agence' ? 'Choisissez les intérimaires et le moyen d\'envoi pour diffuser cette mission.' : 'Votre demande est en cours de validation par l\'agence.')
-    : rows.length ? `<div class="list">${rows.map(r => `<div class="li" style="flex-wrap:wrap"><div class="person"><div class="avatar">${initials(r.nom)}</div><div><b>${esc(r.nom)}</b><span>${esc(r.poste)}${r.canaux ? ' · envoyé par ' + r.canaux.map(c => CANAUX[c]?.[1]).join(', ') : ''}${r.note !== undefined ? ' · ' + stars(r.note) : ''}</span></div></div>
+    : rows.length ? `<div class="list">${rows.map(r => `<div class="li" style="flex-wrap:wrap"><div class="person"><div class="avatar">${initials(r.nom)}</div><div><b>${esc(r.nom)}</b><span>${esc(r.poste)}${r.canaux ? ' · envoyé par ' + r.canaux.map(c => CANAUX[c]?.[1] || 'l\'espace intérimaire').join(', ') : ''}${r.desistement ? ` · motif : ${esc(r.desistement.motif)}` : ''}${r.note !== undefined ? ' · ' + stars(r.note) : ''}</span></div></div>
       <div class="row">${badge(...REP[r.etat ?? 'null'])}${contratMini(r.contrat)}${r.etat === 'accepte' && !locked ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="1"`, 'sm primary') : ''}</div></div>`).join('')}</div>`
       : empty(mode === 'agence' ? 'Aucun intérimaire contacté.' : 'Diffusée. En attente de réponses des intérimaires.');
   return `<section class="panel"><div class="panel-h"><div><h2>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)}${mode === 'agence' ? ` <span class="muted" style="font-weight:400">· ${esc(m.client_nom)}</span>` : ''}</h2>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h</div></div><div class="row">${badge(sc, sl)}${actions}${locked ? ro('Mission verrouillée') : ''}</div></div>
-    ${m.statut !== 'annulee' ? `<div class="panel-b sim-zone">${simBloc(m.simulation, mode)}</div>` : ''}${body}${locked && m.documents?.length ? `<div class="panel-f"><span class="row">${ic('file')}Documents envoyés : ${docLinks(m.documents)}</span></div>` : ''}</section>`;
+    ${m.statut === 'annulee' ? `<div class="panel-b"><div class="extra" style="grid-template-columns:1fr;background:var(--off-bg);border-color:var(--line)"><div class="small"><b>${ic('ban', 'style="width:14px;height:14px;vertical-align:-2px"')} Annulée${m.annulee_par ? ` par ${m.annulee_par === 'client' ? 'l\'employeur' : 'l\'agence'}` : ''}${m.annulee_le ? ` le ${fdate(m.annulee_le.slice(0, 10), 'num')}` : ''}</b>${m.motif_annulation ? ` · ${esc(m.motif_annulation)}` : ''}</div></div></div>` : `<div class="panel-b sim-zone">${simBloc(m.simulation, mode)}</div>`}${body}${locked && m.documents?.length ? `<div class="panel-f"><span class="row">${ic('file')}Documents envoyés : ${docLinks(m.documents)}</span></div>` : ''}</section>`;
 }
 function missionInterim(m) {
   const E = {
     confirmee: badge('libre', 'Mission confirmée'),
     signature: m.contrat?.interim_signe ? badge('attente', 'Contrat signé · attente de l\'employeur') : btn('Signer mon contrat', 'edit', `data-a="signer" data-id="${m.contrat?.id}" data-n="${esc(m.contrat?.numero || '')}"`, 'sm primary'), non_retenu: badge('off', 'Non retenu · mission pourvue'), pourvue: badge('off', 'Mission pourvue'),
-    decline: badge('off', 'Vous avez décliné'), annulee: badge('off', 'Mission annulée'),
+    decline: badge('off', 'Vous avez décliné'), annulee: badge('off', 'Mission annulée'), desiste: badge('off', 'Vous vous êtes désisté(e)'),
     en_attente: `<button class="btn sm" disabled>${ic('clock')}En attente de confirmation</button>`,
     complet: `<button class="btn sm" disabled>${ic('lock')}Complet</button>`,
     a_repondre: btn('Refuser', '', `data-a="repondre" data-id="${m.id}" data-ok="0"`, 'sm') + btn('Accepter la mission', 'check', `data-a="repondre" data-id="${m.id}" data-ok="1"`, 'sm primary'),
@@ -336,7 +352,9 @@ function missionInterim(m) {
     ${m.etat === 'signature' ? `<div class="hint" style="margin-top:4px">Vous êtes retenu(e). La mission sera confirmée quand vous et l'employeur aurez signé le contrat.</div>` : ''}
     ${['a_repondre', 'en_attente', 'confirmee', 'complet', 'signature'].includes(m.etat) ? simBloc(m.simulation, 'interim') : ''}
     ${['confirmee', 'signature'].includes(m.etat) && m.documents.length ? `<div class="small" style="margin-top:6px">${ic('file', 'style="vertical-align:-3px;color:var(--ink-3)"')} Documents : ${docLinks(m.documents)}</div>` : ''}</div>
-    <div class="row">${E[m.etat] || ''}</div></div>`;
+    ${m.etat === 'annulee' && m.motif_annulation ? `<div class="small" style="margin-top:4px">Motif de l'annulation : ${esc(m.motif_annulation)}</div>` : ''}
+    ${m.etat === 'desiste' && m.motif_desistement ? `<div class="small muted" style="margin-top:4px">Motif : ${esc(m.motif_desistement)}</div>` : ''}</div>
+    <div class="row">${E[m.etat] || ''}${['en_attente', 'signature', 'confirmee'].includes(m.etat) && m.date >= (S.cfg?.aujourdhui || '') ? btn('Me désister', 'ban', `data-a="desister" data-id="${m.id}" data-n="${esc(`${m.poste} · ${m.client_nom} · ${fdate(m.date, 'long')} ${m.debut}–${m.fin}`)}"`, 'sm ghost') : ''}</div></div>`;
 }
 
 
@@ -567,7 +585,7 @@ async function openJour(date) {
         ${m.statut === 'diffusee' && !C.length ? empty('Diffusée. En attente de réponses des intérimaires.') : ''}</section>`;
     }).join('');
   } else {
-    const ET = { confirmee: ['libre', 'Mission confirmée'], signature: ['attente', 'Contrat à signer'], en_attente: ['attente', 'En attente de confirmation'], a_repondre: ['pris', 'À traiter'], complet: ['off', 'Complet'], non_retenu: ['off', 'Non retenu'], pourvue: ['off', 'Mission pourvue'], decline: ['off', 'Vous avez décliné'], annulee: ['off', 'Annulée'] };
+    const ET = { confirmee: ['libre', 'Mission confirmée'], signature: ['attente', 'Contrat à signer'], desiste: ['off', 'Désisté(e)'], en_attente: ['attente', 'En attente de confirmation'], a_repondre: ['pris', 'À traiter'], complet: ['off', 'Complet'], non_retenu: ['off', 'Non retenu'], pourvue: ['off', 'Mission pourvue'], decline: ['off', 'Vous avez décliné'], annulee: ['off', 'Annulée'] };
     corps = d.missions.map(m => `<section class="jour-mission"><div class="row" style="justify-content:space-between;align-items:flex-start"><div><h3>${iconeCeSoir({ ...m, statut: m.etat === 'annulee' ? 'annulee' : '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</h3><div class="small muted">${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h</div></div>${badge(...ET[m.etat])}</div>
       ${['a_repondre', 'en_attente', 'confirmee', 'complet', 'signature'].includes(m.etat) ? simBloc(m.simulation, 'interim', true) : ''}<dl class="kv" style="margin-top:8px"><dt>Lieu</dt><dd>${esc(m.lieu || '—')}</dd><dt>Nombre de postes</dt><dd>${m.nb_postes}</dd>${m.commentaire ? `<dt>Précisions</dt><dd>${esc(m.commentaire)}</dd>` : ''}
       ${m.contact ? `<dt>Sur place</dt><dd>${esc(m.contact.nom || '—')}${m.contact.telephone ? ` · <a class="link" href="tel:${esc(m.contact.telephone.replace(/\s/g, ''))}">${esc(m.contact.telephone)}</a>` : ''}</dd>` : ''}
@@ -591,7 +609,7 @@ const V = { agence: {}, client: {}, interim: {} };
 
 /* ===== Agence ===== */
 V.agence.accueil = async () => {
-  const [ms, hs, fs, ks, ps, cs] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures'), GET('/contrats'), GET('/prospects'), GET('/candidats')]);
+  const [ms, hs, fs, ks, ps, cs, al] = await Promise.all([GET('/missions'), GET('/heures'), GET('/factures'), GET('/contrats'), GET('/prospects'), GET('/candidats'), GET('/notifications')]);
   const cNouv = cs.filter(x => x.statut === 'nouveau'), cRel = cs.filter(x => x.date_relance && x.date_relance <= (S.cfg?.aujourdhui || '') && !['inscrit', 'refuse'].includes(x.statut));
   const kSig = ks.filter(k => k.statut === 'a_signer'), pRel = ps.filter(x => x.date_relance && x.date_relance <= (S.cfg?.aujourdhui || '') && !['client', 'perdu'].includes(x.statut));
   const pNouv = ps.filter(x => x.statut === 'nouveau' && x.source === 'site');
@@ -601,6 +619,8 @@ V.agence.accueil = async () => {
   const enCours = ms.filter(m => ['nouvelle', 'diffusee'].includes(m.statut));
   const ceSoir = ms.filter(m => estCeSoir(m) && m.statut !== 'verrouillee');
   const tasks = [
+    // Alertes : désistements, annulations par les employeurs, indisponibilités imprévues
+    ...al.map(x => ['e', /^Désistement/.test(x.message) ? 'ban' : 'alert', x.message.split(' : ')[0], x.message.split(' : ').slice(1).join(' : ') + ` · ${fdate(x.created_at.slice(0, 10), 'num')}`, 'missions']),
     ...ceSoir.map(m => ['e', 'alert', `Ce soir, importance haute : ${m.nb_postes} × ${m.poste} non pourvu`, `${m.client_nom} · ${m.debut}–${m.fin}`, 'missions']),
     ...nouvelles.map(m => ['w', 'send', `Mission à diffuser : ${m.nb_postes} × ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
     ...decisions.map(m => ['n', 'users', `Candidats en attente de l'employeur : ${m.poste}`, `${m.client_nom} · ${fdate(m.date)}`, 'missions']),
@@ -949,7 +969,7 @@ V.interim.accueil = async () => {
   const next = ms.filter(m => m.etat === 'confirmee' && m.date >= t)[0];
   const aSigner = ms.filter(m => m.etat === 'signature' && !m.contrat?.interim_signe);
   const aConf = hs.filter(h => h.ouvert && !h.valide_interim);
-  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.interim?.poste || '')) +
+  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.interim?.poste || ''), btn('Je suis indisponible', 'ban', 'data-a="indispo"', 'btn-indispo')) +
     (pend.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('bell')}</div><div><b>${pend.length} nouvelle${pend.length > 1 ? 's' : ''} mission${pend.length > 1 ? 's' : ''} en attente de votre réponse</b><div class="small muted">Les places sont attribuées aux premiers qui acceptent.</div></div>${btn('Voir', 'chev', 'data-a="nav" data-v="missions"', 'sm primary')}</div></section>` : '') +
     (aSigner.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('edit')}</div><div><b>${aSigner.length} contrat${aSigner.length > 1 ? 's' : ''} de mission à signer</b><div class="small muted">Votre mission n'est confirmée qu'une fois le contrat signé par vous et l'employeur.</div></div>${btn('Signer', 'chev', 'data-a="nav" data-v="contrats"', 'sm primary')}</div></section>` : '') +
     (next ? `<section class="panel"><div class="hero"><div class="when"><span>${fdate(next.date).split(' ')[0]}</span><b>${Number(next.date.slice(8))}</b><span>${new Date(next.date + 'T12:00').toLocaleDateString('fr-FR', { month: 'short' })}</span></div><div style="flex:1;min-width:200px"><div class="small muted">Prochaine mission</div><h2 style="font-size:17px">${esc(next.poste)} · ${esc(next.client_nom)}</h2><div class="row small muted">${ic('clock')}${next.debut} – ${next.fin}</div></div>${badge('libre', 'Confirmée')}</div></section>` : '') +
@@ -1163,6 +1183,95 @@ async function candidatModal(id) {
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
 }
 
+/* ---------------- Annulation, désistement, indisponibilité imprévue ---------------- */
+const RAISONS = {
+  annuler: ['Baisse d\'activité', 'Événement annulé', 'Besoin couvert en interne', 'Fermeture exceptionnelle', 'Erreur de demande', 'Autre'],
+  desister: ['Maladie', 'Imprévu familial', 'Problème de transport', 'Autre mission ou emploi', 'Autre'],
+};
+function annulModal(type, id, nom, suite) {
+  const client = type === 'annuler', agence = S.me.profil === 'agence';
+  openModal(`${modalHead(ic('ban') + (client ? 'Annuler la mission' : 'Me désister de la mission'), esc(nom))}<form data-f="annul" data-t="${type}" data-id="${id}"${suite ? ` data-suite="${esc(JSON.stringify(suite))}"` : ''}><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    <p class="small">${client ? 'Les intérimaires positionnés sont prévenus et remis à disposition ; les missions ouvertes sur le même créneau leur sont proposées automatiquement.' : 'La place est remise à disposition : l\'employeur, l\'agence et les intérimaires déjà contactés pour cette mission sont prévenus. Prévenez le plus tôt possible.'}</p>
+    <fieldset class="q"><legend>Raison${agence ? ' (facultative pour l\'agence)' : ''}</legend><div class="choix">${RAISONS[type].map((r, k) => `<label><input type="radio" name="raison" value="${esc(r)}" ${!agence && k === 0 ? 'required' : ''}><span>${esc(r)}</span></label>`).join('')}</div></fieldset>
+    <label class="f">Précision (facultative)<input type="text" name="precision" maxlength="200" placeholder="${client ? 'Ex. : réservation de groupe annulée' : 'Ex. : fièvre depuis ce matin'}"></label>
+    <div class="err" hidden></div></div><div class="panel-f" style="justify-content:flex-end">${btn('Retour', '', 'data-a="close"')}<button class="btn primary" type="submit" style="background:var(--danger-dot);border-color:var(--danger-dot)">${ic('ban')}${client ? 'Annuler la mission' : 'Confirmer mon désistement'}</button></div></form>`);
+}
+function indispoModal() {
+  const t = S.cfg?.aujourdhui || '';
+  openModal(`${modalHead(ic('ban') + 'Je suis indisponible', 'Un imprévu ? Prévenez l\'agence en un clic.')}<form data-f="indispo"><div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    <fieldset class="q"><legend>Quand ?</legend><div class="choix"><label><input type="radio" name="quand" value="aujourdhui" checked><span>Aujourd'hui</span></label><label><input type="radio" name="quand" value="demain"><span>Demain</span></label><label><input type="radio" name="quand" value="periode"><span>Plusieurs jours</span></label></div></fieldset>
+    <div class="form" data-periode hidden><label class="f">Du<input type="date" name="debut" min="${t}" value="${t}"></label><label class="f">Au<input type="date" name="fin" min="${t}" value="${addDays(t, 2)}"></label></div>
+    <fieldset class="q"><legend>Raison</legend><div class="choix">${RAISONS.desister.map((r, k) => `<label><input type="radio" name="raison" value="${esc(r)}" ${k === 0 ? 'checked' : ''}><span>${esc(r)}</span></label>`).join('')}</div></fieldset>
+    <label class="f">Précision (facultative)<input type="text" name="precision" maxlength="200"></label>
+    <div class="err" hidden></div></div>${modalFoot(ic('ban') + 'Me déclarer indisponible', 'type="submit"')}</form>`);
+}
+/** Missions en conflit avec l'indisponibilité : désistement proposé pour chacune. */
+function indispoConflits(L, motif) {
+  openModal(`${modalHead(ic('alert') + 'Missions sur ces dates', 'Indisponibilité enregistrée. Vous êtes positionné(e) sur ces missions :')}
+    <div class="list">${L.map(m => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${esc(m.poste)} · ${esc(m.client_nom)}</b><div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin}</div></div>
+      ${btn('Me désister', 'ban', `data-a="desister1" data-id="${m.id}" data-motif="${esc(motif)}"`, 'sm danger')}</div>`).join('')}</div>
+    <div class="panel-f" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><span class="small muted">Sans désistement, vous restez attendu(e) sur ces missions.</span>${btn('Fermer', '', 'data-a="close"', 'primary')}</div>`);
+}
+
+/* ---------------- Statistiques (les trois espaces) ---------------- */
+const moisCourt = m => new Date(m + '-15T12:00').toLocaleDateString('fr-FR', { month: 'short' }).replace('.', '');
+const moisLong = m => new Date(m + '-15T12:00').toLocaleDateString('fr-FR', { month: 'long', year: 'numeric' });
+/** Évolution par rapport au mois précédent : texte et sens (hausse / baisse). */
+function evolution(v, prec, fmt) {
+  if (prec === undefined) return ['', ''];
+  if (!prec) return [v ? 'Mois précédent : 0' : 'Rien le mois précédent', ''];
+  const d = Math.round((v - prec) / prec * 100);
+  return [`${d > 0 ? '+' : ''}${d} % vs ${fmt(prec)} le mois précédent`, d > 0 ? 'up' : d < 0 ? 'down' : ''];
+}
+const tuile = (t, i, v, fmt, prec, detail) => { const [e, c] = evolution(v, prec, fmt); return kpi(t, i, v === null || v === undefined ? '—' : fmt(v), detail || e, detail ? '' : c); };
+const pct = v => v === null || v === undefined ? '—' : num(v) + ' %';
+/** Histogramme 6 mois, une seule série : valeur sur chaque barre, info-bulle, tableau des données. */
+function histogramme(titre, serie, fmt) {
+  const max = Math.max(...serie.map(x => x.valeur), 0) || 1, cur = serie[serie.length - 1].mois;
+  return panel(titre, '', `<div class="panel-b"><div class="barres" role="img" aria-label="${esc(titre)} : ${serie.map(x => `${moisLong(x.mois)} ${fmt(x.valeur)}`).join(', ')}">
+    ${serie.map(x => `<div class="barre${x.mois === cur ? ' cur' : ''}" title="${esc(moisLong(x.mois))} : ${esc(fmt(x.valeur))}"><span class="barre-v">${x.valeur ? fmt(x.valeur) : ''}</span><span class="barre-b" style="height:${Math.max(x.valeur ? 3 : 0, x.valeur / max * 100)}%"></span><span class="barre-m">${moisCourt(x.mois)}</span></div>`).join('')}</div>
+    <details class="donnees"><summary>Voir les données</summary><table><thead><tr><th>Mois</th><th class="r">${esc(titre)}</th></tr></thead><tbody>${serie.map(x => `<tr><td>${moisLong(x.mois)}</td><td class="r num">${fmt(x.valeur)}</td></tr>`).join('')}</tbody></table></details></div>`);
+}
+/** Classement horizontal (5 premiers). */
+function classement(titre, L, fmt, vide) {
+  const max = Math.max(...L.map(x => x.valeur), 0) || 1;
+  return panel(titre, '', L.length ? `<div class="panel-b classement">${L.map(x => `<div class="cl-l" title="${esc(x.nom)} : ${esc(fmt(x.valeur))}"><span class="cl-n">${esc(x.nom)}</span><span class="cl-b"><span style="width:${x.valeur / max * 100}%"></span></span><span class="cl-v num">${fmt(x.valeur)}</span></div>`).join('')}</div>` : empty(vide));
+}
+const fmtH = n => num(n) + ' h', eur0 = n => (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+V.agence.stats = async () => {
+  const d = await GET('/stats'), k = d.cles;
+  return head('Statistiques', `Chiffres clés de ${moisLong(d.mois)} (heures validées par les deux parties), comparés au mois précédent, et évolution sur 6 mois.`) +
+    `<div class="kpis">${tuile('Chiffre d\'affaires HT', 'receipt', k.ca_ht, eur0, k.ca_ht_prec)}${tuile('Marge brute estimée', 'chart', k.marge, eur0, undefined, k.marge_pc === null ? 'Aucune heure validée' : `${num(k.marge_pc)} % du chiffre d'affaires`)}
+    ${tuile('Heures validées', 'clock', k.heures, fmtH, k.heures_prec)}${tuile('Missions du mois', 'briefcase', k.missions, num, k.missions_prec)}</div>
+    <div class="kpis">${tuile('Taux de pourvoi', 'check', k.taux_pourvoi, pct, undefined, 'Missions pourvues sur missions diffusées')}${tuile('Délai moyen de pourvoi', 'clock', k.delai_pourvoi_h, v => v < 48 ? num(v) + ' h' : num(Math.round(v / 24)) + ' j', undefined, 'De la demande au dernier intérimaire retenu')}
+    ${tuile('Annulations et désistements', 'ban', k.annulations + k.desistements, num, undefined, `${k.annulations} annulation(s) client · ${k.desistements} désistement(s)`)}${tuile('Contrats signés', 'edit', k.contrats_signes_pc, pct, undefined, `${k.contrats_a_signer} en attente de signature`)}</div>
+    <div class="kpis">${tuile('Intérimaires actifs ce mois', 'users', k.interimaires_actifs, num, undefined, `sur ${k.interimaires_total} inscrits · dossiers complets ${pct(k.dossiers_complets_pc)}`)}${tuile('Encours clients TTC', 'wallet', k.encours_ttc, eur0, undefined, k.retard_ttc ? `dont ${eur0(k.retard_ttc)} en retard` : 'Aucun retard')}
+    ${tuile('Prospects actifs', 'target', k.prospects_actifs, num)}${tuile('Candidatures du mois', 'idcard', k.candidatures_mois, num)}</div>
+    <div class="grid2">${histogramme('Chiffre d\'affaires HT', d.series.ca_ht, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
+    <div class="grid2">${histogramme('Missions (hors annulées)', d.series.missions, num)}${classement('Meilleurs clients de l\'année (CA HT)', d.tops.clients, eur0, 'Aucune heure facturable cette année.')}</div>
+    ${classement('Postes les plus demandés (6 mois, en postes)', d.tops.postes, num, 'Aucune mission.')}`;
+};
+V.client.stats = async () => {
+  const d = await GET('/stats'), k = d.cles;
+  return head('Statistiques', `Vos chiffres de ${moisLong(d.mois)} (heures validées), comparés au mois précédent, et votre activité sur l'année.`) +
+    `<div class="kpis">${tuile('Dépenses HT du mois', 'receipt', k.depenses_ht, eur0, k.depenses_ht_prec)}${tuile('Dépenses TTC de l\'année', 'wallet', k.depenses_an_ttc, eur0)}
+    ${tuile('Heures du mois', 'clock', k.heures, fmtH, undefined, `${fmtH(k.heures_an)} sur l'année`)}${tuile('Coût horaire moyen HT', 'chart', k.cout_horaire_ht, eur, undefined, 'Majorations comprises')}</div>
+    <div class="kpis">${tuile('Missions de l\'année', 'briefcase', k.missions_an, num, undefined, `${k.missions_mois} ce mois-ci · ${k.annulations_an} annulée(s)`)}${tuile('Taux de pourvoi', 'check', k.taux_pourvoi, pct, undefined, 'Missions pourvues sur missions diffusées')}
+    ${tuile('Intérimaires venus', 'users', k.interimaires_differents, num, undefined, `${k.interimaires_fideles} revenu(s) au moins 2 fois`)}${tuile('Note moyenne donnée', 'star', k.note_donnee, v => num(v) + ' / 5', undefined, k.note_recue ? `Note reçue des intérimaires : ${num(k.note_recue)} / 5` : 'Aucune note reçue pour l\'instant')}</div>
+    <div class="grid2">${histogramme('Dépenses HT', d.series.depenses_ht, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
+    ${classement('Vos postes les plus demandés (année, en postes)', d.tops.postes, num, 'Aucune mission cette année.')}`;
+};
+V.interim.stats = async () => {
+  const d = await GET('/stats'), k = d.cles;
+  return head('Mes statistiques', `Vos chiffres de ${moisLong(d.mois)} (heures validées par vous et l'employeur), comparés au mois précédent. Gains en brut, fin de mission et congés payés compris.`) +
+    `<div class="kpis">${tuile('Gains bruts du mois', 'wallet', k.gains_brut, eur0, k.gains_brut_prec)}${tuile('Net estimé du mois', 'wallet', k.net_estime_mois, eur0, undefined, 'Estimation avant impôt')}
+    ${tuile('Heures du mois', 'clock', k.heures, fmtH, undefined, `${fmtH(k.heures_an)} sur l'année`)}${tuile('Gains bruts de l\'année', 'chart', k.gains_an, eur0)}</div>
+    <div class="kpis">${tuile('Missions réalisées', 'briefcase', k.missions_an, num, undefined, `${k.missions_mois} ce mois-ci · ${k.missions_a_venir} à venir`)}${tuile('Établissements', 'building', k.etablissements, num, undefined, 'Différents cette année')}
+    ${tuile('Taux d\'acceptation', 'check', k.taux_acceptation, pct, undefined, `Missions acceptées sur missions proposées${k.desistements ? ` · ${k.desistements} désistement(s)` : ''}`)}${tuile('Note moyenne', 'star', k.note, v => num(v) + ' / 5', undefined, 'Avis des employeurs')}</div>
+    <div class="grid2">${histogramme('Gains bruts', d.series.gains_brut, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
+    ${classement('Mes postes (heures de l\'année)', d.tops.postes, fmtH, 'Aucune heure validée cette année.')}`;
+};
+
 /* ---------------- Formulaires en fenêtre ---------------- */
 async function missionForm() {
   const cs = (await GET('/clients')).filter(c => !c.suspendu);
@@ -1270,6 +1379,12 @@ const A = {
   bgen: el => act(async () => { const r = await POST('/bulletins/generer', { debut: el.dataset.d, fin: el.dataset.f }); toast(r.crees ? `${r.crees} fiche(s) de paie créée(s)` : 'Aucune heure validée à mettre en paie sur cette période.'); reload(); }, el),
   bpay: el => act(async () => { await POST(`/bulletins/${el.dataset.id}/payer`); toast('Fiche marquée payée. L\'intérimaire est prévenu.'); reload(); }, el),
   nav: el => go(el.dataset.v),
+  oeil: el => {
+    const i = el.previousElementSibling, voir = i.type === 'password';
+    i.type = voir ? 'text' : 'password'; el.setAttribute('aria-pressed', voir);
+    el.setAttribute('aria-label', voir ? 'Masquer le mot de passe' : 'Afficher le mot de passe'); el.title = el.getAttribute('aria-label');
+    el.innerHTML = ic(voir ? 'eyeoff' : 'eye'); i.focus();
+  },
   navgroupe: el => {
     const ouvert = el.getAttribute('aria-expanded') !== 'true', g = el.dataset.g;
     el.setAttribute('aria-expanded', ouvert); document.getElementById(el.getAttribute('aria-controls')).hidden = !ouvert;
@@ -1288,14 +1403,17 @@ const A = {
   modalbg: (el, e) => { if (e.target === el) closeModal(); },
   motdepasse: () => pwModal(),
   notifs: () => act(async () => {
-    const n = S.me.profil === 'agence' ? [] : await GET('/notifications');
+    const n = await GET('/notifications');
     openModal(`${modalHead(ic('bell') + 'Notifications')}${n.length ? `<div class="list">${n.map(x => `<div class="li"><div>${esc(x.message)}<div class="small muted">${esc(x.created_at)}</div></div></div>`).join('')}</div>` : empty('Aucune notification.')}<div class="panel-f" style="justify-content:flex-end">${btn('Fermer', '', 'data-a="close"', 'primary')}</div>`);
     await POST('/notifications/lu'); refreshCounts();
   }),
   copy: el => { const t = el.dataset.t; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Copié'), () => toast('Copie impossible : sélectionnez le texte.', true)); },
   newmission: el => act(missionForm, el),
   diffuser: el => act(() => diffuseModal(Number(el.dataset.id)), el),
-  annuler: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.innerHTML = 'Confirmer l\'annulation'; el.classList.add('primary'); return; } await POST(`/missions/${el.dataset.id}/annuler`); toast('Mission annulée'); reload(); }, el),
+  annuler: el => annulModal('annuler', Number(el.dataset.id), el.dataset.n || ''),
+  desister: el => annulModal('desister', Number(el.dataset.id), el.dataset.n || ''),
+  indispo: () => indispoModal(),
+  desister1: el => act(async () => { await POST(`/missions/${el.dataset.id}/desister`, { motif: el.dataset.motif }); el.closest('.li').innerHTML = `<span class="small">${ic('check')} Désistement enregistré, la place est remise à disposition.</span>`; }, el),
   decision: el => act(async () => {
     const r = await POST(`/missions/${el.dataset.m}/decision`, { interim_id: Number(el.dataset.i), accepte: el.dataset.ok === '1' });
     toast(r.verrouillee ? 'Mission validée et verrouillée. Les documents ont été envoyés.' : el.dataset.ok === '1' ? 'Intérimaire retenu.' : 'Intérimaire refusé. La place est de nouveau ouverte.');
@@ -1406,6 +1524,25 @@ const F = {
     try { await POST('/prospects', lireQuestionnaire(fd)); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'nearest' }); return; }
     closeModal(); toast('Visite enregistrée'); go('prospects');
   }),
+  annul: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    const motif = [fd.get('raison'), fd.get('precision')].filter(Boolean).join(' : ');
+    let r; try { r = await POST(`/missions/${f.dataset.id}/${f.dataset.t}`, { motif }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    closeModal();
+    toast(f.dataset.t === 'desister' ? 'Désistement enregistré : la place est remise à disposition et l\'agence est prévenue.' : `Mission annulée.${r.remis_a_disposition ? ` ${r.remis_a_disposition} intérimaire(s) remis à disposition.` : ''}`);
+    if (f.dataset.suite) { const L = JSON.parse(f.dataset.suite); if (L.length) return indispoConflits(L, motif); }
+    reload();
+  }),
+  indispo: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    const t = S.cfg?.aujourdhui, quand = fd.get('quand');
+    const debut = quand === 'demain' ? addDays(t, 1) : quand === 'periode' ? fd.get('debut') : t, fin = quand === 'periode' ? fd.get('fin') : debut;
+    const motif = [fd.get('raison'), fd.get('precision')].filter(Boolean).join(' : ');
+    let r; try { r = await POST('/indisponible', { debut, fin, motif }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    closeModal();
+    if (r.conflits.length) return indispoConflits(r.conflits, motif);
+    toast(`Indisponibilité enregistrée (${r.jours} jour${r.jours > 1 ? 's' : ''}). L'agence est prévenue.`); reload();
+  }),
   csuivi: (fd, f) => act(async () => { await PUT(`/candidats/${f.dataset.id}`, Object.fromEntries(fd)); closeModal(); toast('Suivi enregistré'); reload(); }),
   candidature: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;
@@ -1454,6 +1591,7 @@ document.addEventListener('input', e => {
 });
 document.addEventListener('input', e => { if (e.target.matches?.('[data-coef-saisie]')) margeCoef(); });
 document.addEventListener('change', e => {
+  if (e.target.name === 'quand') { const z = e.target.form.querySelector('[data-periode]'); if (z) z.hidden = e.target.value !== 'periode'; }
   // Motif « remplacement » : nom et poste du salarié remplacé (mentions obligatoires)
   if (e.target.matches?.('[data-motif]')) { const z = e.target.form.querySelector('[data-remplace]'); z.hidden = !/remplacement/i.test(e.target.value); z.querySelector('input').required = !z.hidden; }
   // Questionnaire : « Rarement / jamais » saute les questions sur les renforts actuels

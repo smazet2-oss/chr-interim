@@ -410,7 +410,8 @@ function missionRow(id) { return one('SELECT m.*, c.nom AS client_nom, c.secteur
 function missionPourAgence(m) {
   const env = all(`SELECT e.interim_id, e.canaux, i.prenom, i.nom, i.poste, r.etat FROM envois e JOIN interimaires i ON i.id = e.interim_id
      LEFT JOIN reponses r ON r.mission_id = e.mission_id AND r.interim_id = e.interim_id WHERE e.mission_id = ? ORDER BY e.id`, m.id);
-  return { ...m, simulation: simulation.pourMission(m, 'agence'), envois: env.map(e => ({ interim_id: e.interim_id, nom: `${e.prenom} ${e.nom}`, poste: e.poste, canaux: e.canaux.split(','), etat: e.etat || null, contrat: e.etat === 'retenu' ? contratDe(m.id, e.interim_id) : null })), ...compteurs(m.id), documents: docsMission(m) };
+  return { ...m, simulation: simulation.pourMission(m, 'agence'), envois: env.map(e => ({ interim_id: e.interim_id, nom: `${e.prenom} ${e.nom}`, poste: e.poste, canaux: e.canaux.split(','), etat: e.etat || null, contrat: e.etat === 'retenu' ? contratDe(m.id, e.interim_id) : null,
+    desistement: e.etat === 'decline' ? one('SELECT motif, created_at FROM desistements WHERE mission_id = ? AND interim_id = ? ORDER BY id DESC LIMIT 1', m.id, e.interim_id) || null : null })), ...compteurs(m.id), documents: docsMission(m) };
 }
 /** État de signature du contrat d'un intérimaire sur une mission. */
 function contratDe(mid, iid) {
@@ -430,16 +431,18 @@ function missionPourInterim(m, iid) {
   const r = one('SELECT etat FROM reponses WHERE mission_id = ? AND interim_id = ?', m.id, iid);
   const { actifs } = compteurs(m.id);
   let etat;
-  if (m.statut === 'annulee') etat = 'annulee';
+  const des = r && r.etat === 'decline' ? one('SELECT motif FROM desistements WHERE mission_id = ? AND interim_id = ? ORDER BY id DESC LIMIT 1', m.id, iid) : null;
   // Retenu : « signature » tant que son contrat n'est pas signé par les deux parties, puis « confirmée ».
   const k = r && r.etat === 'retenu' ? contratDe(m.id, iid) : null;
-  if (m.statut === 'verrouillee') etat = k ? (k.statut === 'signe' ? 'confirmee' : 'signature') : r && r.etat !== 'decline' ? 'non_retenu' : 'pourvue';
+  if (des) etat = 'desiste';
+  else if (m.statut === 'annulee') etat = 'annulee';
+  else if (m.statut === 'verrouillee') etat = k ? (k.statut === 'signe' ? 'confirmee' : 'signature') : r && r.etat !== 'decline' ? 'non_retenu' : 'pourvue';
   else if (r) etat = r.etat === 'decline' ? 'decline' : 'en_attente';
   else etat = actifs >= m.nb_postes ? 'complet' : 'a_repondre';
   return {
     id: m.id, client_nom: m.client_nom, client_secteur: m.client_secteur, poste: m.poste, date: m.date, debut: m.debut, fin: m.fin,
     nb_postes: m.nb_postes, taux_horaire: m.taux_horaire, etat, simulation: simulation.pourMission(m, 'interim'),
-    contrat: k, validee_le: m.validee_le || null,
+    contrat: k, validee_le: m.validee_le || null, motif_annulation: etat === 'annulee' ? m.motif_annulation || null : null, motif_desistement: des ? des.motif : null,
     documents: ['confirmee', 'signature'].includes(etat) ? docsMission(m).map(d => d.id === null ? { ...d, contrat_id: one('SELECT id FROM contrats WHERE mission_id = ? AND interim_id = ?', m.id, iid)?.id } : d) : [],
   };
 }
@@ -579,22 +582,23 @@ api.post('/missions/:id/decision', role('agence', 'client'), wrap((req, res) => 
   }
   res.json({ verrouillee });
 }));
-api.post('/missions/:id/annuler', role('agence'), wrap((req, res) => {
-  const m = missionRow(req.params.id); if (!m) fail(404, 'Mission introuvable.');
-  tx(() => { run('UPDATE missions SET statut = \'annulee\' WHERE id = ?', m.id); dossier.surAnnulation(m.id); });
-  res.json({ ok: true });
-}));
+// Statistiques de chaque espace.
+require('./stats')(api, { today: () => today() });
+// Annulation (employeur, agence), désistement et indisponibilité de l'intérimaire, avec motif.
+require('./annulations')(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), str: (...a) => str(...a), today: () => today(),
+  missionRow: (...a) => missionRow(...a), compteurs: (...a) => compteurs(...a), missionPourInterim: (...a) => missionPourInterim(...a), dossier });
 
 /* ---------------- Notifications ---------------- */
 api.get('/notifications', (req, res) => {
   const p = req.user.profil;
   if (p === 'interim') return res.json(all('SELECT * FROM notifications WHERE interim_id = ? AND lu = 0 ORDER BY id DESC', req.user.interim_id));
   if (p === 'client') return res.json(all('SELECT * FROM notifications WHERE client_id = ? AND lu = 0 ORDER BY id DESC', req.user.client_id));
-  res.json([]);
+  res.json(all('SELECT * FROM notifications WHERE pour_agence = 1 AND lu = 0 ORDER BY id DESC LIMIT 50'));
 });
 api.post('/notifications/lu', (req, res) => {
   if (req.user.profil === 'interim') run('UPDATE notifications SET lu = 1 WHERE interim_id = ? AND message NOT LIKE \'Nouvelle mission%\'', req.user.interim_id);
   if (req.user.profil === 'client') run('UPDATE notifications SET lu = 1 WHERE client_id = ?', req.user.client_id);
+  if (req.user.profil === 'agence') run('UPDATE notifications SET lu = 1 WHERE pour_agence = 1');
   res.json({ ok: true });
 });
 

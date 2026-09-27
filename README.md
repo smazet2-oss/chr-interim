@@ -39,6 +39,9 @@ Viennent ensuite Accès utilisateurs, Journal des envois et Paramètres. Le logo
 
 ### Comptes et connexion
 
+Chaque champ de mot de passe a un bouton « œil » pour afficher ce que l'on saisit.
+
+
 - L'agence crée l'accès depuis la fiche d'un employeur ou d'un intérimaire (« Créer l'identifiant et le mot de passe »). Les collaborateurs de l'agence s'ajoutent dans « Accès utilisateurs ».
 - Le mot de passe provisoire n'est affiché qu'une fois. Il est stocké chiffré (bcrypt) et doit être remplacé à la première connexion : 8 caractères minimum, avec une majuscule et un chiffre.
 - L'agence peut réinitialiser un mot de passe ou désactiver un compte.
@@ -103,6 +106,23 @@ Le contrat reprend le modèle HCR (IDCC 1979) en 9 articles : parties, motif de 
 
 - **Page publique** `/candidature`, deuxième onglet de la page de contact (« Je cherche des missions ») et lien depuis la page de connexion : identité, autorisation de travail, postes recherchés, expérience et formations, disponibilités, mobilité et tenue, attentes (taux souhaité, canal préféré), CV facultatif (PDF, Word ou photo, 5 Mo, contenu vérifié) et accord de conservation. L'agence reçoit un e-mail d'alerte.
 - **Espace agence › Candidatures** : réponses complètes, CV, statut (nouvelle, à rappeler, entretien, inscrit, sans suite), date de rappel, notes, création de la fiche intérimaire en un clic et suppression (CV compris) à la demande de la personne. Les candidatures nouvelles ou à rappeler apparaissent dans le tableau de bord.
+
+### Annulations, désistements et indisponibilités
+
+- **Annulation par l'employeur** (« Annuler la mission », raison obligatoire) : les intérimaires positionnés reçoivent une notification, un SMS et un e-mail de remise à disposition ; leur journée repasse « disponible » et les missions ouvertes sur le même créneau leur sont automatiquement proposées, avec une alerte. L'agence est prévenue. L'agence peut aussi annuler (raison facultative).
+- **Désistement de l'intérimaire** (« Me désister », raison obligatoire) : la place est remise à disposition (la mission se rouvre si elle était pourvue, son contrat est annulé). Alertes à l'employeur, à l'agence et aux intérimaires déjà contactés pour cette mission, qui peuvent accepter la place.
+- **« Je suis indisponible »** (tableau de bord de l'intérimaire) : aujourd'hui, demain ou plusieurs jours, avec la raison ; les jours passent « indisponible », l'agence est prévenue et les missions déjà acceptées sur ces dates sont proposées au désistement en un clic.
+- Les alertes de l'agence apparaissent dans la cloche et en tête de « À traiter ».
+
+### Statistiques
+
+Une page « Statistiques » dans chaque espace : chiffres clés du mois comparés au mois précédent, histogrammes sur 6 mois (avec les données en tableau) et classements.
+
+- **Agence** : chiffre d'affaires HT, marge brute estimée, heures validées, missions, taux et délai de pourvoi, annulations et désistements, contrats signés, intérimaires actifs et dossiers complets, encours et retards, prospects, candidatures ; meilleurs clients et postes les plus demandés.
+- **Employeur** : dépenses HT et TTC, heures, coût horaire moyen, missions et taux de pourvoi, annulations, intérimaires venus et fidèles, notes ; postes les plus demandés.
+- **Intérimaire** : gains bruts et net estimé, heures, missions réalisées et à venir, établissements, taux d'acceptation, note moyenne.
+
+Les calculs reposent sur les heures validées par les deux parties (majorations comprises).
 
 ### Calendriers et détail d'une journée
 

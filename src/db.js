@@ -231,6 +231,9 @@ addColumn('missions', 'validee_le', 'TEXT');
 for (const c of ['remplace_nom', 'remplace_poste', 'taches', 'risques', 'epi']) addColumn('missions', c, 'TEXT');
 // Intérimaire : état civil complet pour le contrat de mission
 for (const c of ['lieu_naissance', 'nir', 'adresse', 'code_postal']) addColumn('interimaires', c, 'TEXT');
+// Annulation avec motif ; notifications destinées à l'agence
+for (const c of ['motif_annulation', 'annulee_par', 'annulee_le']) addColumn('missions', c, 'TEXT');
+addColumn('notifications', 'pour_agence', 'INTEGER NOT NULL DEFAULT 0');
 // Suspension d'un profil (réversible) : plus de connexion, plus de missions.
 for (const t of ['clients', 'interimaires']) {
   addColumn(t, 'suspendu', 'INTEGER NOT NULL DEFAULT 0');

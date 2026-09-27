@@ -612,3 +612,38 @@ a.brand:focus-visible,.auth-banner-lien:focus-visible{outline:2px solid #C99948;
   .nav-sous{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;margin:2px 0 6px;padding:4px;border-left:0;border-radius:8px;background:rgba(255,255,255,.04)}
   .nav-sous[hidden]{display:none}
 }
+
+/* ---------- Voir le mot de passe ---------- */
+.mdp{position:relative;display:block}
+.mdp input{width:100%;padding-right:44px}
+.mdp-oeil{position:absolute;right:4px;top:50%;transform:translateY(-50%);width:36px;height:36px;border:0;background:none;border-radius:6px;display:grid;place-items:center;color:var(--ink-3);cursor:pointer}
+.mdp-oeil:hover{color:var(--ink);background:var(--surface-2)}
+.mdp-oeil:focus-visible{outline:2px solid #C99948;outline-offset:1px}
+.mdp-oeil svg{width:18px;height:18px}
+.mdp-oeil[aria-pressed="true"]{color:#7E5F24}
+
+/* ---------- Indisponibilité imprévue ---------- */
+.btn.btn-indispo{background:var(--danger-bg);color:var(--danger-fg);border-color:var(--danger-dot);font-weight:600}
+.btn.btn-indispo:hover{background:var(--danger-dot);color:#fff}
+
+/* ---------- Statistiques ---------- */
+.barres{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;align-items:end;height:190px;padding-top:6px}
+.barre{display:grid;grid-template-rows:auto 1fr auto;height:100%;align-items:end;justify-items:center;gap:4px;min-width:0}
+.barre-v{font-size:11px;color:var(--ink-2);font-variant-numeric:tabular-nums;white-space:nowrap;align-self:end}
+.barre-b{width:min(34px,70%);background:var(--ink-3);border-radius:4px 4px 0 0;align-self:end;opacity:.55;transition:opacity .15s}
+.barre.cur .barre-b{background:#112233;opacity:1}
+.barre:hover .barre-b{opacity:1}
+.barre-m{font-size:11px;color:var(--ink-3);text-transform:capitalize;border-top:1px solid var(--line);width:100%;text-align:center;padding-top:4px}
+.barre.cur .barre-m{color:var(--ink);font-weight:600}
+.donnees{margin-top:10px;font-size:12.5px}
+.donnees summary{cursor:pointer;color:var(--ink-3)}
+.donnees table{margin-top:6px;width:100%}
+.classement{display:flex;flex-direction:column;gap:10px}
+.cl-l{display:grid;grid-template-columns:minmax(90px,1.1fr) 2fr auto;gap:10px;align-items:center;font-size:13px}
+.cl-n{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cl-b{height:10px;background:var(--surface-2);border-radius:5px;overflow:hidden}
+.cl-b span{display:block;height:100%;background:#112233;border-radius:0 4px 4px 0}
+.cl-v{color:var(--ink-2);white-space:nowrap}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .barre.cur .barre-b,:root:not([data-theme="light"]) .cl-b span{background:#C99948}}
+:root[data-theme="dark"] .barre.cur .barre-b,:root[data-theme="dark"] .cl-b span{background:#C99948}
+@media (max-width:600px){.barres{height:160px}.barre-v{font-size:9.5px}.cl-l{grid-template-columns:1fr auto;}.cl-b{grid-column:1/-1;grid-row:2}}

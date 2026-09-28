@@ -887,6 +887,7 @@ V.agence.parametres = async () => {
   return head('Paramètres de l\'agence', 'Informations légales et réglages utilisés pour les contrats, les factures, la paie et l\'envoi des messages.') +
     (essentiels.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('alert')}</div><div><b>${essentiels.length} information${essentiels.length > 1 ? 's' : ''} manquante${essentiels.length > 1 ? 's' : ''} sur les contrats et factures</b><div class="small muted">${essentiels.map(e => e[1]).join(', ')}</div></div></div></section>` : '') +
     d.groupes.map(g => `<section class="panel"><div class="panel-h"><div><h2>${esc(g.titre)}</h2><div class="small muted">${esc(g.aide)}</div></div>${g.id === 'messagerie' ? `<div class="statusline">${canaux}</div>` : ''}</div>
+      ${g.id === 'messagerie' ? `<div class="panel-b prerempli"><span class="small muted">Préremplir l'e-mail :</span>${btn('Gmail (chr-interims@gmail.com)', 'mail', 'data-a="smtppreset" data-p="gmail"', 'sm')}${btn('Brevo', 'mail', 'data-a="smtppreset" data-p="brevo"', 'sm')}${btn('Outlook / Microsoft 365', 'mail', 'data-a="smtppreset" data-p="outlook"', 'sm')}</div>` : ''}
       <form data-f="param" class="panel-b form">${g.champs.map(champ).join('')}<div class="full row"><button class="btn primary" type="submit">${ic('check')}Enregistrer</button></div></form>
       ${g.id === 'messagerie' ? `<form data-f="paramtest" class="panel-b inline-form" style="border-top:1px solid var(--line)"><label class="f" style="flex:0 1 160px">Canal<select name="canal">${['mail', 'sms', 'whatsapp'].map(k => `<option value="${k}">${CANAUX[k][1]}</option>`).join('')}</select></label>
         <label class="f">Destinataire (e-mail ou numéro de téléphone)<input type="text" name="destinataire" required placeholder="vous@exemple.fr ou 06 12 34 56 78"></label><button class="btn" type="submit">${ic('send')}Envoyer un message de test</button></form>
@@ -1616,6 +1617,18 @@ const A = {
     openModal(`${modalHead(ic('bell') + 'Notifications')}${n.length ? `<div class="list">${n.map(x => `<div class="li"><div>${esc(x.message)}<div class="small muted">${esc(x.created_at)}</div></div></div>`).join('')}</div>` : empty('Aucune notification.')}<div class="panel-f" style="justify-content:flex-end">${btn('Fermer', '', 'data-a="close"', 'primary')}</div>`);
     await POST('/notifications/lu'); refreshCounts();
   }),
+  // Préremplit les réglages SMTP d'un fournisseur (le mot de passe reste à saisir).
+  smtppreset: el => {
+    const f = el.closest('.panel').querySelector('form[data-f="param"]');
+    const PRE = {
+      gmail: { smtp_host: 'smtp.gmail.com', smtp_port: '465', smtp_secure: 'oui', smtp_user: 'chr-interims@gmail.com', smtp_from: 'CHR Intérim <chr-interims@gmail.com>' },
+      brevo: { smtp_host: 'smtp-relay.brevo.com', smtp_port: '587', smtp_secure: 'non' },
+      outlook: { smtp_host: 'smtp.office365.com', smtp_port: '587', smtp_secure: 'non' },
+    }[el.dataset.p];
+    for (const [k, v] of Object.entries(PRE)) { const i = f.elements[k]; if (i) i.value = v; }
+    const pw = f.elements.smtp_pass; pw.focus(); pw.scrollIntoView({ block: 'center' });
+    toast(el.dataset.p === 'gmail' ? 'Réglages Gmail remplis : collez le mot de passe d\'application (16 lettres), puis Enregistrer.' : 'Serveur et port remplis : saisissez l\'identifiant, la clé et l\'adresse d\'expédition, puis Enregistrer.');
+  },
   copy: el => { const t = el.dataset.t; (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => toast('Copié'), () => toast('Copie impossible : sélectionnez le texte.', true)); },
   newmission: el => act(missionForm, el),
   diffuser: el => act(() => diffuseModal(Number(el.dataset.id)), el),

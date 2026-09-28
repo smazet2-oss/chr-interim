@@ -126,3 +126,12 @@ test('envoi réel e-mail (avec logo), SMS et WhatsApp', async () => {
   assert.ok(twilioRecus.some(x => String(x.Body).includes(acc.password)), 'le SMS contient bien le mot de passe');
   assert.equal(all('SELECT contenu FROM envois_messages').some(x => x.contenu.includes(acc.password)), false, 'jamais en clair dans le journal');
 });
+
+test('erreurs SMTP traduites avec la marche à suivre', () => {
+  const { erreurSmtp } = require('../src/notify');
+  assert.match(erreurSmtp({ code: 'EAUTH', message: '535-5.7.8 Username and Password not accepted' }), /mot de passe SMTP refusé|mot de passe d'application/);
+  assert.match(erreurSmtp({ code: 'ETIMEDOUT', message: 'Connection timeout' }), /injoignable/);
+  assert.match(erreurSmtp({ message: 'wrong version number' }), /port 465/);
+  assert.match(erreurSmtp({ message: '553 5.7.1 Sender address rejected' }), /expédition refusée/);
+  assert.equal(erreurSmtp({ message: 'autre' }), 'autre');
+});

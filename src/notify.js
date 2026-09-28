@@ -17,6 +17,8 @@ const siteUrl = () => String(P.get('site_url') || process.env.APP_URL || 'http:/
 let mailer = null, mailerCle = '';
 function getMailer() {
   const cfg = { host: P.get('smtp_host'), port: Number(P.get('smtp_port') || 587), secure: P.get('smtp_secure') === 'oui', user: P.get('smtp_user'), pass: P.get('smtp_pass') };
+  // Gmail affiche le mot de passe d'application par groupes de 4 lettres : les espaces copiés sont retirés.
+  if (/gmail|google/i.test(String(cfg.host)) && cfg.pass) cfg.pass = cfg.pass.replace(/\s+/g, '');
   if (!cfg.host) return null;
   const cle = JSON.stringify(cfg);
   if (cle !== mailerCle) {
@@ -134,8 +136,22 @@ async function envoyer(canal, dest, sujet, texte, opts = {}) {
     const sid = await twilioSend(params);
     return log('envoye', 'SID ' + sid);
   } catch (e) {
-    return log('echec', String(e.message).slice(0, 300));
+    return log('echec', String(canal === 'mail' ? erreurSmtp(e) : e.message).slice(0, 300));
   }
 }
 
-module.exports = { envoyer, canalConfigure, gabaritEmail, siteUrl };
+/** Erreurs SMTP les plus fréquentes, traduites avec la marche à suivre. */
+function erreurSmtp(e) {
+  const m = String(e.message || ''), gmail = /gmail|google/i.test(String(P.get('smtp_host')));
+  if (e.code === 'EAUTH' || /\b535\b|534|Username and Password not accepted|Invalid login|Application-specific password/i.test(m))
+    return gmail ? 'Gmail refuse la connexion : utilisez un mot de passe d\'application (16 lettres, validation en deux étapes activée), pas le mot de passe du compte. ' + m
+      : 'Identifiant ou mot de passe SMTP refusé. ' + m;
+  if (['ETIMEDOUT', 'ESOCKET', 'ECONNECTION'].includes(e.code) || /timeout|timed out/i.test(m))
+    return 'Serveur SMTP injoignable : vérifiez le serveur, le port (465 avec connexion chiffrée « oui », ou 587 avec « non ») et que l\'hébergeur autorise l\'envoi. ' + m;
+  if (e.code === 'EDNS' || /ENOTFOUND/.test(m)) return 'Serveur SMTP introuvable : vérifiez son nom (ex. smtp.gmail.com). ' + m;
+  if (/wrong version number|ssl3_get_record|greeting never received/i.test(m)) return 'Réglage de chiffrement incorrect : port 465 → connexion chiffrée « oui » ; port 587 → « non ». ' + m;
+  if (/\b(550|553|554)\b/.test(m)) return 'Adresse d\'expédition refusée par le serveur : elle doit être celle du compte SMTP (ou un alias autorisé). ' + m;
+  return m;
+}
+
+module.exports = { envoyer, canalConfigure, gabaritEmail, siteUrl, erreurSmtp };

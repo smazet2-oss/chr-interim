@@ -785,3 +785,6 @@ a.brand:focus-visible,.auth-banner-lien:focus-visible{outline:2px solid #C99948;
 
 /* Liens de suivi des visites (statistiques de l'agence) */
 table.liens-suivi .mono{overflow-wrap:anywhere}
+
+/* Préremplissage des réglages e-mail */
+.prerempli{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:0}

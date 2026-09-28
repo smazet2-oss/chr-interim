@@ -27,15 +27,13 @@ Ouvrez ensuite http://localhost:3000.
 
 ## Fonctionnement
 
-### Menu de l'agence
+### Menu de chaque espace
 
-Tableau de bord, Planning et Missions en premier, puis trois listes déroulantes (l'ouverture est mémorisée sur l'appareil, et la liste de la page affichée s'ouvre seule ; un badge résume les éléments à traiter quand elle est fermée) :
+Le tableau de bord en accès direct, puis toutes les rubriques en listes déroulantes. **Une seule liste est ouverte à la fois** : en ouvrir une ferme la précédente. La liste de la page affichée s'ouvre seule, la dernière ouverte est mémorisée sur l'appareil, et un badge résume les éléments à traiter quand une liste est fermée. Le logo ramène au tableau de bord.
 
-- **Intérimaires** : fiches, candidatures, contrats de mission, relevés d'heures, paie, évaluations ;
-- **Clients** : fiches clients, prospects ;
-- **Facturation** : factures et débiteurs, relances (factures en retard, contrats à signer, historique), coefficients et contrats (coefficient de chaque entreprise, origine, marge estimée, encours).
-
-Viennent ensuite Accès utilisateurs, Journal des envois et Paramètres. Le logo ramène au tableau de bord.
+- **Agence** : Activité (planning, missions, statistiques) ; Intérimaires (fiches, candidatures, contrats de mission, relevés d'heures, paie, évaluations) ; Clients (fiches clients, candidatures clients) ; Facturation (factures et débiteurs, relances, coefficients et contrats) ; Administration (droits d'accès, accès utilisateurs, journal des envois, paramètres).
+- **Employeur** : Activité (missions, planning, heures et évaluations) ; Suivi (statistiques, intérimaires) ; Administratif et social (documents, contrats de mission, factures, contrat commercial).
+- **Intérimaire** : Activité (missions proposées, planning, heures) ; Suivi (statistiques, profil et CV, avis) ; Administratif et social (contrats, paie, documents).
 
 ### Droits d'accès (administrateur)
 

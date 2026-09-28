@@ -110,20 +110,23 @@ const GET = u => api('GET', u), POST = (u, b = {}) => api('POST', u, b), PUT = (
 /* ---------------- État et navigation ---------------- */
 const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, busy: false };
 const NAV = {
-  // Agence : l'essentiel en premier, puis des listes déroulantes ['+', titre, icône, [entrées]] par domaine.
-  agence: [['accueil', 'Tableau de bord', 'dash'], ['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'], ['stats', 'Statistiques', 'chart'],
+  // Chaque espace : le tableau de bord en accès direct, puis des listes déroulantes ['+', titre, icône, [entrées]] par domaine.
+  // Une seule liste est ouverte à la fois (accordéon).
+  agence: [['accueil', 'Tableau de bord', 'dash'],
+    ['+', 'Activité', 'briefcase', [['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'], ['stats', 'Statistiques', 'chart']]],
     ['+', 'Intérimaires', 'users', [['interimaires', 'Fiches intérimaires', 'users'], ['candidats', 'Candidatures intérimaires', 'idcard'], ['contrats', 'Contrats de mission', 'file'],
       ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star']]],
     ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target']]],
     ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
-    ['-', 'Administration'], ['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
-  // Employeur et intérimaire : par ordre d'importance, l'administratif et le social en dernier. ['-', titre] = intertitre.
-  client: [['-', 'Activité'], ['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
-    ['-', 'Suivi'], ['stats', 'Statistiques', 'chart'], ['interimaires', 'Intérimaires', 'users'],
-    ['-', 'Administratif et social'], ['documents', 'Documents', 'folder'], ['contrats', 'Contrats de mission', 'edit'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']],
-  interim: [['-', 'Activité'], ['accueil', 'Accueil', 'dash'], ['missions', 'Missions proposées', 'send'], ['dispo', 'Mon planning', 'cal'], ['heures', 'Mes heures', 'clock'],
-    ['-', 'Suivi'], ['stats', 'Mes statistiques', 'chart'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star'],
-    ['-', 'Administratif et social'], ['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']],
+    ['+', 'Administration', 'gear', [['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']]]],
+  client: [['accueil', 'Tableau de bord', 'dash'],
+    ['+', 'Activité', 'briefcase', [['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock']]],
+    ['+', 'Suivi', 'chart', [['stats', 'Statistiques', 'chart'], ['interimaires', 'Intérimaires', 'users']]],
+    ['+', 'Administratif et social', 'folder', [['documents', 'Documents', 'folder'], ['contrats', 'Contrats de mission', 'edit'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']]]],
+  interim: [['accueil', 'Accueil', 'dash'],
+    ['+', 'Activité', 'briefcase', [['missions', 'Missions proposées', 'send'], ['dispo', 'Mon planning', 'cal'], ['heures', 'Mes heures', 'clock']]],
+    ['+', 'Suivi', 'chart', [['stats', 'Mes statistiques', 'chart'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star']]],
+    ['+', 'Administratif et social', 'folder', [['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']]]],
 };
 /** Menu à plat (listes déroulantes dépliées) et groupe d'une rubrique. */
 /** Menu du compte connecté : sans les rubriques verrouillées (Droits d'accès réservé à l'administrateur). */
@@ -137,9 +140,9 @@ function navDe(prof) {
 const peut = k => !(S.me?.verrous || []).includes(k);
 const navPlat = prof => navDe(prof).flatMap(n => n[0] === '+' ? n[3] : [n]);
 const groupeDe = (prof, v) => navDe(prof).find(n => n[0] === '+' && n[3].some(x => x[0] === v));
-/** Listes déroulantes ouvertes : celle de la rubrique affichée, plus celles ouvertes par l'utilisateur (mémorisé sur cet appareil). */
-let NAV_OUVERT = (() => { try { return new Set(JSON.parse(localStorage.getItem('chr-nav') || '[]')); } catch { return new Set(); } })();
-const memoNav = () => { try { localStorage.setItem('chr-nav', JSON.stringify([...NAV_OUVERT])); } catch { /* stockage indisponible */ } };
+/** Liste déroulante ouverte (une seule à la fois) : celle de la rubrique affichée, ou la dernière ouverte (mémorisée sur cet appareil). */
+let NAV_OUVERT = (() => { try { return localStorage.getItem('chr-nav-ouvert') || ''; } catch { return ''; } })();
+const memoNav = () => { try { localStorage.setItem('chr-nav-ouvert', NAV_OUVERT); } catch { /* stockage indisponible */ } };
 const SPACE = { agence: 'Espace agence', client: 'Espace employeur', interim: 'Espace intérimaire' };
 const BANNER = {
   agence: 'Profil agence : contrôle complet sur tous les espaces.',
@@ -258,12 +261,12 @@ async function renderApp() {
   const me = S.me, prof = me.profil;
   $('#space').textContent = SPACE[prof];
   const lien = ([k, l, i]) => `<button data-a="nav" data-v="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span><span class="count" data-count="${k}" hidden></span></button>`;
-  const g0 = groupeDe(prof, S.view); if (g0) NAV_OUVERT.add(g0[1]);
+  const g0 = groupeDe(prof, S.view); if (g0) { NAV_OUVERT = g0[1]; memoNav(); }
   if (!navPlat(prof).some(n => n[0] === S.view)) S.view = 'accueil';
   $('#nav').innerHTML = navDe(prof).map((n, x) => {
     if (n[0] === '-') return `<div class="nav-sep" role="presentation">${n[1]}</div>`;
     if (n[0] !== '+') return lien(n);
-    const ouvert = NAV_OUVERT.has(n[1]), actif = n[3].some(e => e[0] === S.view);
+    const ouvert = NAV_OUVERT === n[1], actif = n[3].some(e => e[0] === S.view);
     return `<div class="nav-groupe${actif ? ' actif' : ''}"><button class="nav-titre" data-a="navgroupe" data-g="${esc(n[1])}" aria-expanded="${ouvert}" aria-controls="ng-${x}">${ic(n[2])}<span>${n[1]}</span><span class="count" data-count-groupe hidden></span><span class="nav-chev">${ic('chev')}</span></button>
       <div class="nav-sous" id="ng-${x}" role="group" aria-label="${esc(n[1])}"${ouvert ? '' : ' hidden'}>${n[3].map(lien).join('')}</div></div>`;
   }).join('');
@@ -1613,11 +1616,14 @@ const A = {
     el.setAttribute('aria-label', voir ? 'Masquer le mot de passe' : 'Afficher le mot de passe'); el.title = el.getAttribute('aria-label');
     el.innerHTML = ic(voir ? 'eyeoff' : 'eye'); i.focus();
   },
+  // Accordéon : ouvrir une liste ferme la précédente.
   navgroupe: el => {
-    const ouvert = el.getAttribute('aria-expanded') !== 'true', g = el.dataset.g;
-    el.setAttribute('aria-expanded', ouvert); document.getElementById(el.getAttribute('aria-controls')).hidden = !ouvert;
-    if (ouvert) NAV_OUVERT.add(g); else NAV_OUVERT.delete(g);
-    memoNav();
+    const ouvert = el.getAttribute('aria-expanded') !== 'true';
+    document.querySelectorAll('#nav .nav-titre').forEach(t => {
+      const o = ouvert && t === el;
+      t.setAttribute('aria-expanded', o); document.getElementById(t.getAttribute('aria-controls')).hidden = !o;
+    });
+    NAV_OUVERT = ouvert ? el.dataset.g : ''; memoNav();
   },
   // Logo : tableau de bord quand on est connecté (sans recharger la page), sinon page de connexion.
   logo: (el, e) => { if (!S.me || S.me.must_change) return; e.preventDefault(); setMenu(false); go('accueil'); window.scrollTo(0, 0); },

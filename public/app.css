@@ -610,7 +610,7 @@ a.brand:focus-visible,.auth-banner-lien:focus-visible{outline:2px solid #C99948;
 .nav-sous button{font-size:13px;padding:7px 10px}
 .nav-sous button svg{width:16px;height:16px}
 @media (max-width:900px){
-  .nav-groupe{grid-column:1/-1}
+  .nav-groupe,.nav>button{grid-column:1/-1}
   .nav-sous{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:4px;margin:2px 0 6px;padding:4px;border-left:0;border-radius:8px;background:rgba(255,255,255,.04)}
   .nav-sous[hidden]{display:none}
 }

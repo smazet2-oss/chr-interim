@@ -45,14 +45,14 @@ test('e-mail par l\'API Brevo : envoi, clé refusée, expéditeur non validé', 
   const r0 = await ag.post('/login', { username: 'admin', password: 'Admin-Temp1' });
   if (r0.data.must_change) await ag.post('/password', { actuel: 'Admin-Temp1', nouveau: 'Agence2026' });
   const regler = v => ag.put('/parametres', { valeurs: v, effacer: [] });
-  assert.equal((await regler({ mail_methode: 'API Brevo (HTTPS)', brevo_cle: 'xkeysib-bonne', smtp_from: 'CHR Intérim <chr-interims@gmail.com>', site_url: 'https://chr.example' })).status, 200);
+  assert.equal((await regler({ mail_methode: 'API Brevo (HTTPS)', brevo_cle: 'xkeysib-bonne', smtp_from: 'CHR Intérim <chr.interims@gmail.com>', site_url: 'https://chr.example' })).status, 200);
   assert.equal((await ag.get('/parametres')).data.canaux.mail, true);
 
   const ok = (await ag.post('/parametres/test', { canal: 'mail', destinataire: 'lea@exemple.fr' })).data;
   assert.equal(ok.statut, 'envoye', ok.detail);
   const m = recus.at(-1);
   assert.equal(m._url, '/v3/smtp/email'); assert.equal(m._cle, 'xkeysib-bonne');
-  assert.deepEqual(m.sender, { name: 'CHR Intérim', email: 'chr-interims@gmail.com' });
+  assert.deepEqual(m.sender, { name: 'CHR Intérim', email: 'chr.interims@gmail.com' });
   assert.deepEqual(m.to, [{ email: 'lea@exemple.fr' }]);
   assert.match(m.htmlContent, /https:\/\/chr\.example\/img\/bandeau-horizontal\.png/);
 

@@ -99,7 +99,7 @@ tx(() => {
   // Données légales de l'agence et état civil des intérimaires (remplissent les contrats de mission).
   for (const [k, v] of [['representant_nom', 'Claire Morel'], ['representant_qualite', 'Gérante'], ['siret', '912 345 678 00017'], ['adresse', '5 rue de la République'],
     ['code_postal', '69002'], ['ville', 'Lyon'], ['garantie_financiere', 'Atradius, 75 000 €, 159 rue Anatole France, 92300 Levallois-Perret'], ['caisse_retraite', 'Klesia'],
-    ['organisme_prevoyance', 'Intérimaires Santé / Intérimaires Prévoyance'], ['telephone', '04 78 00 00 00'], ['email', 'chr-interims@gmail.com']]) {
+    ['organisme_prevoyance', 'Intérimaires Santé / Intérimaires Prévoyance'], ['telephone', '04 78 00 00 00'], ['email', 'chr.interims@gmail.com']]) {
     run('INSERT INTO parametres (cle, valeur) VALUES (?,?) ON CONFLICT(cle) DO NOTHING', k, v);
   }
   run('UPDATE interimaires SET date_naissance = \'1998-03-14\', lieu_naissance = \'Lyon (France)\', nir = \'198036938812397\', adresse = \'14 rue de Marseille\', code_postal = \'69007\' WHERE id = ?', I[0]);

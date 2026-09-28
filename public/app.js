@@ -169,7 +169,8 @@ function renderAuth() {
       <div class="err" role="alert" hidden></div><button class="btn primary" type="submit">Se connecter</button>
       <p class="small muted">Mot de passe oublié ? Demandez à votre agence de le réinitialiser.</p></form></div>
       <a class="auth-contact" href="/contact">${ic('building')}<span><b>Vous êtes un hôtel, un café ou un restaurant ?</b> Besoin de renforts : parlez-nous de vos besoins</span>${ic('chev')}</a>
-      <a class="auth-contact" href="/candidature">${ic('idcard')}<span><b>Vous cherchez des missions en hôtellerie-restauration ?</b> Rejoignez nos intérimaires : déposez votre candidature</span>${ic('chev')}</a></div>`;
+      <a class="auth-contact" href="/candidature">${ic('idcard')}<span><b>Vous cherchez des missions en hôtellerie-restauration ?</b> Rejoignez nos intérimaires : déposez votre candidature</span>${ic('chev')}</a>
+      <a class="auth-contact" href="/recruteur">${ic('briefcase')}<span><b>Vous recrutez au job dating des alternants ?</b> Ouvrez l'application recruteurs avec votre code d'accès</span>${ic('chev')}</a></div>`;
     return;
   }
   $('#auth').innerHTML = `<div class="auth"><a class="auth-banner-lien" href="/" title="Accueil"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="CHR Intérim, spécialiste des métiers HCR" width="1200" height="267"></picture></a><div class="auth-card">${brand}

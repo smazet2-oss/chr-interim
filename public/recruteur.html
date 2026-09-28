@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Job dating · Recruteurs</title>
+<meta name="theme-color" content="#112233">
+<meta name="robots" content="noindex">
+<meta name="description" content="Application des recruteurs du job dating des alternants HCR : scannez les badges, consultez les profils anonymes, demandez un rendez-vous.">
+<link rel="icon" type="image/png" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/icone-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/recruteur.css">
+</head>
+<body>
+<header class="haut">
+  <img src="/img/logo-compact.png" alt="CHR Intérim" class="logo">
+  <div class="haut-t" id="haut-t"><b>Job dating</b><span>Espace recruteurs</span></div>
+  <button type="button" class="haut-btn" data-a="deconnexion" id="btn-deco" hidden aria-label="Se déconnecter">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+  </button>
+</header>
+<main id="main" aria-live="polite"><p class="chargement">Chargement…</p></main>
+<div id="feuille"></div>
+<div class="toast" id="toast" role="status" hidden></div>
+<script src="/recruteur.js"></script>
+</body>
+</html>

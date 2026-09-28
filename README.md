@@ -107,6 +107,24 @@ Le contrat reprend le modèle HCR (IDCC 1979) en 9 articles : parties, motif de 
 - **Page publique** `/candidature`, deuxième onglet de la page de contact (« Je cherche des missions ») et lien depuis la page de connexion : identité, autorisation de travail, postes recherchés, expérience et formations, disponibilités, mobilité et tenue, attentes (taux souhaité, canal préféré), CV facultatif (PDF, Word ou photo, 5 Mo, contenu vérifié) et accord de conservation. L'agence reçoit un e-mail d'alerte.
 - **Espace agence › Candidatures** : réponses complètes, CV, statut (nouvelle, à rappeler, entretien, inscrit, sans suite), date de rappel, notes, création de la fiche intérimaire en un clic et suppression (CV compris) à la demande de la personne. Les candidatures nouvelles ou à rappeler apparaissent dans le tableau de bord.
 
+### Job dating des alternants HCR
+
+Un job dating anonyme : chaque alternant porte un badge avec un QR code, les recruteurs le scannent avec leur téléphone et voient son profil et son CV **sans nom, photo ni coordonnées**. Cela retire le stress du premier contact et évite les biais.
+
+- **Espace agence › Job dating alternants** : créer l'événement (nom, date, lieu), puis ajouter :
+  - les **alternants** : identité et coordonnées (visibles par l'organisme seulement), profil anonyme (diplôme préparé, niveau, contrat, école, postes, rythme, date de début, durée, mobilité, compétences, savoir-être, expériences, langues, projet) et CV anonymisé facultatif (PDF, Word ou image, 5 Mo, contenu vérifié ; l'organisme certifie qu'il est anonymisé). Chacun reçoit un numéro et un QR code ;
+  - les **recruteurs** : entreprise et contact. Chacun reçoit un code d'accès (ex. `ABCD-2345`) et un lien de connexion directe, régénérables.
+- **Impression** : « Badges alternants » (un badge par alternant, numéro et QR code, sans nom, puis une liste de remise réservée à l'organisme) et « Cartes recruteurs » (code et QR code de connexion). Le badge et l'accès peuvent aussi être envoyés par e-mail, SMS ou WhatsApp.
+- **Application des recruteurs** `/recruteur`, pensée pour le téléphone et sans compte : connexion par code (ou QR code de la carte), bouton « Scanner un badge » (caméra du navigateur quand il le permet ; sinon l'appareil photo du téléphone ouvre le lien du badge directement dans l'application), ou saisie du numéro du badge. Sur le profil anonyme :
+  - **Demander un rendez-vous** (disponibilités et message facultatifs) : l'organisme est prévenu (cloche et e-mail) ;
+  - **Pas pour nous** : le profil est écarté. **L'alternant n'en est jamais informé**, et l'organisme ne reçoit aucune alerte. Le recruteur peut revenir sur sa décision.
+  - Liste des profils consultés, filtrable (à décider, rendez-vous, écartés).
+- **Demandes de rendez-vous** (onglet de l'événement, compteur dans le menu) : l'organisme voit l'identité complète des deux parties, **planifie** le rendez-vous (date, heure, lieu, précisions) et prévient le recruteur par e-mail et l'alternant par e-mail, SMS ou WhatsApp. Le recruteur voit alors le rendez-vous et le prénom de l'alternant. L'organisme peut aussi annuler (motif affiché au recruteur) ou rouvrir une demande.
+- **Lien du QR code** (`/jd/…`) : ouvert par un recruteur connecté, il affiche le profil ; ouvert par quelqu'un d'autre (l'alternant, par exemple), il affiche seulement le badge à présenter, sans aucune donnée personnelle.
+- **Clore** l'événement bloque les nouveaux scans ; les demandes sur les profils déjà vus restent possibles. **Supprimer** l'événement efface les alternants, les CV, les recruteurs et les demandes.
+- Un recruteur ne voit que les profils qu'il a scannés, de son seul job dating. Les codes QR sont générés par le serveur (`src/qrcode.js`, sans dépendance).
+- Démonstration : code recruteur `DEMO-2026` sur `/recruteur`.
+
 ### Annulations, désistements et indisponibilités
 
 - **Annulation par l'employeur** (« Annuler la mission », raison obligatoire) : les intérimaires positionnés reçoivent une notification, un SMS et un e-mail de remise à disposition ; leur journée repasse « disponible » et les missions ouvertes sur le même créneau leur sont automatiquement proposées, avec une alerte. L'agence est prévenue. L'agence peut aussi annuler (raison facultative).
@@ -242,6 +260,8 @@ src/relances.js   relances des contrats non signés et des factures échues
 src/prospects.js  page publique « Besoin de renforts ? » et suivi des prospects
 src/candidats.js  page publique « Je cherche des missions » et suivi des candidatures
 src/simulation.js simulation de paie, de coût et de marge
+src/jobdating.js  job dating des alternants : badges QR, application des recruteurs, rendez-vous
+src/qrcode.js     générateur de QR codes (SVG)
 src/seed-demo.js  données de démonstration
 public/           interface (HTML, CSS, JavaScript sans framework)
 test/             tests automatiques de l'API

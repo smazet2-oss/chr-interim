@@ -6,6 +6,7 @@ const { one, all, run, tx } = require('./db');
 const dossier = require('./dossier');
 require('./prospects'); // crée la table des prospects
 require('./candidats'); // crée la table des candidatures
+require('./jobdating'); // crée les tables du job dating
 
 if (one('SELECT 1 FROM clients LIMIT 1')) {
   console.log('La base contient déjà des données : démonstration non installée. (npm run demo:reset pour repartir de zéro)');
@@ -138,6 +139,21 @@ tx(() => {
 
   for (let k = 1; k <= 20; k++) run('INSERT OR IGNORE INTO disponibilites (interim_id, date, etat) VALUES (?,?,?)', I[0], jour(k), k % 7 === 0 ? 'indisponible' : 'disponible');
   run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', I[0], f1, 'Nouvelle mission : Commis de cuisine chez Brasserie Le Comptoir');
+
+  // Job dating des alternants : trois badges, deux recruteurs (code d'accès DEMO-2026 pour l'Hôtel Bellecour).
+  const ev = run('INSERT INTO jd_evenements (nom, date, lieu, description) VALUES (?,?,?,?)', 'Job dating alternance HCR', jour(7), 'CFA des métiers de l\'hôtellerie, Lyon 7e', 'Rentrée de novembre : BTS, bac pro et CAP.').lastInsertRowid;
+  const alt = (numero, prenom, nom, tel, p) => run(`INSERT INTO jd_alternants (evenement_id, numero, token, prenom, nom, telephone, formation, niveau, contrat, ecole, postes, secteur, rythme, debut, duree, mobilite, competences, qualites, experiences, langues, projet)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, ev, numero, require('node:crypto').randomBytes(12).toString('base64url'), prenom, nom, tel, ...p);
+  alt(1, 'Léa', 'Durand', '06 12 00 00 01', ['BTS Management en hôtellerie-restauration', 'BTS / Bac+2', 'Apprentissage', 'CFA des métiers de l\'hôtellerie', 'Chef de rang, maître d\'hôtel', 'Restauration', '2 semaines au CFA / 2 semaines en entreprise', jour(40), '2 ans',
+    'Lyon et 20 km, transports en commun', 'Service à la française, conseil en vins, encaissement, anglais professionnel', 'Accueil souriant, sens du détail, esprit d\'équipe',
+    'Stage de 8 semaines dans un restaurant gastronomique (commis de salle)\nExtras en brasserie les week-ends depuis 1 an', 'Anglais courant, espagnol scolaire', 'Devenir maître d\'hôtel dans un établissement étoilé.']);
+  alt(2, 'Tom', 'Petit', '06 12 00 00 02', ['CAP Cuisine', 'CAP / BEP', 'Apprentissage', 'Lycée professionnel', 'Commis de cuisine', 'Cuisine', '1 semaine au CFA / 2 semaines en entreprise', jour(40), '2 ans',
+    'Villeurbanne, deux-roues', 'Mise en place, taillages, HACCP, cuisson des garnitures', 'Motivé, ponctuel, résistant au rythme du coup de feu', 'Stage de 6 semaines en restauration collective', 'Anglais débutant', 'Apprendre la cuisine de bistrot et évoluer vers chef de partie.']);
+  alt(3, 'Inès', 'Moreau', '06 12 00 00 03', ['Bachelor Hospitality Management', 'Licence / Bachelor (Bac+3)', 'Apprentissage', 'École hôtelière', 'Réceptionniste, assistante revenue manager', 'Hôtellerie', '3 jours à l\'école / 2 jours en entreprise', jour(30), '1 an',
+    'Lyon, permis B', 'Opera PMS, check-in / check-out, gestion des avis clients', 'Rigoureuse, polyglotte, calme sous pression', 'Réceptionniste de nuit en job d\'été (2 saisons)', 'Anglais bilingue, italien courant', 'Évoluer vers le revenue management hôtelier.']);
+  run('INSERT INTO jd_employeurs (evenement_id, entreprise, contact, email, telephone, ville, code, token) VALUES (?,?,?,?,?,?,?,?)', ev, 'Hôtel Bellecour', 'Nadia Benard, directrice', 'reception@bellecour.example', '04 78 00 00 02', 'Lyon 2e', 'DEMO-2026', require('node:crypto').randomBytes(24).toString('base64url'));
+  run('INSERT INTO jd_employeurs (evenement_id, entreprise, contact, email, ville, code, token) VALUES (?,?,?,?,?,?,?)', ev, 'Brasserie Le Comptoir', 'Marc Dupuis, chef', 'contact@lecomptoir.example', 'Lyon 2e', 'DEMO-7XK4', require('node:crypto').randomBytes(24).toString('base64url'));
 });
 console.log('Démonstration installée. Comptes (mot de passe « Demo2026! ») : claire.morel (agence), comptoir.lyon (employeur), yanis.benali, lucas.martin, thomas.petit (intérimaires).');
 console.log('camille.roux : mot de passe provisoire « Provisoire1 » (changement obligatoire à la première connexion).');
+console.log('Job dating : application recruteurs sur /recruteur, code d\'accès « DEMO-2026 » (Hôtel Bellecour).');

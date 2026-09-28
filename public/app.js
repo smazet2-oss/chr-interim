@@ -862,14 +862,32 @@ V.agence.acces = async () => {
     <td class="r">${u.id === S.me.id ? '<span class="small muted">Vous</span>' : `<div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${btn('Réinitialiser', 'lock', `data-a="reset" data-id="${u.id}"`, 'sm')}${btn(u.actif ? 'Désactiver' : 'Réactiver', '', `data-a="toggle" data-id="${u.id}"`, 'sm')}</div>`}</td></tr>`).join('')}</tbody></table></div>`);
 };
 V.agence.journal = async () => {
-  const L = await GET('/journal'), c = S.cfg?.canaux || {};
+  const onglet = S.p.jcanal || 'tous', statut = S.p.jstatut || 'tous';
+  const q = new URLSearchParams({ ...(onglet !== 'tous' ? { canal: onglet } : {}), ...(statut !== 'tous' ? { statut } : {}) }).toString();
+  const [L, n] = await Promise.all([GET('/journal' + (q ? '?' + q : '')), GET('/journal/compteurs' + (statut !== 'tous' ? '?statut=' + statut : ''))]);
+  const c = S.cfg?.canaux || {};
   const conf = Object.entries(CANAUX).map(([k, [i, l]]) => `<span class="row">${ic(i)}${l} : ${c[k] ? badge('libre', 'configuré') : badge('attente', 'non configuré (simulé)')}</span>`).join('');
   const st = { envoye: ['libre', 'Envoyé'], simule: ['attente', 'Simulé'], echec: ['danger', 'Échec'] };
-  return head('Journal des envois', 'Tous les messages WhatsApp, SMS et e-mail envoyés par la plateforme. Un canal non configuré est simulé : le message est enregistré ici sans être envoyé.') +
+  const ONGLETS = [['tous', 'Tous', 'list'], ['mail', 'E-mail', 'mail'], ['sms', 'SMS', 'phone'], ['whatsapp', 'WhatsApp', 'msg']];
+  const onglets = `<div class="seg jr-onglets" role="tablist">${ONGLETS.map(([k, l, i]) => `<button type="button" role="tab" aria-pressed="${onglet === k}" data-a="jcanal" data-v="${k}">${ic(i)}${l} <span class="jr-n">${n[k] || 0}</span></button>`).join('')}</div>`;
+  const filtre = `<label class="f jr-statut">Statut<select data-j="statut">${[['tous', 'Tous les statuts'], ['envoye', 'Envoyés'], ['simule', 'Simulés'], ['echec', 'Échecs']].map(([k, l]) => `<option value="${k}" ${statut === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
+  const barre = `<div class="panel-b jr-barre"><label class="check"><input type="checkbox" data-j="tout" ${L.length ? '' : 'disabled'}> Tout sélectionner</label><span class="small muted" id="jr-compte">Aucun message sélectionné</span>${btn('Supprimer la sélection', 'trash', 'data-a="jsuppr" disabled', 'sm danger')}</div>`;
+  const titre = `${L.length} message${L.length > 1 ? 's' : ''}${L.length >= 200 ? ' (200 derniers)' : ''}`;
+  return head('Journal des envois', 'Tous les messages WhatsApp, SMS et e-mail envoyés par la plateforme. Un canal non configuré est simulé : le message est enregistré ici sans être envoyé. Cochez des messages pour les supprimer.') +
     panel('Canaux', '', `<div class="panel-b statusline" style="gap:18px">${conf}</div>`) +
-    panel('200 derniers messages', '', L.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Canal</th><th>Destinataire</th><th>Message</th><th>Statut</th></tr></thead><tbody>
-    ${L.map(x => `<tr><td class="num">${esc(x.created_at)}</td><td>${CANAUX[x.canal]?.[1] || x.canal}</td><td class="mono">${esc(x.destinataire)}</td><td style="min-width:260px">${esc(x.contenu)}</td><td><div class="envoi-statut">${badge(...st[x.statut])}${x.detail ? `<div class="small ${x.statut === 'echec' ? 'envoi-erreur' : 'muted'}">${esc(x.detail)}</div>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucun message envoyé.'));
+    `<div class="jr-tete">${onglets}${filtre}</div>` +
+    panel(titre, '', L.length ? barre + `<div class="scroll"><table class="jr-table"><thead><tr><th class="jr-case"><span class="sr-only">Sélection</span></th><th>Date</th><th>Canal</th><th>Destinataire</th><th>Message</th><th>Statut</th></tr></thead><tbody>
+    ${L.map(x => `<tr><td class="jr-case"><input type="checkbox" data-j="case" value="${x.id}" aria-label="Sélectionner le message du ${esc(x.created_at)} à ${esc(x.destinataire)}"></td><td class="num">${esc(x.created_at)}</td><td>${CANAUX[x.canal]?.[1] || x.canal}</td><td class="mono">${esc(x.destinataire)}</td><td style="min-width:260px">${esc(x.contenu)}</td><td><div class="envoi-statut">${badge(...st[x.statut])}${x.detail ? `<div class="small ${x.statut === 'echec' ? 'envoi-erreur' : 'muted'}">${esc(x.detail)}</div>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : empty(onglet === 'tous' && statut === 'tous' ? 'Aucun message envoyé.' : 'Aucun message pour ce filtre.'));
 };
+/** Journal : nombre de cases cochées, bouton de suppression et case « Tout sélectionner ». */
+function journalSelection() {
+  const cases = [...document.querySelectorAll('[data-j="case"]')], n = cases.filter(x => x.checked).length;
+  const b = document.querySelector('[data-a="jsuppr"]'), tout = document.querySelector('[data-j="tout"]'), t = document.querySelector('#jr-compte');
+  if (b) { b.disabled = !n; delete b.dataset.confirm; b.lastChild.textContent = n ? `Supprimer la sélection (${n})` : 'Supprimer la sélection'; }
+  if (tout) { tout.checked = n > 0 && n === cases.length; tout.indeterminate = n > 0 && n < cases.length; }
+  if (t) t.textContent = n ? `${n} message${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}` : 'Aucun message sélectionné';
+  cases.forEach(x => x.closest('tr').classList.toggle('jr-coche', x.checked));
+}
 
 V.agence.parametres = async () => {
   const d = await GET('/parametres');
@@ -1670,6 +1688,14 @@ const A = {
   mkacc: el => act(async () => { const c = await POST('/acces', { type: el.dataset.type, id: Number(el.dataset.id) }); await reload(); credModal(c, 'Accès créé'); }, el),
   reset: el => act(async () => { const c = await POST(`/acces/${el.dataset.id}/reset`); await reload(); credModal(c, 'Mot de passe réinitialisé'); }, el),
   toggle: el => act(async () => { const r = await POST(`/acces/${el.dataset.id}/toggle`); toast(r.actif ? 'Compte réactivé' : 'Compte désactivé'); reload(); }, el),
+  jcanal: el => { S.p.jcanal = el.dataset.v; reload(); },
+  jsuppr: el => act(async () => {
+    const ids = [...document.querySelectorAll('[data-j="case"]:checked')].map(x => Number(x.value));
+    if (!ids.length) return;
+    if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.lastChild.textContent = `Confirmer la suppression (${ids.length})`; return; }
+    const r = await POST('/journal/supprimer', { ids });
+    toast(`${r.supprimes} message${r.supprimes > 1 ? 's' : ''} supprimé${r.supprimes > 1 ? 's' : ''} du journal`); reload();
+  }, el),
   deldoc: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.lastChild.textContent = 'Confirmer'; return; } await DEL(`/documents/${el.dataset.id}`); toast('Document supprimé'); reload(); }, el),
   hconf: el => act(async () => { await POST(`/heures/${el.dataset.id}/confirmer`, {}); toast('Heures confirmées'); reload(); }, el),
   hval: el => act(async () => { const b = el.dataset.x === undefined ? {} : { extra_accepte: el.dataset.x === '1' }; await POST(`/heures/${el.dataset.id}/valider`, b); toast('Heures validées'); reload(); }, el),
@@ -1824,6 +1850,10 @@ document.addEventListener('click', e => {
 });
 document.addEventListener('change', e => {
   const el = e.target; if (el.dataset?.a === 'toggleextra') A.toggleextra(el);
+  // Journal des envois : cases à cocher et filtre de statut
+  if (el.dataset?.j === 'tout') { document.querySelectorAll('[data-j="case"]').forEach(x => { x.checked = el.checked; }); journalSelection(); }
+  if (el.dataset?.j === 'case') journalSelection();
+  if (el.dataset?.j === 'statut') { S.p.jstatut = el.value; reload(); }
   // Réglage d'un compte : comme l'espace, accessible ou verrouillé
   if (el.dataset?.a === 'droitcompte') act(async () => { await PUT('/droits', { cible: el.dataset.c, fonction: el.dataset.f, acces: el.value === '' ? null : el.value === 'true' }); toast('Réglage du compte enregistré'); reload(); });
 });

@@ -30,7 +30,7 @@ const FONCTIONS = {
     { k: 'a_facturation', l: 'Facturation, relances et coefficients', d: 'Factures, relances, contrats commerciaux.', vues: ['facturation', 'relances', 'tarifs'], api: [['POST', /^\/factures/], ['GET', /^\/factures\/\d+\/document$/], ['GET', /^\/relances$/], [T, /^\/contrats-clients/]] },
     { k: 'a_suppression', l: 'Supprimer des fiches', d: 'Suppression définitive de clients ou d\'intérimaires.', vues: [], api: [['DELETE', /^\/(clients|interimaires)\/\d+$/]] },
     { k: 'a_acces', l: 'Accès utilisateurs', d: 'Créer, réinitialiser, désactiver des comptes.', vues: ['acces'], api: [[T, /^\/acces/]] },
-    { k: 'a_journal', l: 'Journal des envois', d: 'Historique des e-mails, SMS et WhatsApp.', vues: ['journal'], api: [['GET', /^\/journal$/]] },
+    { k: 'a_journal', l: 'Journal des envois', d: 'Historique des e-mails, SMS et WhatsApp.', vues: ['journal'], api: [['GET', /^\/journal(\/compteurs)?$/], ['POST', /^\/journal\/supprimer$/]] },
     { k: 'a_parametres', l: 'Paramètres', d: 'Identité légale, taux, messagerie.', vues: ['parametres'], api: [[T, /^\/parametres/]] },
   ],
   client: [

@@ -794,3 +794,24 @@ table.liens-suivi .mono{overflow-wrap:anywhere}
 .envoi-statut .small{overflow-wrap:anywhere;white-space:normal}
 .envoi-erreur{color:var(--danger-fg)}
 @media (max-width:640px){table.fiches .envoi-statut{flex:1 1 auto;min-width:0;max-width:none;align-items:flex-end;text-align:right}}
+
+/* Journal des envois : onglets par canal, filtre de statut, sélection */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+.jr-tete{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
+.jr-onglets button{display:inline-flex;align-items:center;gap:6px}
+.jr-n{font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--line);color:var(--ink-2,inherit)}
+.jr-onglets button[aria-pressed="true"] .jr-n{background:rgba(255,255,255,.22);color:inherit}
+.jr-statut{flex:0 1 200px;margin:0}
+.jr-barre{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;border-bottom:1px solid var(--line)}
+.jr-barre .btn{margin-left:auto}
+.jr-case{width:36px}
+.jr-case input{width:18px;height:18px;accent-color:var(--navy,#112233)}
+tr.jr-coche td{background:var(--attente-bg,#FDF1DC)}
+@media (max-width:640px){
+  .jr-onglets{width:100%;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))}
+  .jr-onglets button{flex-direction:column;justify-content:center;gap:3px;padding:6px 2px;font-size:12.5px}
+  .jr-onglets button .i{display:none}
+  .jr-statut{flex:1 1 100%}
+  .jr-barre .btn{margin-left:0;width:100%;justify-content:center}
+  table.fiches td.jr-case{justify-content:flex-start}
+}

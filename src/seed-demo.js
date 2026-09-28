@@ -138,6 +138,15 @@ tx(() => {
   run('INSERT INTO bulletin_heures (bulletin_id, heure_id) VALUES (?,?)', b.lastInsertRowid, h3);
 
   for (let k = 1; k <= 20; k++) run('INSERT OR IGNORE INTO disponibilites (interim_id, date, etat) VALUES (?,?,?)', I[0], jour(k), k % 7 === 0 ? 'indisponible' : 'disponible');
+  // Journal des envois : quelques messages de chaque canal
+  for (const [c, d, t, st, det] of [
+    ['mail', 'yanis.benali@exemple.fr', 'CHR Intérim : nouvelle mission Commis de cuisine chez Brasserie Le Comptoir.', 'simule', 'Canal non configuré'],
+    ['mail', 'contact@lecomptoir.example', 'CHR Intérim : contrat de mission à signer.', 'simule', 'Canal non configuré'],
+    ['mail', 'ines.moreau@exemple.fr', 'Bonjour Inès, merci pour votre candidature au poste de Serveur.', 'echec', 'Identifiant ou mot de passe SMTP refusé.'],
+    ['sms', '+33612345678', 'CHR Intérim : nouvelle mission Serveur samedi 18:00–23:30.', 'simule', 'Canal non configuré'],
+    ['sms', '+33622334455', 'CHR Intérim : rappel, mission demain 07:00.', 'simule', 'Canal non configuré'],
+    ['whatsapp', '+33633445566', 'CHR Intérim : vos heures sont à valider.', 'simule', 'Canal non configuré'],
+  ]) run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)', c, d, t, st, det);
   // Visites du site sur 6 mois (mesure d'audience des liens), en hausse depuis les publications Facebook.
   const ORIGINES = ['facebook', 'facebook', 'facebook', 'mail', 'site', 'site', 'qr', 'recherche', 'facebook', 'mail', 'sms', 'autre'];
   for (let k = 0; k < 170; k++) {

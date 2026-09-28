@@ -917,7 +917,30 @@ ${lignes.map(l => { const fm = hcr.facteur(l.date, l.debut, l.fin), maj = Math.r
 </body></html>`);
 }));
 
-api.get('/journal', role('agence'), (req, res) => res.json(all('SELECT * FROM envois_messages ORDER BY id DESC LIMIT 200')));
+// Journal des envois : filtre par canal (onglets) et par statut, 200 derniers messages.
+const JOURNAL_STATUTS = ['envoye', 'simule', 'echec'];
+function journalFiltre(q) {
+  const w = [], a = [];
+  if (CANAUX.includes(q.canal)) { w.push('canal = ?'); a.push(q.canal); }
+  if (JOURNAL_STATUTS.includes(q.statut)) { w.push('statut = ?'); a.push(q.statut); }
+  return [w.length ? 'WHERE ' + w.join(' AND ') : '', a];
+}
+api.get('/journal', role('agence'), (req, res) => {
+  const [w, a] = journalFiltre(req.query);
+  res.json(all(`SELECT * FROM envois_messages ${w} ORDER BY id DESC LIMIT 200`, ...a));
+});
+api.get('/journal/compteurs', role('agence'), (req, res) => {
+  const [w, a] = journalFiltre({ statut: req.query.statut });
+  const L = all(`SELECT canal, COUNT(*) n FROM envois_messages ${w} GROUP BY canal`, ...a);
+  res.json({ tous: L.reduce((t, x) => t + x.n, 0), ...Object.fromEntries(CANAUX.map(c => [c, L.find(x => x.canal === c)?.n || 0])) });
+});
+/** Suppression des messages cochés dans le journal. */
+api.post('/journal/supprimer', role('agence'), (req, res) => {
+  const ids = [...new Set((Array.isArray(req.body?.ids) ? req.body.ids : []).map(Number).filter(n => Number.isInteger(n) && n > 0))].slice(0, 500);
+  if (!ids.length) fail(400, 'Cochez au moins un message à supprimer.');
+  const r = run(`DELETE FROM envois_messages WHERE id IN (${ids.map(() => '?').join(',')})`, ...ids);
+  res.json({ supprimes: Number(r.changes) });
+});
 api.get('/config', (req, res) => res.json({ points_etab: POINTS_ETAB, note_basse: NOTE_BASSE, canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES,
   taux_postes: hcr.tauxPostes(), smic: hcr.smic(), coefficient_minimum: contratsClients.coefMin(),
   // Coût d'une heure pour l'agence ÷ taux horaire brut (fin de mission, congés payés, charges) : sert au calcul de marge d'un contrat.

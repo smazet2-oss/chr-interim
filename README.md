@@ -207,6 +207,7 @@ Les réglages se font dans l'espace agence, rubrique **Paramètres › Messageri
 - **SMS** (Twilio) : expéditeur alphanumérique « CHR Interim » (11 caractères maximum) ou numéro Twilio. Un SMS ne peut pas contenir d'image.
 - **WhatsApp** (Twilio + numéro validé par Meta) : le bandeau est joint en image si l'adresse du site est en https. Pour écrire en premier à quelqu'un, WhatsApp exige un modèle approuvé : renseignez son identifiant `HX…` (variable `{{1}}` = texte du message).
 - **Envoi des identifiants** : à la création ou à la réinitialisation d'un accès, la fenêtre des identifiants propose de les envoyer par e-mail, SMS ou WhatsApp aux coordonnées de la fiche. Le mot de passe provisoire est masqué dans le journal.
+- **Journal des envois** : onglets Tous, E-mail, SMS et WhatsApp (avec le nombre de messages), filtre par statut (envoyés, simulés, échecs), et suppression des messages cochés (case « Tout sélectionner », confirmation avant suppression).
 - Les erreurs Twilio courantes sont traduites (identifiants refusés, numéro invalide, compte d'essai, pays non autorisé, modèle WhatsApp requis).
 
 L'envoi est testé de bout en bout (`test/envoi.test.js`) contre un faux serveur SMTP, une fausse API Brevo (`test/brevo.test.js`) et une fausse API Twilio.

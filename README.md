@@ -29,11 +29,13 @@ Ouvrez ensuite http://localhost:3000.
 
 ### Menu de chaque espace
 
-Le tableau de bord en accès direct, puis toutes les rubriques en listes déroulantes. **Une seule liste est ouverte à la fois** : en ouvrir une ferme la précédente. La liste de la page affichée s'ouvre seule, la dernière ouverte est mémorisée sur l'appareil, et un badge résume les éléments à traiter quand une liste est fermée. Le logo ramène au tableau de bord.
+Le tableau de bord, le planning et les missions en accès direct, puis les autres rubriques en listes déroulantes. **Une seule liste est ouverte à la fois** : en ouvrir une ferme la précédente. La liste de la page affichée s'ouvre seule, la dernière ouverte est mémorisée sur l'appareil, et un badge résume les éléments à traiter quand une liste est fermée. Le logo ramène au tableau de bord.
 
-- **Agence** : Activité (planning, missions, statistiques) ; Intérimaires (fiches, candidatures, contrats de mission, relevés d'heures, paie, évaluations) ; Clients (fiches clients, candidatures clients) ; Facturation (factures et débiteurs, relances, coefficients et contrats) ; Administration (droits d'accès, accès utilisateurs, journal des envois, paramètres).
-- **Employeur** : Activité (missions, planning, heures et évaluations) ; Suivi (statistiques, intérimaires) ; Administratif et social (documents, contrats de mission, factures, contrat commercial).
-- **Intérimaire** : Activité (missions proposées, planning, heures) ; Suivi (statistiques, profil et CV, avis) ; Administratif et social (contrats, paie, documents).
+- **Agence** : Tableau de bord, Planning, Missions ; Intérimaires (fiches, candidatures, contrats de mission, relevés d'heures, paie, évaluations) ; Clients (fiches clients, candidatures clients) ; Facturation (factures et débiteurs, relances, coefficients et contrats) ; Administration (statistiques, droits d'accès, accès utilisateurs, journal des envois, paramètres).
+- **Employeur** : Tableau de bord, Planning, Mes missions ; Suivi (heures et évaluations, statistiques, intérimaires) ; Administratif et social (documents, contrats de mission, factures, contrat commercial).
+- **Intérimaire** : Accueil, Mon planning, Missions proposées ; Suivi (heures, statistiques, profil et CV, avis) ; Administratif et social (contrats, paie, documents).
+
+**Onglets des pages en menu déroulant** : les onglets à l'intérieur des pages (affichage du planning, filtre des missions, canal du journal des envois, statut des candidatures, espace des droits d'accès) s'affichent en un bouton qui indique le choix en cours ; la liste s'ouvre au clic, se ferme après un choix, un clic ailleurs ou la touche Échap, et se parcourt aux flèches. Un seul menu est ouvert à la fois.
 
 ### Droits d'accès (administrateur)
 

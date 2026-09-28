@@ -110,22 +110,19 @@ const GET = u => api('GET', u), POST = (u, b = {}) => api('POST', u, b), PUT = (
 /* ---------------- État et navigation ---------------- */
 const S = { me: null, cfg: null, view: null, p: {}, pwTemp: null, modal: null, busy: false };
 const NAV = {
-  // Chaque espace : le tableau de bord en accès direct, puis des listes déroulantes ['+', titre, icône, [entrées]] par domaine.
+  // Chaque espace : tableau de bord, planning et missions en accès direct, puis des listes déroulantes ['+', titre, icône, [entrées]] par domaine.
   // Une seule liste est ouverte à la fois (accordéon).
-  agence: [['accueil', 'Tableau de bord', 'dash'],
-    ['+', 'Activité', 'briefcase', [['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'], ['stats', 'Statistiques', 'chart']]],
+  agence: [['accueil', 'Tableau de bord', 'dash'], ['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'],
     ['+', 'Intérimaires', 'users', [['interimaires', 'Fiches intérimaires', 'users'], ['candidats', 'Candidatures intérimaires', 'idcard'], ['contrats', 'Contrats de mission', 'file'],
       ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star']]],
     ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target']]],
     ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
-    ['+', 'Administration', 'gear', [['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']]]],
-  client: [['accueil', 'Tableau de bord', 'dash'],
-    ['+', 'Activité', 'briefcase', [['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock']]],
-    ['+', 'Suivi', 'chart', [['stats', 'Statistiques', 'chart'], ['interimaires', 'Intérimaires', 'users']]],
+    ['+', 'Administration', 'gear', [['stats', 'Statistiques', 'chart'], ['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']]]],
+  client: [['accueil', 'Tableau de bord', 'dash'], ['jour', 'Planning', 'cal'], ['demandes', 'Mes missions', 'briefcase'],
+    ['+', 'Suivi', 'chart', [['heures', 'Heures et évaluations', 'clock'], ['stats', 'Statistiques', 'chart'], ['interimaires', 'Intérimaires', 'users']]],
     ['+', 'Administratif et social', 'folder', [['documents', 'Documents', 'folder'], ['contrats', 'Contrats de mission', 'edit'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']]]],
-  interim: [['accueil', 'Accueil', 'dash'],
-    ['+', 'Activité', 'briefcase', [['missions', 'Missions proposées', 'send'], ['dispo', 'Mon planning', 'cal'], ['heures', 'Mes heures', 'clock']]],
-    ['+', 'Suivi', 'chart', [['stats', 'Mes statistiques', 'chart'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star']]],
+  interim: [['accueil', 'Accueil', 'dash'], ['dispo', 'Mon planning', 'cal'], ['missions', 'Missions proposées', 'send'],
+    ['+', 'Suivi', 'chart', [['heures', 'Mes heures', 'clock'], ['stats', 'Mes statistiques', 'chart'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star']]],
     ['+', 'Administratif et social', 'folder', [['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']]]],
 };
 /** Menu à plat (listes déroulantes dépliées) et groupe d'une rubrique. */
@@ -249,6 +246,30 @@ function ajusterBandeau() {
 }
 addEventListener('resize', ajusterBandeau);
 addEventListener('load', ajusterBandeau);
+/** Onglets des pages (.seg, .tabs) présentés en menu déroulant : un bouton affiche le choix en cours, la liste s'ouvre au clic.
+ *  Les boutons d'origine sont conservés (mêmes actions) ; un seul menu est ouvert à la fois. */
+let DD_N = 0;
+function ongletsEnMenu(root) {
+  root.querySelectorAll('.seg:not(.dd-liste), .tabs:not(.dd-liste)').forEach(seg => {
+    const opts = [...seg.querySelectorAll(':scope > button')]; if (opts.length < 2) return;
+    const cur = opts.find(b => b.getAttribute('aria-pressed') === 'true') || opts[0], id = 'dd-' + (++DD_N);
+    const dd = document.createElement('div');
+    dd.className = 'dd' + [...seg.classList].filter(c => !['seg', 'tabs'].includes(c)).map(c => ' ' + c).join('');
+    const titre = seg.dataset.titre || 'Afficher';
+    dd.innerHTML = `<button type="button" class="dd-btn" aria-haspopup="true" aria-expanded="false" aria-controls="${id}"><span class="dd-titre">${esc(titre)}</span><span class="dd-val">${cur.innerHTML}</span><span class="dd-chev">${ic('chev')}</span></button>`;
+    if (seg.getAttribute('style')) dd.setAttribute('style', seg.getAttribute('style'));
+    seg.removeAttribute('style'); seg.className = 'dd-liste'; seg.id = id; seg.hidden = true; seg.setAttribute('role', 'menu'); seg.setAttribute('aria-label', titre);
+    opts.forEach(b => { b.setAttribute('role', 'menuitemradio'); b.setAttribute('aria-checked', b === cur); b.removeAttribute('aria-pressed'); b.classList.remove('tab'); });
+    seg.replaceWith(dd); dd.appendChild(seg);
+  });
+}
+/** Ouvre ou ferme un menu d'onglets ; ouvrir un menu ferme le précédent. */
+function basculerMenu(btn, ouvrir) {
+  document.querySelectorAll('.dd-btn[aria-expanded="true"]').forEach(b => { if (b !== btn) { b.setAttribute('aria-expanded', 'false'); document.getElementById(b.getAttribute('aria-controls')).hidden = true; } });
+  if (!btn) return;
+  btn.setAttribute('aria-expanded', ouvrir); const l = document.getElementById(btn.getAttribute('aria-controls')); l.hidden = !ouvrir;
+  if (ouvrir) (l.querySelector('[aria-checked="true"]') || l.querySelector('button')).focus();
+}
 /* Sur petit écran, chaque tableau devient une pile de fiches : chaque cellule reçoit l'intitulé de sa colonne. */
 function etiqueterTableaux(root) {
   root.querySelectorAll('table:not(.plan)').forEach(t => {
@@ -283,7 +304,7 @@ async function renderApp() {
   const view = S.view;
   try {
     const html = await V[prof][view]();
-    if (S.view === view) { main.innerHTML = html; etiqueterTableaux(main); const z = main.querySelector('form [data-sim]'); if (z) majSimulation(z.closest('form')); }
+    if (S.view === view) { main.innerHTML = html; etiqueterTableaux(main); ongletsEnMenu(main); const z = main.querySelector('form [data-sim]'); if (z) majSimulation(z.closest('form')); }
   } catch (e) { if (S.me) main.innerHTML = `<div class="panel">${empty('Impossible de charger cette page : ' + esc(e.message))}</div>`; }
   refreshCounts();
 }
@@ -323,8 +344,8 @@ async function refreshCounts() {
   } catch { /* compteurs non essentiels */ }
 }
 const head = (t, p, right = '') => `<div class="head"><div><div class="crumbs">${SPACE[S.me.profil]}${ic('chev')}${groupeDe(S.me.profil, S.view) ? groupeDe(S.me.profil, S.view)[1] + ic('chev') : ''}${navPlat(S.me.profil).find(n => n[0] === S.view)?.[1] || ''}</div><h1>${t}</h1>${p ? `<p>${p}</p>` : ''}</div>${right ? `<div class="actions">${right}</div>` : ''}</div>`;
-const panel = (title, right, body, foot = '') => `<section class="panel">${title !== null ? `<div class="panel-h"><h2>${title}</h2>${right || ''}</div>` : ''}${body}${foot ? `<div class="panel-f">${foot}</div>` : ''}</section>`;
-const tabs = (key, opts) => `<div class="tabs">${opts.map(([v, l]) => `<button class="tab" data-a="tab" data-k="${key}" data-v="${v}" aria-pressed="${S.p[key] === v}">${l}</button>`).join('')}</div>`;
+const panel = (title, right, body, foot = '') => `<section class="panel">${title !== null ? `<div class="panel-h"><h2>${title}</h2>${right || ''}</div>` : right ? `<div class="panel-h">${right}</div>` : ''}${body}${foot ? `<div class="panel-f">${foot}</div>` : ''}</section>`;
+const tabs = (key, opts, titre = 'Afficher') => `<div class="tabs" data-titre="${esc(titre)}">${opts.map(([v, l]) => `<button class="tab" data-a="tab" data-k="${key}" data-v="${v}" aria-pressed="${S.p[key] === v}">${l}</button>`).join('')}</div>`;
 
 /* ---------------- Fenêtres ---------------- */
 function openModal(html) { $('#modal').innerHTML = `<div class="modal-bg" data-a="modalbg"><div class="modal panel" role="dialog" aria-modal="true">${html}</div></div>`; const f = $('#modal input, #modal select, #modal textarea'); if (f) f.focus(); }
@@ -690,7 +711,7 @@ V.agence.missions = async () => {
   const f = { actives: m => ['nouvelle', 'diffusee'].includes(m.statut), verrouillees: m => m.statut === 'verrouillee', toutes: () => true }[S.p.mf];
   const L = ms.filter(f).sort((a, b) => (a.statut === 'nouvelle' ? 0 : 1) - (b.statut === 'nouvelle' ? 0 : 1) || a.date.localeCompare(b.date));
   return head('Missions', 'Validez chaque nouvelle mission, choisissez les intérimaires et le moyen d\'envoi. L\'employeur confirme ensuite ceux qui ont accepté ; l\'agence peut aussi décider à sa place.', btn('Nouvelle mission', 'plus', 'data-a="newmission"', 'primary')) +
-    `<div class="panel" style="padding:10px 14px">${tabs('mf', [['actives', 'En cours'], ['verrouillees', 'Validées'], ['toutes', 'Toutes']])}</div>` +
+    `<div class="panel" style="padding:10px 14px">${tabs('mf', [['actives', 'En cours'], ['verrouillees', 'Validées'], ['toutes', 'Toutes']], 'Missions')}</div>` +
     (L.map(m => missionCard(m, 'agence')).join('') || panel(null, '', empty('Aucune mission.')));
 };
 
@@ -872,7 +893,7 @@ V.agence.journal = async () => {
   const conf = Object.entries(CANAUX).map(([k, [i, l]]) => `<span class="row">${ic(i)}${l} : ${c[k] ? badge('libre', 'configuré') : badge('attente', 'non configuré (simulé)')}</span>`).join('');
   const st = { envoye: ['libre', 'Envoyé'], simule: ['attente', 'Simulé'], echec: ['danger', 'Échec'] };
   const ONGLETS = [['tous', 'Tous', 'list'], ['mail', 'E-mail', 'mail'], ['sms', 'SMS', 'phone'], ['whatsapp', 'WhatsApp', 'msg']];
-  const onglets = `<div class="seg jr-onglets" role="tablist">${ONGLETS.map(([k, l, i]) => `<button type="button" role="tab" aria-pressed="${onglet === k}" data-a="jcanal" data-v="${k}">${ic(i)}${l} <span class="jr-n">${n[k] || 0}</span></button>`).join('')}</div>`;
+  const onglets = `<div class="seg jr-onglets" role="tablist" data-titre="Canal">${ONGLETS.map(([k, l, i]) => `<button type="button" role="tab" aria-pressed="${onglet === k}" data-a="jcanal" data-v="${k}">${ic(i)}${l} <span class="jr-n">${n[k] || 0}</span></button>`).join('')}</div>`;
   const filtre = `<label class="f jr-statut">Statut<select data-j="statut">${[['tous', 'Tous les statuts'], ['envoye', 'Envoyés'], ['simule', 'Simulés'], ['echec', 'Échecs']].map(([k, l]) => `<option value="${k}" ${statut === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>`;
   const barre = `<div class="panel-b jr-barre"><label class="check"><input type="checkbox" data-j="tout" ${L.length ? '' : 'disabled'}> Tout sélectionner</label><span class="small muted" id="jr-compte">Aucun message sélectionné</span>${btn('Supprimer la sélection', 'trash', 'data-a="jsuppr" disabled', 'sm danger')}</div>`;
   const titre = `${L.length} message${L.length > 1 ? 's' : ''}${L.length >= 200 ? ' (200 derniers)' : ''}`;
@@ -1131,7 +1152,7 @@ V.agence.prospects = async () => {
   const dus = L.filter(x => x.date_relance && x.date_relance <= t && !['client', 'perdu'].includes(x.statut)).length;
   return head('Candidatures clients', 'Établissements qui demandent des renforts (page publique <a class="link" href="/contact" target="_blank" rel="noopener">/contact</a>) et visites terrain. Acceptez (e-mail de proposition de rendez-vous sous 48 h) ou refusez (e-mail de refus), puis créez la fiche client.', btn('Nouvelle visite terrain', 'plus', 'data-a="visite"', 'primary')) +
     `<div class="kpis">${kpi('Prospects actifs', 'target', L.filter(x => !['client', 'perdu'].includes(x.statut)).length)}${kpi('À relancer aujourd\'hui', 'clock', dus, dus ? 'Relances en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Demandes du site', 'send', L.filter(x => x.source === 'site').length)}${kpi('Devenus clients', 'building', L.filter(x => x.statut === 'client').length)}</div>` +
-    panel(null, `<div class="seg">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_relancer', 'À relancer'], ['en_discussion', 'Rendez-vous'], ['actifs', 'En cours'], ['client', 'Clients'], ['perdu', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="pfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
+    panel(null, `<div class="seg" data-titre="Statut">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_relancer', 'À relancer'], ['en_discussion', 'Rendez-vous'], ['actifs', 'En cours'], ['client', 'Clients'], ['perdu', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="pfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
       vis.length ? `<div class="scroll"><table><thead><tr><th>Établissement</th><th>Contact</th><th>Besoins</th><th>Source</th><th>Relance</th><th>Statut</th><th></th></tr></thead><tbody>
       ${vis.map(x => `<tr class="clickable" data-a="prospect" data-id="${x.id}" tabindex="0"><td><b>${esc(x.etablissement)}</b><div class="small muted">${esc(x.type_etab || '')}${x.adresse ? ' · ' + esc(x.adresse) : ''}</div></td>
         <td>${esc(x.repondant || '—')}<div class="small muted">${esc([x.telephone, x.email].filter(Boolean).join(' · '))}</div></td>
@@ -1174,7 +1195,7 @@ V.agence.candidats = async () => {
   const dus = L.filter(x => x.date_relance && x.date_relance <= t && !['inscrit', 'refuse'].includes(x.statut)).length;
   return head('Candidatures intérimaires', 'Candidatures reçues par la page publique <a class="link" href="/candidature" target="_blank" rel="noopener">/candidature</a>. Acceptez-les (e-mail de demande de rendez-vous sous 48 h) ou refusez-les (e-mail de refus), puis créez la fiche intérimaire.') +
     `<div class="kpis">${kpi('Candidatures actives', 'idcard', L.filter(x => !['inscrit', 'refuse'].includes(x.statut)).length)}${kpi('À rappeler aujourd\'hui', 'clock', dus, dus ? 'Rappels en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Nouvelles', 'send', L.filter(x => x.statut === 'nouveau').length)}${kpi('Inscrits', 'users', L.filter(x => x.statut === 'inscrit').length)}</div>` +
-    panel(null, `<div class="seg">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_rappeler', 'À rappeler'], ['entretien', 'Rendez-vous'], ['actifs', 'En cours'], ['inscrit', 'Inscrits'], ['refuse', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
+    panel(null, `<div class="seg" data-titre="Statut">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_rappeler', 'À rappeler'], ['entretien', 'Rendez-vous'], ['actifs', 'En cours'], ['inscrit', 'Inscrits'], ['refuse', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
       vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th><th></th></tr></thead><tbody>
       ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0"><td><b>${esc(x.prenom)} ${esc(x.nom)}</b>${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div></td>
         <td class="small"><b>${esc(x.poste || '—')}</b>${x.reponses.experience ? `<div class="muted">${esc(x.reponses.experience)}</div>` : ''}</td>
@@ -1359,7 +1380,7 @@ function legendePlanning(prof) {
 /** En-tête commun : onglets de vue et navigation (mois ou semaine). */
 function barrePlanning(prof, vue) {
   const vues = PL_VUES[prof];
-  const onglets = vues.length > 1 ? `<div class="seg pl-onglets" role="tablist">${vues.map(([k, l]) => `<button type="button" role="tab" aria-pressed="${vue === k}" data-a="plvue" data-v="${k}">${l}</button>`).join('')}</div>` : '';
+  const onglets = vues.length > 1 ? `<div class="seg pl-onglets" role="tablist" data-titre="Affichage">${vues.map(([k, l]) => `<button type="button" role="tab" aria-pressed="${vue === k}" data-a="plvue" data-v="${k}">${l}</button>`).join('')}</div>` : '';
   const moisNav = `<div class="pl-nav">${btn('', 'left', 'data-a="plmois" data-d="-1" aria-label="Mois précédent"', 'sm')}<b>${moisLong(S.p.pm)}</b>${btn('', 'chev', 'data-a="plmois" data-d="1" aria-label="Mois suivant"', 'sm')}${btn('Aujourd\'hui', '', 'data-a="plmois" data-d="0"', 'sm ghost')}</div>`;
   const fin = addDays(S.p.sem, 6);
   const semNav = `<div class="pl-nav">${btn('', 'left', 'data-a="sem" data-d="-7" aria-label="Semaine précédente"', 'sm')}<b>Semaine ${semaineIso(S.p.sem)} · ${fdate(S.p.sem, 'num').slice(0, 5)} – ${fdate(fin, 'num')}</b>${btn('', 'chev', 'data-a="sem" data-d="7" aria-label="Semaine suivante"', 'sm')}${btn('Aujourd\'hui', '', 'data-a="sem" data-d="0"', 'sm ghost')}</div>`;
@@ -1484,7 +1505,7 @@ V.agence.droits = async () => {
       ${c.super_admin && c.id === S.me.id ? '' : btn(c.super_admin ? 'Gérer' : 'Personnaliser', 'shield', `data-a="droitscompte" data-id="${c.id}"`, 'sm')}</div></div>`;
   }).join('');
   return head('Droits d\'accès', 'Choisissez, pour chaque espace puis pour chaque compte, les fonctions accessibles ou verrouillées. Une fonction verrouillée disparaît du menu et ses actions sont refusées par le serveur. Les administrateurs gardent un accès complet.') +
-    `<div class="seg" style="align-self:flex-start;margin-bottom:4px">${Object.entries(ESPACES).map(([k, [l, , i]]) => `<button type="button" aria-pressed="${k === e}" data-a="despace" data-e="${k}">${ic(i)}${l}</button>`).join('')}</div>` +
+    `<div class="seg" data-titre="Espace" style="align-self:flex-start;margin-bottom:4px">${Object.entries(ESPACES).map(([k, [l, , i]]) => `<button type="button" aria-pressed="${k === e}" data-a="despace" data-e="${k}">${ic(i)}${l}</button>`).join('')}</div>` +
     `<div class="grid-main">${panel(`Réglage de l'espace ${ESPACES[e][0]}`, `<span class="small muted">${esc(ESPACES[e][1])}</span>`, `<div class="panel-b dr">${lignesF}</div>`)}
     ${panel(`Comptes (${comptes.length})`, '', comptes.length ? `<div class="panel-b small muted" style="padding-bottom:0">Un réglage personnalisé prime sur celui de l'espace, pour ce compte seulement.</div><div class="list">${lignesC}</div>` : empty('Aucun compte dans cet espace.'))}</div>`;
 };
@@ -1849,6 +1870,10 @@ const F = {
 };
 
 document.addEventListener('click', e => {
+  // Menus d'onglets : ouverture au clic, fermeture après un choix ou un clic ailleurs
+  const dd = e.target.closest('.dd-btn');
+  if (dd) { basculerMenu(dd, dd.getAttribute('aria-expanded') !== 'true'); return; }
+  basculerMenu(null);
   const el = e.target.closest('[data-a]'); if (!el) return;
   const fn = A[el.dataset.a]; if (!fn) return;
   if (el.type === 'checkbox') return; // géré par l'événement change
@@ -1862,6 +1887,13 @@ document.addEventListener('change', e => {
   if (el.dataset?.j === 'statut') { S.p.jstatut = el.value; reload(); }
   // Réglage d'un compte : comme l'espace, accessible ou verrouillé
   if (el.dataset?.a === 'droitcompte') act(async () => { await PUT('/droits', { cible: el.dataset.c, fonction: el.dataset.f, acces: el.value === '' ? null : el.value === 'true' }); toast('Réglage du compte enregistré'); reload(); });
+});
+// Menus d'onglets au clavier : flèches pour se déplacer, Échap pour fermer
+document.addEventListener('keydown', e => {
+  const l = e.target.closest?.('.dd-liste'); if (!l) return;
+  const L = [...l.querySelectorAll('button')], k = L.indexOf(e.target);
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); L[(k + (e.key === 'ArrowDown' ? 1 : L.length - 1)) % L.length].focus(); }
+  if (e.key === 'Escape') { const b = l.parentElement.querySelector('.dd-btn'); basculerMenu(b, false); b.focus(); e.stopPropagation(); }
 });
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || (e.key === ' ' && e.target.matches('.cs-jour'))) && e.target.matches('tr.clickable[data-a],.cs-jour')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape') closeModal(); });
 /** Minimum HCR d'un poste (Paramètres › Convention HCR), SMIC pour un poste hors liste. */

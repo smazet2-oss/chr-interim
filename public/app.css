@@ -798,9 +798,7 @@ table.liens-suivi .mono{overflow-wrap:anywhere}
 /* Journal des envois : onglets par canal, filtre de statut, sélection */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .jr-tete{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px}
-.jr-onglets button{display:inline-flex;align-items:center;gap:6px}
 .jr-n{font-size:11.5px;font-weight:600;padding:1px 7px;border-radius:9px;background:var(--line);color:var(--ink-2,inherit)}
-.jr-onglets button[aria-pressed="true"] .jr-n{background:rgba(255,255,255,.22);color:inherit}
 .jr-statut{flex:0 1 200px;margin:0}
 .jr-barre{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;border-bottom:1px solid var(--line)}
 .jr-barre .btn{margin-left:auto}
@@ -808,10 +806,37 @@ table.liens-suivi .mono{overflow-wrap:anywhere}
 .jr-case input{width:18px;height:18px;accent-color:var(--navy,#112233)}
 tr.jr-coche td{background:var(--attente-bg,#FDF1DC)}
 @media (max-width:640px){
-  .jr-onglets{width:100%;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))}
-  .jr-onglets button{flex-direction:column;justify-content:center;gap:3px;padding:6px 2px;font-size:12.5px}
-  .jr-onglets button .i{display:none}
   .jr-statut{flex:1 1 100%}
   .jr-barre .btn{margin-left:0;width:100%;justify-content:center}
   table.fiches td.jr-case{justify-content:flex-start}
+}
+
+/* ---------- Onglets des pages en menu déroulant ---------- */
+.dd{position:relative;display:inline-flex;align-self:flex-start;max-width:100%}
+.dd-btn{display:inline-flex;align-items:center;gap:8px;min-height:40px;padding:6px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;font-size:13.5px;cursor:pointer;max-width:100%;box-shadow:var(--shadow-sm)}
+.dd-btn:hover{border-color:var(--ink-3)}
+.dd-btn:focus-visible{outline:2px solid #C99948;outline-offset:2px}
+.dd-titre{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);font-weight:600}
+.dd-val{display:inline-flex;align-items:center;gap:6px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dd-val .i{width:16px;height:16px;flex:none}
+.dd-chev{display:flex;margin-left:2px;transition:transform .15s;opacity:.7}
+.dd-chev svg{width:14px;height:14px;transform:rotate(90deg)}
+.dd-btn[aria-expanded="true"] .dd-chev{transform:rotate(180deg)}
+.dd-liste{position:absolute;top:calc(100% + 4px);left:0;z-index:40;min-width:100%;width:max-content;max-width:min(320px,calc(100vw - 32px));display:flex;flex-direction:column;gap:1px;padding:4px;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 28px rgba(17,34,51,.18)}
+.dd-liste[hidden]{display:none}
+.dd-liste button{display:flex;align-items:center;gap:8px;width:100%;border:0;background:none;padding:9px 12px;border-radius:7px;font:inherit;font-size:13.5px;color:var(--ink-2);text-align:left;cursor:pointer;white-space:nowrap}
+.dd-liste button:hover,.dd-liste button:focus-visible{background:var(--hover);color:var(--ink);outline:none}
+.dd-liste button[aria-checked="true"]{color:var(--ink);font-weight:600;background:var(--accent-soft)}
+.dd-liste button[aria-checked="true"]::after{content:"";margin-left:auto;width:8px;height:8px;border-radius:50%;background:#C99948;flex:none}
+.dd-liste button .i{width:16px;height:16px}
+.dd .jr-n{margin-left:2px}
+/* Sur le bandeau bleu du planning */
+.pl-barre .dd-btn{background:rgba(255,255,255,.08);border-color:rgba(255,255,255,.18);color:#fff;box-shadow:none}
+.pl-barre .dd-titre{color:#C99948}
+@media (max-width:640px){
+  .dd{display:flex;width:100%}
+  .dd-btn{width:100%;min-height:44px}
+  .dd-chev{margin-left:auto}
+  .dd-liste{width:100%;max-width:none}
+  .dd-liste button{padding:12px}
 }

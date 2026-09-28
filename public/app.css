@@ -778,3 +778,5 @@ a.brand:focus-visible,.auth-banner-lien:focus-visible{outline:2px solid #C99948;
 .dr-sel select{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--line);border-radius:7px;background:var(--surface);color:var(--ink);width:190px}
 .sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media (max-width:600px){.dr-l{flex-wrap:wrap}.dr-sel select{max-width:100%}}
+.q-bool{align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-weight:500}
+.q-bool input{margin-top:3px;flex:none;width:18px;height:18px;accent-color:#112233}

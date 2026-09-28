@@ -1024,6 +1024,7 @@ function questionnaireHtml(Q) {
         <div class="choix">${opts.map(o => `<label><input type="${t}" name="${c.k}" value="${esc(o)}"><span>${esc(o)}</span></label>`).join('')}</div>
         ${c.autre ? `<input type="text" name="${c.k}_autre" maxlength="200" placeholder="Précisez" hidden>` : ''}</fieldset>`;
     }
+    if (c.type === 'bool') return `<label class="check q-bool full"${skip}><input type="checkbox" name="${c.k}" value="oui"><span>${esc(c.l)}</span></label>`;
     if (c.type === 'select') return `<label class="f full"${skip} for="${id}">${esc(c.l)}<select id="${id}" name="${c.k}"><option value="">—</option>${[...Q.flatMap(x => x.champs).find(x => x.k === c.from).options, 'Autre'].map(o => `<option>${esc(o)}</option>`).join('')}</select></label>`;
     if (c.type === 'textarea') return `<label class="f full"${skip} for="${id}">${esc(c.l)}<textarea id="${id}" name="${c.k}" maxlength="2000"></textarea></label>`;
     return `<label class="f"${skip} for="${id}"><span>${esc(c.l)}${c.req ? ' <span class="req">*</span>' : ''}</span><input id="${id}" type="${c.type === 'number' ? 'number' : c.type}" name="${c.k}" ${c.type === 'number' ? 'min="0" step="0.01" inputmode="decimal"' : ''} ${c.req ? 'required' : ''} ${c.k === 'email' ? 'autocomplete="email"' : c.k === 'telephone' ? 'autocomplete="tel"' : ''}></label>`;
@@ -1088,7 +1089,7 @@ V.agence.prospects = async () => {
       vis.length ? `<div class="scroll"><table><thead><tr><th>Établissement</th><th>Contact</th><th>Besoins</th><th>Source</th><th>Relance</th><th>Statut</th><th></th></tr></thead><tbody>
       ${vis.map(x => `<tr class="clickable" data-a="prospect" data-id="${x.id}" tabindex="0"><td><b>${esc(x.etablissement)}</b><div class="small muted">${esc(x.type_etab || '')}${x.adresse ? ' · ' + esc(x.adresse) : ''}</div></td>
         <td>${esc(x.repondant || '—')}<div class="small muted">${esc([x.telephone, x.email].filter(Boolean).join(' · '))}</div></td>
-        <td class="small">${esc(x.reponses.frequence || '—')}${x.reponses.postes ? `<div class="muted">${esc(x.reponses.postes.join(', '))}</div>` : ''}</td>
+        <td class="small">${x.reponses.vehicule ? badge('attente', 'Intérimaires véhiculés') + '<br>' : ''}${esc(x.reponses.frequence || '—')}${x.reponses.postes ? `<div class="muted">${esc(x.reponses.postes.join(', '))}</div>` : ''}</td>
         <td>${x.source === 'site' ? badge('pris', 'Site') : badge('off', 'Visite')}<div class="small muted">${fdate((x.date_visite || x.created_at).slice(0, 10), 'num')}</div></td>
         <td>${x.date_relance ? (x.date_relance <= t && !['client', 'perdu'].includes(x.statut) ? badge('danger', fdate(x.date_relance, 'num')) : fdate(x.date_relance, 'num')) : '<span class="muted">—</span>'}</td>
         <td>${badge(...P_ST[x.statut])}${decisionInfo(x)}</td><td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${boutonsDecision('prospect', x)}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune candidature dans cette liste.'));
@@ -1096,7 +1097,7 @@ V.agence.prospects = async () => {
 async function prospectModal(id) {
   const [L, d] = await Promise.all([GET('/prospects'), GET('/public/questionnaire')]);
   const x = L.find(p => p.id === id); if (!x) return;
-  const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
+  const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : v === true ? 'Oui' : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
   const secs = d.questionnaire.map(sec => { const L2 = sec.champs.map(c => [c.l, val(c)]).filter(([, v]) => v); return L2.length ? `<h3 class="q-titre">${esc(sec.titre)}</h3><dl class="kv">${L2.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''; }).join('');
   openModal(`${modalHead(ic('target') + esc(x.etablissement), `${x.source === 'site' ? 'Demande reçue par le site' : `Visite terrain${x.enqueteur ? ' par ' + esc(x.enqueteur) : ''}`} le ${fdate((x.date_visite || x.created_at).slice(0, 10), 'num')} · accord ${x.accord === 'en_ligne' ? 'donné en ligne' : esc(x.accord || '—')}`)}
     <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${secs}</div>
@@ -1129,7 +1130,7 @@ V.agence.candidats = async () => {
     `<div class="kpis">${kpi('Candidatures actives', 'idcard', L.filter(x => !['inscrit', 'refuse'].includes(x.statut)).length)}${kpi('À rappeler aujourd\'hui', 'clock', dus, dus ? 'Rappels en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Nouvelles', 'send', L.filter(x => x.statut === 'nouveau').length)}${kpi('Inscrits', 'users', L.filter(x => x.statut === 'inscrit').length)}</div>` +
     panel(null, `<div class="seg">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_rappeler', 'À rappeler'], ['entretien', 'Rendez-vous'], ['actifs', 'En cours'], ['inscrit', 'Inscrits'], ['refuse', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
       vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0"><td><b>${esc(x.prenom)} ${esc(x.nom)}</b><div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div></td>
+      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0"><td><b>${esc(x.prenom)} ${esc(x.nom)}</b>${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div></td>
         <td class="small"><b>${esc(x.poste || '—')}</b>${x.reponses.experience ? `<div class="muted">${esc(x.reponses.experience)}</div>` : ''}</td>
         <td class="small">${esc((x.reponses.creneaux || []).join(', ') || '—')}${x.reponses.type_mission ? `<div class="muted">${esc(x.reponses.type_mission)}</div>` : ''}</td>
         <td>${fdate(x.created_at.slice(0, 10), 'num')}${x.cv_fichier ? `<div class="small muted">${ic('file', 'style="width:12px;height:12px;vertical-align:-2px"')} CV joint</div>` : ''}</td>
@@ -1139,7 +1140,7 @@ V.agence.candidats = async () => {
 async function candidatModal(id) {
   const [L, d] = await Promise.all([GET('/candidats'), GET('/public/candidature')]);
   const x = L.find(c => c.id === id); if (!x) return;
-  const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : c.type === 'date' ? fdate(v, 'num') : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
+  const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : v === true ? 'Oui' : c.type === 'date' ? fdate(v, 'num') : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
   const secs = d.questionnaire.map(sec => { const L2 = sec.champs.map(c => [c.l, val(c)]).filter(([, v]) => v); return L2.length ? `<h3 class="q-titre">${esc(sec.titre)}</h3><dl class="kv">${L2.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''; }).join('');
   openModal(`${modalHead(ic('idcard') + `${esc(x.prenom)} ${esc(x.nom)}`, `Candidature reçue le ${fdate(x.created_at.slice(0, 10), 'num')} · ${esc(x.poste || 'poste non précisé')}`)}
     <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${x.cv_fichier ? `<a class="btn sm" style="align-self:flex-start" href="/api/candidats/${x.id}/cv">${ic('download')}Télécharger le CV</a>` : ''}${secs}</div>

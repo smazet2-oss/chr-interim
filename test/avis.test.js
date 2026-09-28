@@ -37,10 +37,11 @@ test('candidatures : accepter (rendez-vous sous 48 h) ou refuser, par e-mail', a
   const ag = await agence(), pub = agent();
   const fd = champs => { const f = new FormData(); for (const [k, v] of Object.entries(champs)) f.append(k, v); return f; };
   const postuler = async c => (await fetch(base + '/public/candidature', { method: 'POST', headers: { 'X-CHR': '1' }, body: fd({ consentement: '1', ville: 'Lyon', ...c }) })).status;
-  assert.equal(await postuler({ prenom: 'Nora', nom: 'Bel', telephone: '0600000001', email: 'nora@exemple.fr', poste_principal: 'Serveur', postes: 'Serveur' }), 201);
+  assert.equal(await postuler({ prenom: 'Nora', nom: 'Bel', telephone: '0600000001', email: 'nora@exemple.fr', poste_principal: 'Serveur', postes: 'Serveur', vehicule: 'oui' }), 201);
   assert.equal(await postuler({ prenom: 'Paul', nom: 'Roy', telephone: '0600000002' }), 201);
   void pub;
   const [paul, nora] = (await ag.get('/candidats')).data;
+  assert.equal(nora.reponses.vehicule, true, 'véhiculée'); assert.equal(paul.reponses.vehicule, undefined);
   const m = (await ag.get(`/candidats/${nora.id}/modele?decision=acceptee`)).data;
   assert.match(m.texte, /48 heures/); assert.equal(m.email, 'nora@exemple.fr');
   const rdv = new Date(Date.now() + 26 * 3600e3).toISOString().slice(0, 16);
@@ -55,8 +56,9 @@ test('candidatures : accepter (rendez-vous sous 48 h) ou refuser, par e-mail', a
   assert.match(journal, /rencontrer dans les 48 heures/); assert.match(journal, /pas en mesure/);
 
   // Candidature d'établissement
-  assert.equal((await pub.post('/public/contact', { consentement: true, etablissement: 'Bistrot Test', repondant: 'Léa Blanc, gérante', email: 'bistrot@exemple.fr' })).status, 201);
+  assert.equal((await pub.post('/public/contact', { consentement: true, etablissement: 'Bistrot Test', repondant: 'Léa Blanc, gérante', email: 'bistrot@exemple.fr', vehicule: 'oui' })).status, 201);
   const p = (await ag.get('/prospects')).data[0];
+  assert.equal(p.reponses.vehicule, true, 'besoin d\'intérimaires véhiculés');
   assert.equal((await ag.post(`/prospects/${p.id}/decision`, { decision: 'acceptee', texte: 'Message personnalisé : rendez-vous proposé.' })).data.statut, 'en_discussion');
   assert.match(JSON.stringify((await ag.get('/journal')).data), /Message personnalisé/);
   const p2 = (await ag.get('/prospects')).data[0];

@@ -50,6 +50,7 @@ const QUESTIONNAIRE = [
     { k: 'disponible_le', l: 'Disponible à partir du', type: 'date' },
   ] },
   { titre: 'Mobilité et équipement', champs: [
+    { k: 'vehicule', l: 'Je suis véhiculé(e) (voiture ou deux-roues personnel)', type: 'bool' },
     { k: 'transport', l: 'Vos moyens de transport', type: 'checks', options: ['Transports en commun', 'Voiture', 'Deux-roues', 'À pied ou à vélo'] },
     { k: 'rayon', l: 'Distance maximale jusqu\'au lieu de mission', type: 'radio', options: ['Moins de 10 km', '10 à 25 km', 'Plus de 25 km'] },
     { k: 'tenue', l: 'Avez-vous votre tenue professionnelle (chaussures de sécurité, tenue de service ou de cuisine) ?', type: 'radio', options: ['Oui, complète', 'En partie', 'Non'] },
@@ -135,7 +136,7 @@ function agence(api, h) {
     if (c.interim_id) fail(409, 'Cette personne a déjà une fiche intérimaire.');
     const r = c.reponses, poste = c.poste || 'Serveur';
     const secteur = /cuisin|chef de partie|plong|commis de cuisine/i.test(poste) ? 'Cuisine' : /barman|bar\b/i.test(poste) ? 'Bar' : /chambre|gouvernante|r[ée]ception|veilleur|petit-d/i.test(poste) ? 'Hôtellerie' : 'Restauration';
-    const competences = [...(r.formations || []).filter(x => x !== 'Autre'), r.formations_autre, r.langues && 'Langues : ' + r.langues].filter(Boolean).join(', ');
+    const competences = [r.vehicule && 'Véhiculé(e)', ...(r.formations || []).filter(x => x !== 'Autre'), r.formations_autre, r.langues && 'Langues : ' + r.langues].filter(Boolean).join(', ');
     const nationalite = r.autorisation === 'Nationalité française ou européenne' ? 'Française' : 'Autre';
     const id = run('INSERT INTO interimaires (prenom, nom, poste, secteur, telephone, email, ville, competences, experience, date_naissance, nationalite) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
       c.prenom, c.nom, poste, secteur, c.telephone, c.email, c.ville, competences.slice(0, 1000), String(r.experience || '').slice(0, 1000), r.date_naissance || null, nationalite).lastInsertRowid;

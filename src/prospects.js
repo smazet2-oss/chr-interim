@@ -35,6 +35,7 @@ const QUESTIONNAIRE = [
     { k: 'extras_mois', l: 'Nombre d\'extras par mois', type: 'number', skip: true },
     { k: 'heures_mois', l: 'ou heures par mois', type: 'number', skip: true },
     { k: 'pics', l: 'Périodes de pic (mois, saisons, événements)', type: 'text', skip: true },
+    { k: 'vehicule', l: 'Nous avons besoin d\'intérimaires véhiculés (établissement peu desservi ou horaires tardifs)', type: 'bool' },
     { k: 'delai', l: 'Délai d\'anticipation moyen de vos demandes', type: 'radio', skip: true, options: ['Urgence absolue (moins de 4 h)', 'Court terme (24 à 48 h)', 'Planifié (plus d\'une semaine)'] },
   ] },
   { titre: 'Vos solutions actuelles', skip: true, champs: [
@@ -77,6 +78,8 @@ function nettoyer(b, fail, champs = CHAMPS) {
       const opts = c.from ? [...champs[c.from].options, 'Autre'] : [...c.options, ...(c.autre ? ['Autre'] : [])];
       if (v && !opts.includes(String(v))) fail(400, `« ${c.l} » : choix invalide.`);
       if (v) r[c.k] = String(v);
+    } else if (c.type === 'bool') {
+      if (v === true || ['oui', 'on', '1', 'true'].includes(String(v).toLowerCase())) r[c.k] = true;
     } else if (c.type === 'number') {
       if (v !== undefined && v !== '' && v !== null) { const n = Number(String(v).replace(',', '.')); if (!(n >= 0 && n < 100000)) fail(400, `« ${c.l} » : nombre invalide.`); r[c.k] = n; }
     } else if (v !== undefined && String(v).trim()) r[c.k] = String(v).trim().slice(0, c.type === 'textarea' ? 2000 : 200);

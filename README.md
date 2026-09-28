@@ -203,12 +203,13 @@ Chaque profil ne reçoit du serveur que ses propres chiffres : l'intérimaire ne
 Les réglages se font dans l'espace agence, rubrique **Paramètres › Messagerie**, qui contient un guide pas à pas. Sans réglage, les messages sont enregistrés comme « simulés » dans le **Journal des envois**, qui indique pour chaque envoi : envoyé, simulé ou échec (avec la raison).
 
 - **E-mail** (SMTP : Brevo, Microsoft 365, Google Workspace, OVH…) : message HTML aux couleurs de l'agence. Le bandeau est intégré au message comme pièce jointe, ce qui l'affiche même sans accès au site. Le message comporte un bouton vers la plateforme, les coordonnées et les mentions légales en pied de page, ainsi qu'une version texte. Les réponses vont à l'e-mail de contact de l'agence. Le bouton « Aperçu de l'e-mail » montre le rendu.
+- **E-mail par l'API Brevo** (méthode « API Brevo (HTTPS) ») : même message, envoyé par le web (port 443) plutôt que par SMTP. À utiliser quand l'hébergeur bloque les ports SMTP (offre gratuite de Render). Il faut une clé API Brevo et une adresse d'expédition validée dans Brevo ; le logo est chargé depuis l'adresse publique du site. Préremplissage en un clic pour Gmail, l'API Brevo et Outlook ; les erreurs SMTP et Brevo courantes sont expliquées dans le journal.
 - **SMS** (Twilio) : expéditeur alphanumérique « CHR Interim » (11 caractères maximum) ou numéro Twilio. Un SMS ne peut pas contenir d'image.
 - **WhatsApp** (Twilio + numéro validé par Meta) : le bandeau est joint en image si l'adresse du site est en https. Pour écrire en premier à quelqu'un, WhatsApp exige un modèle approuvé : renseignez son identifiant `HX…` (variable `{{1}}` = texte du message).
 - **Envoi des identifiants** : à la création ou à la réinitialisation d'un accès, la fenêtre des identifiants propose de les envoyer par e-mail, SMS ou WhatsApp aux coordonnées de la fiche. Le mot de passe provisoire est masqué dans le journal.
 - Les erreurs Twilio courantes sont traduites (identifiants refusés, numéro invalide, compte d'essai, pays non autorisé, modèle WhatsApp requis).
 
-L'envoi est testé de bout en bout (`test/envoi.test.js`) contre un faux serveur SMTP et une fausse API Twilio.
+L'envoi est testé de bout en bout (`test/envoi.test.js`) contre un faux serveur SMTP, une fausse API Brevo (`test/brevo.test.js`) et une fausse API Twilio.
 
 ## Mettre en ligne
 

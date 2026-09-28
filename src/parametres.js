@@ -95,6 +95,8 @@ const GROUPES = [
   ] },
   { id: 'messagerie', titre: 'Messagerie : e-mail, SMS et WhatsApp', aide: 'Sans ces réglages, les messages sont seulement enregistrés dans le journal des envois. Les mots de passe et clés sont chiffrés.', champs: [
     { k: 'site_url', l: 'Adresse publique du site', type: 'url', env: 'APP_URL', motif: '^https?://[^\\s/]+', aide: 'Exemple : https://chr-interim.onrender.com. Utilisée dans les liens des messages et pour afficher le logo dans WhatsApp.' },
+    { k: 'mail_methode', l: 'Méthode d\'envoi des e-mails', type: 'select', options: ['SMTP', 'API Brevo (HTTPS)'], def: 'SMTP', aide: 'Choisissez « API Brevo » si l\'hébergeur bloque les ports SMTP (offre gratuite de Render) : l\'envoi passe alors par le web.' },
+    { k: 'brevo_cle', l: 'Brevo : clé API', type: 'password', env: 'BREVO_API_KEY', aide: 'Commence par xkeysib-. Dans Brevo : SMTP et API › Clés API › Générer une nouvelle clé.' },
     { k: 'smtp_host', l: 'Serveur SMTP', env: 'SMTP_HOST', aide: 'Exemple : smtp-relay.brevo.com, smtp.office365.com, ssl0.ovh.net' },
     { k: 'smtp_port', l: 'Port SMTP', type: 'number', env: 'SMTP_PORT', def: '587', min: 1, max: 65535 },
     { k: 'smtp_secure', l: 'Connexion chiffrée directe (SSL, port 465)', type: 'select', options: ['non', 'oui'], def: 'non' },

@@ -10,6 +10,7 @@ const IMG = path.join(__dirname, '..', 'public', 'img');
 const LOGO_EMAIL = path.join(IMG, 'bandeau-horizontal.png');
 const CID_LOGO = 'logo@chr-interim';
 const TWILIO_API = process.env.TWILIO_API_BASE || 'https://api.twilio.com';
+const BREVO_API = process.env.BREVO_API_BASE || 'https://api.brevo.com';
 
 /** Adresse publique du site (liens et image WhatsApp). */
 const siteUrl = () => String(P.get('site_url') || process.env.APP_URL || 'http://localhost:3000').replace(/\/+$/, '');
@@ -35,8 +36,34 @@ function getMailer() {
 }
 const twilio = () => (P.get('twilio_sid') && P.get('twilio_token') ? { sid: P.get('twilio_sid'), token: P.get('twilio_token') } : null);
 
+/** Envoi par l'API web de Brevo (port 443) plutôt que par SMTP. */
+const viaBrevo = () => String(P.get('mail_methode') || '').startsWith('API Brevo');
+function expediteur() {
+  const nom = P.get('raison_sociale'), brut = P.get('smtp_from') || P.get('email') || '';
+  const m = String(brut).match(/^\s*"?([^"<]*?)"?\s*<([^>]+)>\s*$/);
+  return m ? { name: m[1] || nom, email: m[2].trim() } : { name: nom, email: String(brut).trim() };
+}
+async function brevoSend({ to, subject, text, html }) {
+  const res = await fetch(`${BREVO_API}/v3/smtp/email`, {
+    method: 'POST',
+    headers: { 'api-key': P.get('brevo_cle'), 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ sender: expediteur(), to: [{ email: to }], subject, textContent: text, htmlContent: html, ...(P.get('email') ? { replyTo: { email: P.get('email') } } : {}) }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const m = String(data.message || '');
+    const msg = /unrecognised IP|unrecognized IP/i.test(m) ? 'Brevo bloque l\'adresse IP du serveur : dans Brevo, menu Sécurité › IP autorisées, désactivez le blocage des adresses IP inconnues'
+      : res.status === 401 ? 'clé API Brevo refusée : vérifiez-la ou générez-en une nouvelle'
+      : /sender/i.test(m) ? 'adresse d\'expédition non validée dans Brevo : ajoutez-la dans Expéditeurs, domaines et IP › Expéditeurs, puis confirmez l\'e-mail reçu'
+      : m || 'erreur inconnue';
+    throw new Error(`Brevo ${res.status} : ${msg}`);
+  }
+  return data.messageId;
+}
+
 function canalConfigure(canal) {
-  if (canal === 'mail') return !!P.get('smtp_host');
+  if (canal === 'mail') return viaBrevo() ? !!(P.get('brevo_cle') && expediteur().email) : !!P.get('smtp_host');
   if (canal === 'sms') return !!(twilio() && P.get('twilio_sms_from'));
   if (canal === 'whatsapp') return !!(twilio() && P.get('twilio_whatsapp_from'));
   return false;
@@ -82,7 +109,7 @@ function gabaritEmail({ titre, texte, lien, bouton }, logoSrc = 'cid:' + CID_LOG
 <body style="margin:0;padding:0;background:#EEF1F5">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#EEF1F5"><tr><td align="center" style="padding:24px 12px">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="width:100%;max-width:600px;background:#FFFFFF;border-radius:10px;overflow:hidden;font-family:Arial,Helvetica,sans-serif">
-<tr><td style="background:#112233;padding:0"><img src="${logoSrc}" width="600" alt="${escHtml(g('raison_sociale'))} — Spécialiste des métiers HCR" style="display:block;width:100%;max-width:600px;height:auto;border:0"></td></tr>
+<tr><td style="background:#112233;padding:0">${logoSrc ? `<img src="${logoSrc}" width="600" alt="${escHtml(g('raison_sociale'))} — Spécialiste des métiers HCR" style="display:block;width:100%;max-width:600px;height:auto;border:0">` : `<div style="padding:22px 28px;color:#FFFFFF;font:600 22px Arial,sans-serif">${escHtml(g('raison_sociale'))}</div>`}</td></tr>
 <tr><td style="background:#C99948;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
 <tr><td style="padding:28px 28px 12px"><h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:#112233">${escHtml(titre)}</h1>${paras}
 ${lien ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 18px"><tr><td style="background:#112233;border-radius:8px;border-bottom:3px solid #C99948"><a href="${escHtml(lien)}" style="display:inline-block;padding:13px 22px;color:#FFFFFF;font-size:15px;font-weight:bold;text-decoration:none">${escHtml(bouton || 'Ouvrir mon espace')}</a></td></tr></table>
@@ -113,6 +140,13 @@ async function envoyer(canal, dest, sujet, texte, opts = {}) {
   try {
     if (canal === 'mail') {
       const nom = P.get('raison_sociale');
+      if (viaBrevo()) {
+        // Logo par son adresse publique (l'API ne gère pas les images intégrées).
+        const logo = siteUrl().startsWith('https://') ? siteUrl() + '/img/bandeau-horizontal.png' : '';
+        const id = await brevoSend({ to: destinataire, subject: sujet, text: `${texteComplet}\n\n— ${nom}, spécialiste des métiers HCR`,
+          html: gabaritEmail({ titre: opts.titre || sujet, texte, lien, bouton: opts.bouton }, logo) });
+        return log('envoye', id ? 'Brevo ' + id : 'Brevo');
+      }
       const from = P.get('smtp_from') || (P.get('smtp_user') && `${nom} <${P.get('smtp_user')}>`);
       const info = await getMailer().sendMail({
         from, to: destinataire, subject: sujet, replyTo: P.get('email') || undefined,
@@ -136,7 +170,7 @@ async function envoyer(canal, dest, sujet, texte, opts = {}) {
     const sid = await twilioSend(params);
     return log('envoye', 'SID ' + sid);
   } catch (e) {
-    return log('echec', String(canal === 'mail' ? erreurSmtp(e) : e.message).slice(0, 300));
+    return log('echec', String(canal === 'mail' && !viaBrevo() ? erreurSmtp(e) : e.message).slice(0, 400));
   }
 }
 

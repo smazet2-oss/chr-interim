@@ -48,6 +48,7 @@ const P = {
   list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
   edit: '<path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
   trash: '<path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
 };
 const ic = (n, attrs = '') => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true" ${attrs}>${P[n] || ''}</svg>`;
@@ -152,10 +153,33 @@ function go(view, params) {
   renderApp();
 }
 
+/** Mesure d'audience : une visite par page et par session, avec son origine (lien ?src=facebook, ?src=mail… ou site précédent).
+ *  Les paramètres de suivi sont retirés de l'adresse affichée pour qu'un lien recopié ne fausse pas l'origine. */
+const VISITES = {};
+const SUIVI = ['src', 'utm_source', 'utm_medium', 'utm_campaign', 'fbclid'];
+function suivreVisite(page) {
+  const q = new URLSearchParams(location.search), src = q.get('src') || q.get('utm_source') || (q.has('fbclid') ? 'facebook' : '');
+  if (SUIVI.some(k => q.has(k))) {
+    SUIVI.forEach(k => q.delete(k));
+    try { history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash); } catch { /* ignoré */ }
+  }
+  const cle = 'chr-visite-' + page;
+  try { if (sessionStorage.getItem(cle) !== null) return; sessionStorage.setItem(cle, ''); } catch { /* stockage indisponible */ }
+  if (VISITES[page] !== undefined) return;
+  VISITES[page] = null;
+  POST('/public/visite', { page, src, ref: document.referrer }).then(r => {
+    VISITES[page] = r.jeton;
+    if (r.jeton) try { sessionStorage.setItem(cle, r.jeton); } catch { /* ignoré */ }
+  }).catch(() => {});
+}
+const jetonVisite = page => { try { return VISITES[page] || sessionStorage.getItem('chr-visite-' + page) || ''; } catch { return VISITES[page] || ''; } };
+
 async function boot() {
-  if (location.pathname === '/contact') return renderContact('etablissement');
-  if (location.pathname === '/candidature') return renderContact('candidat');
+  if (location.pathname === '/contact') { suivreVisite('contact'); return renderContact('etablissement'); }
+  if (location.pathname === '/candidature') { suivreVisite('candidature'); return renderContact('candidat'); }
   try { S.me = await GET('/me'); } catch { S.me = null; }
+  // Page de connexion : visite comptée si personne n'est connecté (les utilisateurs quotidiens ne faussent pas les chiffres).
+  if (!S.me) suivreVisite('connexion');
   if (S.me && !S.me.must_change) S.cfg = await GET('/config').catch(() => null);
   renderAuth();
 }
@@ -1224,8 +1248,22 @@ V.agence.stats = async () => {
     <div class="kpis">${tuile('Note moyenne des intérimaires', 'star', d.notes.interimaires.moyenne, v => num(v) + ' / 5', undefined, `${d.notes.interimaires.nombre} avis des employeurs`)}${tuile('Note moyenne des établissements', 'building', d.notes.clients.moyenne, v => num(v) + ' / 5', undefined, `${d.notes.clients.nombre} avis des intérimaires (fiabilité)`)}
     ${kpi('Notes basses du mois', 'alert', d.notes.basses_mois, 'Avis à 2 étoiles ou moins', d.notes.basses_mois ? 'down' : '')}${kpi('Notes basses au total', 'alert', d.notes.interimaires.basses + d.notes.clients.basses, `${d.notes.interimaires.basses} intérimaire(s) · ${d.notes.clients.basses} établissement(s)`, d.notes.interimaires.basses + d.notes.clients.basses ? 'down' : '')}</div>
     <div class="grid2">${classement('Répartition des notes des intérimaires', d.notes.interimaires.repartition, num, 'Aucun avis.')}${classement('Répartition des notes des établissements', d.notes.clients.repartition, num, 'Aucun avis.')}</div>
-    <div class="grid2">${classement('Intérimaires les moins bien notés', d.notes.interimaires_bas, v => num(v) + ' / 5', 'Aucun avis.')}${classement('Établissements les moins bien notés', d.notes.clients_bas, v => num(v) + ' / 5', 'Aucun avis.')}</div>`;
+    <div class="grid2">${classement('Intérimaires les moins bien notés', d.notes.interimaires_bas, v => num(v) + ' / 5', 'Aucun avis.')}${classement('Établissements les moins bien notés', d.notes.clients_bas, v => num(v) + ' / 5', 'Aucun avis.')}</div>` + visitesStats(d.visites);
 };
+/** Section « Visites du site et origines » : clics sur les liens du site, par origine et par page, demandes envoyées, liens à partager. */
+function visitesStats(v) {
+  const base = location.origin, pc1 = x => x.taux === null ? '—' : num(x.taux) + ' %';
+  const LIENS = [['/contact', 'Page établissements'], ['/candidature', 'Page candidats'], ['/', 'Page de connexion']];
+  const ORIG = [['facebook', 'Facebook'], ['mail', 'E-mail'], ['sms', 'SMS']];
+  return `<h2 class="stats-titre">${ic('link')}Visites du site et origines</h2>
+    <div class="kpis">${tuile('Visites du mois', 'eye', v.mois, num, v.mois_prec)}${tuile('Demandes envoyées depuis le site', 'send', v.demandes, num, v.demandes_prec)}
+    ${tuile('Taux de transformation', 'target', v.taux, pct, undefined, 'Demandes sur visites des pages établissements et candidats')}${kpi('Première origine du mois', 'chart', v.principale ? esc(v.principale.nom) : '—', v.principale ? `${num(v.principale.valeur)} visite${v.principale.valeur > 1 ? 's' : ''} sur ${num(v.mois)}` : 'Aucune visite ce mois-ci')}</div>
+    <div class="grid2">${histogramme('Visites (clics sur les liens du site)', v.serie, num)}${classement(`Origine des visites de ${moisLong(S.cfg?.aujourdhui?.slice(0, 7) || v.serie[v.serie.length - 1].mois)}`, v.sources, num, 'Aucune visite ce mois-ci.')}</div>
+    <div class="grid2">${panel('Origines sur 6 mois', '', v.sources6.length ? `<div class="scroll"><table><thead><tr><th>Origine</th><th class="r">Visites</th><th class="r">Demandes</th><th class="r">Transformation</th></tr></thead><tbody>${v.sources6.map(x => `<tr><td>${esc(x.nom)}</td><td class="r num">${num(x.valeur)}</td><td class="r num">${num(x.demandes)}</td><td class="r num">${pc1(x)}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune visite sur les 6 derniers mois.'))}
+    ${classement('Pages visitées ce mois-ci', v.pages.map(x => ({ nom: x.nom + (x.cle === 'connexion' ? '' : ` · ${x.demandes} demande${x.demandes > 1 ? 's' : ''}`), valeur: x.valeur })), num, 'Aucune visite.')}</div>
+    ${panel('Liens à partager pour connaître l\'origine des visites', '', `<div class="panel-b"><p class="small muted">Utilisez ces liens dans vos publications Facebook, vos e-mails et vos SMS : chaque clic est rangé dans la bonne origine. Les QR codes imprimés sont comptés dans « QR code ». Une adresse tapée directement ou ouverte depuis un favori est comptée dans « Adresse du site ». Aucune donnée personnelle n'est enregistrée (ni adresse IP, ni cookie).</p></div>
+      <div class="scroll"><table class="liens-suivi"><thead><tr><th>Page</th>${ORIG.map(o => `<th>${o[1]}</th>`).join('')}</tr></thead><tbody>${LIENS.map(([p, n]) => `<tr><td><b>${n}</b><div class="small muted mono">${esc(base + p)}</div></td>${ORIG.map(([k, l]) => { const u = `${base}${p}?src=${k}`; return `<td>${btn('Copier', 'link', `data-a="copy" data-t="${esc(u)}" title="${esc(u)}" aria-label="Copier le lien ${esc(l)} de la ${esc(n.toLowerCase())}"`, 'sm')}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`)}`;
+}
 V.client.stats = async () => {
   const d = await GET('/stats'), k = d.cles;
   return head('Statistiques', `Vos chiffres de ${moisLong(d.mois)} (heures validées), comparés au mois précédent, et votre activité sur l'année.`) +
@@ -1734,13 +1772,14 @@ const F = {
   candidature: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;
     for (const [k, v] of [...fd]) if (v === '' || (v instanceof File && !v.size)) fd.delete(k);
+    if (jetonVisite('candidature')) fd.set('visite', jetonVisite('candidature'));
     try { await POST('/public/candidature', fd); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'center' }); return; }
     f.closest('.contact-card').innerHTML = contactMerci();
     window.scrollTo(0, 0);
   }),
   contact: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;
-    try { await POST('/public/contact', lireQuestionnaire(fd)); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'center' }); return; }
+    try { await POST('/public/contact', { ...lireQuestionnaire(fd), visite: jetonVisite('contact') }); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'center' }); return; }
     f.closest('.contact-card').innerHTML = contactMerci();
     window.scrollTo(0, 0);
   }),

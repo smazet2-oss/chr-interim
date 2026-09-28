@@ -430,6 +430,8 @@ dialog{border:0;padding:0;background:none}
   table.fiches td:not([data-label])::before{content:none}
   table.fiches td>.row{justify-content:flex-end;flex-wrap:wrap!important}
   table.fiches tbody tr:hover td{background:none}
+  table.liens-suivi td:first-child{display:block;text-align:left;padding-bottom:6px}
+  table.liens-suivi td:first-child::before{content:none}
   /* Fenêtres en panneau depuis le bas */
   .modal-bg{align-items:end;padding:0}
   .modal{width:100%!important;max-height:92dvh;border-radius:14px 14px 0 0}
@@ -780,3 +782,6 @@ a.brand:focus-visible,.auth-banner-lien:focus-visible{outline:2px solid #C99948;
 @media (max-width:600px){.dr-l{flex-wrap:wrap}.dr-sel select{max-width:100%}}
 .q-bool{align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--surface);font-weight:500}
 .q-bool input{margin-top:3px;flex:none;width:18px;height:18px;accent-color:#112233}
+
+/* Liens de suivi des visites (statistiques de l'agence) */
+table.liens-suivi .mono{overflow-wrap:anywhere}

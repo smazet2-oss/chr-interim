@@ -120,6 +120,7 @@ function publiques(api, h) {
     // Anti-abus : seules les demandes valides comptent (5 par heure et par connexion)
     if (!limite(req.ip)) fail(429, 'Trop d\'envois depuis cette connexion. Réessayez dans une heure ou appelez-nous.');
     enregistrer(r, { source: 'site', accord: 'en_ligne' });
+    require('./visites').convertir(b.visite, 'contact');
     // Alerte à l'agence (e-mail de contact des Paramètres)
     if (P.get('email')) {
       await envoyer('mail', { email: P.get('email') }, `Nouveau contact : ${r.etablissement}`,

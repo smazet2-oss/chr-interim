@@ -82,6 +82,7 @@ module.exports = function register(api, h) {
           interimaires_bas: moinsBienNotes('client_vers_interim', 'h.interim_id', 'i.prenom || \' \' || i.nom'),
           clients_bas: moinsBienNotes('interim_vers_client', 'm.client_id', 'c.nom'),
         },
+        visites: require('./visites').stats(mc, mp, mois6),
         series: { ca_ht: serie(mois6, H, 'ht'), heures: serie(mois6, H, 'total'), missions: mois6.map(m => ({ mois: m, valeur: M.filter(x => x.mois === m && x.statut !== 'annulee').length })) },
         tops: { clients: top(H.filter(x => x.date.startsWith(an)), 'client_id', x => x.ht).map(x => ({ ...x, nom: one('SELECT nom FROM clients WHERE id = ?', x.nom)?.nom || '—' })),
           postes: top(M.filter(m => m.statut !== 'annulee'), 'poste', m => m.nb_postes) },

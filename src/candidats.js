@@ -94,6 +94,7 @@ function publiques(api, h) {
     const poste = r.poste_principal && r.poste_principal !== 'Autre' ? r.poste_principal : r.postes?.find(x => x !== 'Autre') || r.postes_autre || null;
     run('INSERT INTO candidats (prenom, nom, telephone, email, ville, poste, reponses, cv_fichier, cv_nom) VALUES (?,?,?,?,?,?,?,?,?)',
       r.prenom, r.nom, r.telephone || null, r.email || null, r.ville || null, poste, JSON.stringify(r), fichier, req.file ? String(req.file.originalname).slice(0, 120) : null);
+    require('./visites').convertir(b.visite, 'candidature');
     if (P.get('email')) {
       await envoyer('mail', { email: P.get('email') }, `Nouvelle candidature : ${r.prenom} ${r.nom}`,
         `Nouvelle candidature depuis le site : ${r.prenom} ${r.nom}${poste ? ', ' + poste : ''}${r.ville ? ', ' + r.ville : ''}. Contact : ${[r.telephone, r.email].filter(Boolean).join(' · ')}.${fichier ? ' CV joint dans l\'espace agence.' : ''}\n\nRetrouvez la candidature complète dans l'espace agence, rubrique Candidatures.`,

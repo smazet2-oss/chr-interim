@@ -168,6 +168,8 @@ prospects.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 // Page publique « Je cherche des missions » (candidature d'intérimaire), sans compte.
 const candidats = require('./candidats');
 candidats.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), HttpError });
+// Mesure d'audience des liens du site (origine des visites : Facebook, e-mail, adresse du site…).
+require('./visites').publiques(api);
 api.use(auth);
 // Droits d'accès par espace et par compte (contrôle de chaque requête).
 const droits = require('./droits');

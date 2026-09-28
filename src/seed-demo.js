@@ -5,6 +5,7 @@ const bcrypt = require('bcryptjs');
 const { one, all, run, tx } = require('./db');
 const dossier = require('./dossier');
 require('./prospects'); // crée la table des prospects
+require('./visites'); // crée la table des visites
 require('./candidats'); // crée la table des candidatures
 
 if (one('SELECT 1 FROM clients LIMIT 1')) {
@@ -137,6 +138,13 @@ tx(() => {
   run('INSERT INTO bulletin_heures (bulletin_id, heure_id) VALUES (?,?)', b.lastInsertRowid, h3);
 
   for (let k = 1; k <= 20; k++) run('INSERT OR IGNORE INTO disponibilites (interim_id, date, etat) VALUES (?,?,?)', I[0], jour(k), k % 7 === 0 ? 'indisponible' : 'disponible');
+  // Visites du site sur 6 mois (mesure d'audience des liens), en hausse depuis les publications Facebook.
+  const ORIGINES = ['facebook', 'facebook', 'facebook', 'mail', 'site', 'site', 'qr', 'recherche', 'facebook', 'mail', 'sms', 'autre'];
+  for (let k = 0; k < 170; k++) {
+    const age = Math.floor(k * k / 170), page = ['contact', 'candidature', 'candidature', 'connexion'][k % 4];
+    run('INSERT INTO visites (jeton, page, source, converti, created_at) VALUES (?,?,?,?, datetime(\'now\', ?))', require('crypto').randomBytes(16).toString('hex'),
+      page, ORIGINES[k % ORIGINES.length], page !== 'connexion' && k % 7 === 0 ? 1 : 0, `-${age} days`);
+  }
   run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', I[0], f1, 'Nouvelle mission : Commis de cuisine chez Brasserie Le Comptoir');
 });
 console.log('Démonstration installée. Comptes (mot de passe « Demo2026! ») : claire.morel (agence), comptoir.lyon (employeur), yanis.benali, lucas.martin, thomas.petit (intérimaires).');

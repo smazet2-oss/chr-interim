@@ -133,6 +133,12 @@ Une page « Statistiques » dans chaque espace : chiffres clés du mois comparé
 
 Les calculs reposent sur les heures validées par les deux parties (majorations comprises).
 
+**Visites du site et origines** (agence) : nombre de clics sur les liens du site (page de connexion, `/contact`, `/candidature`), par mois et par origine : Facebook, Instagram, e-mail, SMS, QR code, moteur de recherche, adresse du site (saisie directe ou favori), autre site. Pour chaque origine : demandes envoyées depuis le site et taux de transformation.
+
+- L'origine vient d'abord du lien : ajoutez `?src=facebook`, `?src=mail`, `?src=sms` (ou `utm_source`) aux liens que vous partagez ; la page Statistiques propose ces liens prêts à copier. Les QR codes imprimés contiennent `?src=qr`. Sans marque, le site précédent est utilisé (facebook.com, messageries en ligne, Google…) ; sans site précédent, la visite est comptée dans « Adresse du site ».
+- Une visite par page et par session de navigation ; la navigation interne, les robots et les utilisateurs déjà connectés ne sont pas comptés ; 30 visites par heure et par connexion au plus.
+- Aucune donnée personnelle : ni adresse IP ni cookie, un jeton aléatoire par visite, effacé après 13 mois.
+
 ### Réponse aux candidatures
 
 Dans **Intérimaires › Candidatures intérimaires** et **Clients › Candidatures clients** (onglet « À analyser » par défaut, badge dans le menu), et directement depuis le panneau « Candidatures à analyser » du tableau de bord :
@@ -251,6 +257,7 @@ src/relances.js   relances des contrats non signés et des factures échues
 src/prospects.js  page publique « Besoin de renforts ? » et suivi des prospects
 src/candidats.js  page publique « Je cherche des missions » et suivi des candidatures
 src/simulation.js simulation de paie, de coût et de marge
+src/visites.js    visites du site et origine des clics (Facebook, e-mail, QR code…)
 src/seed-demo.js  données de démonstration
 public/           interface (HTML, CSS, JavaScript sans framework)
 test/             tests automatiques de l'API

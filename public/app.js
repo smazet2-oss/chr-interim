@@ -246,6 +246,39 @@ function ajusterBandeau() {
 }
 addEventListener('resize', ajusterBandeau);
 addEventListener('load', ajusterBandeau);
+/** Sections repliables (Paramètres, Statistiques) : une seule ouverte à la fois, la dernière ouverte est mémorisée par page.
+ *  Statistiques : chaque titre h2.stats-titre et ce qui le suit ; Paramètres : chaque section.panel[data-acc]. */
+const ACC_CLE = () => 'chr-acc-' + S.me?.profil + '-' + S.view;
+function accordeon(root) {
+  const secs = [];
+  root.querySelectorAll(':scope > h2.stats-titre').forEach(h => {
+    const sec = document.createElement('section'), corps = document.createElement('div');
+    sec.className = 'acc acc-stats'; corps.className = 'acc-c';
+    let n = h.nextElementSibling;
+    while (n && !n.matches('h2.stats-titre')) { const suiv = n.nextElementSibling; corps.appendChild(n); n = suiv; }
+    sec.innerHTML = `<h2 class="stats-titre"><button type="button" class="acc-t" aria-expanded="false">${h.innerHTML}<span class="acc-chev">${ic('chev')}</span></button></h2>`;
+    h.replaceWith(sec); sec.appendChild(corps); secs.push(sec);
+  });
+  root.querySelectorAll('section.panel[data-acc]').forEach(sec => {
+    const tete = sec.querySelector(':scope > .panel-h'), corps = document.createElement('div');
+    corps.className = 'acc-c';
+    [...sec.children].filter(x => x !== tete).forEach(x => corps.appendChild(x));
+    const t = tete.querySelector('h2')?.textContent || '';
+    tete.classList.add('acc-h');
+    tete.insertAdjacentHTML('beforeend', `<button type="button" class="acc-t acc-seul" aria-expanded="false" aria-label="${esc(t)}"><span class="acc-chev">${ic('chev')}</span></button>`);
+    sec.classList.add('acc'); sec.appendChild(corps); secs.push(sec);
+  });
+  if (!secs.length) return;
+  let k = 0; try { const m = localStorage.getItem(ACC_CLE()); if (m !== null) k = Number(m); } catch { /* ignoré */ }
+  secs.forEach((sec, i) => { sec.dataset.i = i; ouvrirSection(sec, i === k, false); });
+}
+function ouvrirSection(sec, ouvert, memo = true) {
+  if (ouvert) sec.parentElement.querySelectorAll(':scope > .acc').forEach(x => { if (x !== sec) ouvrirSection(x, false, false); });
+  sec.querySelector('.acc-t').setAttribute('aria-expanded', ouvert);
+  sec.querySelector(':scope > .acc-c').hidden = !ouvert;
+  sec.classList.toggle('ouvert', ouvert);
+  if (memo) try { localStorage.setItem(ACC_CLE(), ouvert ? sec.dataset.i : '-1'); } catch { /* ignoré */ }
+}
 /** Onglets des pages (.seg, .tabs) présentés en menu déroulant : un bouton affiche le choix en cours, la liste s'ouvre au clic.
  *  Les boutons d'origine sont conservés (mêmes actions) ; un seul menu est ouvert à la fois. */
 let DD_N = 0;
@@ -304,7 +337,7 @@ async function renderApp() {
   const view = S.view;
   try {
     const html = await V[prof][view]();
-    if (S.view === view) { main.innerHTML = html; etiqueterTableaux(main); ongletsEnMenu(main); const z = main.querySelector('form [data-sim]'); if (z) majSimulation(z.closest('form')); }
+    if (S.view === view) { main.innerHTML = html; accordeon(main); etiqueterTableaux(main); ongletsEnMenu(main); const z = main.querySelector('form [data-sim]'); if (z) majSimulation(z.closest('form')); }
   } catch (e) { if (S.me) main.innerHTML = `<div class="panel">${empty('Impossible de charger cette page : ' + esc(e.message))}</div>`; }
   refreshCounts();
 }
@@ -928,7 +961,7 @@ V.agence.parametres = async () => {
   const canaux = Object.entries(CANAUX).map(([k, [i, l]]) => `<span class="row small">${ic(i)}${l} ${d.canaux[k] ? badge('libre', 'configuré') : badge('attente', 'simulé')}</span>`).join('');
   return head('Paramètres de l\'agence', 'Informations légales et réglages utilisés pour les contrats, les factures, la paie et l\'envoi des messages.') +
     (essentiels.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('alert')}</div><div><b>${essentiels.length} information${essentiels.length > 1 ? 's' : ''} manquante${essentiels.length > 1 ? 's' : ''} sur les contrats et factures</b><div class="small muted">${essentiels.map(e => e[1]).join(', ')}</div></div></div></section>` : '') +
-    d.groupes.map(g => `<section class="panel"><div class="panel-h"><div><h2>${esc(g.titre)}</h2><div class="small muted">${esc(g.aide)}</div></div>${g.id === 'messagerie' ? `<div class="statusline">${canaux}</div>` : ''}</div>
+    d.groupes.map(g => `<section class="panel" data-acc><div class="panel-h"><div><h2>${esc(g.titre)}</h2><div class="small muted">${esc(g.aide)}</div></div>${g.id === 'messagerie' ? `<div class="statusline">${canaux}</div>` : ''}</div>
       ${g.id === 'messagerie' ? `<div class="panel-b prerempli"><span class="small muted">Préremplir l'e-mail :</span>${btn('Gmail (chr.interims@gmail.com)', 'mail', 'data-a="smtppreset" data-p="gmail"', 'sm')}${btn('API Brevo (si SMTP bloqué)', 'mail', 'data-a="smtppreset" data-p="brevo"', 'sm')}${btn('Outlook / Microsoft 365', 'mail', 'data-a="smtppreset" data-p="outlook"', 'sm')}</div>` : ''}
       <form data-f="param" class="panel-b form">${g.champs.map(champ).join('')}<div class="full row"><button class="btn primary" type="submit">${ic('check')}Enregistrer</button></div></form>
       ${g.id === 'messagerie' ? `<form data-f="paramtest" class="panel-b inline-form" style="border-top:1px solid var(--line)"><label class="f" style="flex:0 1 160px">Canal<select name="canal">${['mail', 'sms', 'whatsapp'].map(k => `<option value="${k}">${CANAUX[k][1]}</option>`).join('')}</select></label>
@@ -1278,13 +1311,13 @@ const fmtH = n => num(n) + ' h', eur0 = n => (Number(n) || 0).toLocaleString('fr
 V.agence.stats = async () => {
   const d = await GET('/stats'), k = d.cles;
   return head('Statistiques', `Chiffres clés de ${moisLong(d.mois)} (heures validées par les deux parties), comparés au mois précédent, et évolution sur 6 mois.`) +
-    `<div class="kpis">${tuile('Chiffre d\'affaires HT', 'receipt', k.ca_ht, eur0, k.ca_ht_prec)}${tuile('Marge brute estimée', 'chart', k.marge, eur0, undefined, k.marge_pc === null ? 'Aucune heure validée' : `${num(k.marge_pc)} % du chiffre d'affaires`)}
+    `<h2 class="stats-titre">${ic('dash')}Chiffres clés du mois</h2><div class="kpis">${tuile('Chiffre d\'affaires HT', 'receipt', k.ca_ht, eur0, k.ca_ht_prec)}${tuile('Marge brute estimée', 'chart', k.marge, eur0, undefined, k.marge_pc === null ? 'Aucune heure validée' : `${num(k.marge_pc)} % du chiffre d'affaires`)}
     ${tuile('Heures validées', 'clock', k.heures, fmtH, k.heures_prec)}${tuile('Missions du mois', 'briefcase', k.missions, num, k.missions_prec)}</div>
     <div class="kpis">${tuile('Taux de pourvoi', 'check', k.taux_pourvoi, pct, undefined, 'Missions pourvues sur missions diffusées')}${tuile('Délai moyen de pourvoi', 'clock', k.delai_pourvoi_h, v => v < 48 ? num(v) + ' h' : num(Math.round(v / 24)) + ' j', undefined, 'De la demande au dernier intérimaire retenu')}
     ${tuile('Annulations et désistements', 'ban', k.annulations + k.desistements, num, undefined, `${k.annulations} annulation(s) client · ${k.desistements} désistement(s)`)}${tuile('Contrats signés', 'edit', k.contrats_signes_pc, pct, undefined, `${k.contrats_a_signer} en attente de signature`)}</div>
     <div class="kpis">${tuile('Intérimaires actifs ce mois', 'users', k.interimaires_actifs, num, undefined, `sur ${k.interimaires_total} inscrits · dossiers complets ${pct(k.dossiers_complets_pc)}`)}${tuile('Encours clients TTC', 'wallet', k.encours_ttc, eur0, undefined, k.retard_ttc ? `dont ${eur0(k.retard_ttc)} en retard` : 'Aucun retard')}
     ${tuile('Prospects actifs', 'target', k.prospects_actifs, num)}${tuile('Candidatures du mois', 'idcard', k.candidatures_mois, num)}</div>
-    <div class="grid2">${histogramme('Chiffre d\'affaires HT', d.series.ca_ht, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
+    <h2 class="stats-titre">${ic('chart')}Évolution sur 6 mois et classements</h2><div class="grid2">${histogramme('Chiffre d\'affaires HT', d.series.ca_ht, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
     <div class="grid2">${histogramme('Missions (hors annulées)', d.series.missions, num)}${classement('Meilleurs clients de l\'année (CA HT)', d.tops.clients, eur0, 'Aucune heure facturable cette année.')}</div>
     ${classement('Postes les plus demandés (6 mois, en postes)', d.tops.postes, num, 'Aucune mission.')}
     <h2 class="stats-titre">${ic('star')}Notes et fiabilité</h2>
@@ -1310,11 +1343,11 @@ function visitesStats(v) {
 V.client.stats = async () => {
   const d = await GET('/stats'), k = d.cles;
   return head('Statistiques', `Vos chiffres de ${moisLong(d.mois)} (heures validées), comparés au mois précédent, et votre activité sur l'année.`) +
-    `<div class="kpis">${tuile('Dépenses HT du mois', 'receipt', k.depenses_ht, eur0, k.depenses_ht_prec)}${tuile('Dépenses TTC de l\'année', 'wallet', k.depenses_an_ttc, eur0)}
+    `<h2 class="stats-titre">${ic('dash')}Chiffres clés</h2><div class="kpis">${tuile('Dépenses HT du mois', 'receipt', k.depenses_ht, eur0, k.depenses_ht_prec)}${tuile('Dépenses TTC de l\'année', 'wallet', k.depenses_an_ttc, eur0)}
     ${tuile('Heures du mois', 'clock', k.heures, fmtH, undefined, `${fmtH(k.heures_an)} sur l'année`)}${tuile('Coût horaire moyen HT', 'chart', k.cout_horaire_ht, eur, undefined, 'Majorations comprises')}</div>
     <div class="kpis">${tuile('Missions de l\'année', 'briefcase', k.missions_an, num, undefined, `${k.missions_mois} ce mois-ci · ${k.annulations_an} annulée(s)`)}${tuile('Taux de pourvoi', 'check', k.taux_pourvoi, pct, undefined, 'Missions pourvues sur missions diffusées')}
     ${tuile('Intérimaires venus', 'users', k.interimaires_differents, num, undefined, `${k.interimaires_fideles} revenu(s) au moins 2 fois`)}${tuile('Note moyenne donnée', 'star', k.note_donnee, v => num(v) + ' / 5', undefined, k.note_recue ? `Note reçue des intérimaires : ${num(k.note_recue)} / 5` : 'Aucune note reçue pour l\'instant')}</div>
-    <div class="grid2">${histogramme('Dépenses HT', d.series.depenses_ht, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
+    <h2 class="stats-titre">${ic('chart')}Évolution sur 6 mois et postes</h2><div class="grid2">${histogramme('Dépenses HT', d.series.depenses_ht, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
     ${classement('Vos postes les plus demandés (année, en postes)', d.tops.postes, num, 'Aucune mission cette année.')}
     <h2 class="stats-titre">${ic('star')}Notes</h2>
     <div class="grid2">${classement(`Notes reçues des intérimaires${d.notes.recues.moyenne ? ` · moyenne ${num(d.notes.recues.moyenne)} / 5` : ''}`, d.notes.recues.repartition, num, 'Aucun avis reçu.')}${classement(`Notes que vous avez données${d.notes.donnees.moyenne ? ` · moyenne ${num(d.notes.donnees.moyenne)} / 5` : ''}`, d.notes.donnees.repartition, num, 'Aucune note donnée.')}</div>`;
@@ -1322,11 +1355,11 @@ V.client.stats = async () => {
 V.interim.stats = async () => {
   const d = await GET('/stats'), k = d.cles;
   return head('Mes statistiques', `Vos chiffres de ${moisLong(d.mois)} (heures validées par vous et l'employeur), comparés au mois précédent. Gains en brut, fin de mission et congés payés compris.`) +
-    `<div class="kpis">${tuile('Gains bruts du mois', 'wallet', k.gains_brut, eur0, k.gains_brut_prec)}${tuile('Net estimé du mois', 'wallet', k.net_estime_mois, eur0, undefined, 'Estimation avant impôt')}
+    `<h2 class="stats-titre">${ic('dash')}Chiffres clés</h2><div class="kpis">${tuile('Gains bruts du mois', 'wallet', k.gains_brut, eur0, k.gains_brut_prec)}${tuile('Net estimé du mois', 'wallet', k.net_estime_mois, eur0, undefined, 'Estimation avant impôt')}
     ${tuile('Heures du mois', 'clock', k.heures, fmtH, undefined, `${fmtH(k.heures_an)} sur l'année`)}${tuile('Gains bruts de l\'année', 'chart', k.gains_an, eur0)}</div>
     <div class="kpis">${tuile('Missions réalisées', 'briefcase', k.missions_an, num, undefined, `${k.missions_mois} ce mois-ci · ${k.missions_a_venir} à venir`)}${tuile('Établissements', 'building', k.etablissements, num, undefined, 'Différents cette année')}
     ${tuile('Taux d\'acceptation', 'check', k.taux_acceptation, pct, undefined, `Missions acceptées sur missions proposées${k.desistements ? ` · ${k.desistements} désistement(s)` : ''}`)}${tuile('Note moyenne', 'star', k.note, v => num(v) + ' / 5', undefined, 'Avis des employeurs')}</div>
-    <div class="grid2">${histogramme('Gains bruts', d.series.gains_brut, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
+    <h2 class="stats-titre">${ic('chart')}Évolution, postes et notes</h2><div class="grid2">${histogramme('Gains bruts', d.series.gains_brut, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
     <div class="grid2">${classement('Mes postes (heures de l\'année)', d.tops.postes, fmtH, 'Aucune heure validée cette année.')}${classement(`Mes notes${d.notes.recues.moyenne ? ` · moyenne ${num(d.notes.recues.moyenne)} / 5` : ''}`, d.notes.recues.repartition, num, 'Aucun avis reçu.')}</div>`;
 };
 
@@ -1874,6 +1907,9 @@ document.addEventListener('click', e => {
   const dd = e.target.closest('.dd-btn');
   if (dd) { basculerMenu(dd, dd.getAttribute('aria-expanded') !== 'true'); return; }
   basculerMenu(null);
+  // Sections repliables : clic sur le titre (ou sur tout l'en-tête d'un groupe de paramètres)
+  const acc = e.target.closest('.acc-t') || (e.target.closest('.acc-h') && !e.target.closest('a, button, input, select, label') ? e.target.closest('.acc-h').querySelector('.acc-t') : null);
+  if (acc) { const sec = acc.closest('.acc'); ouvrirSection(sec, acc.getAttribute('aria-expanded') !== 'true'); if (acc.getAttribute('aria-expanded') === 'true') { const y = sec.getBoundingClientRect().top + scrollY - (innerWidth <= 900 ? 90 : 70); if (sec.getBoundingClientRect().top < 60) scrollTo({ top: y, behavior: 'smooth' }); } return; }
   const el = e.target.closest('[data-a]'); if (!el) return;
   const fn = A[el.dataset.a]; if (!fn) return;
   if (el.type === 'checkbox') return; // géré par l'événement change

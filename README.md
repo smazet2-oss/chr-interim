@@ -35,6 +35,8 @@ Le tableau de bord, le planning et les missions en accès direct, puis les autre
 - **Employeur** : Tableau de bord, Planning, Mes missions ; Suivi (heures et évaluations, statistiques, intérimaires) ; Administratif et social (documents, contrats de mission, factures, contrat commercial).
 - **Intérimaire** : Accueil, Mon planning, Missions proposées ; Suivi (heures, statistiques, profil et CV, avis) ; Administratif et social (contrats, paie, documents).
 
+**Sections repliables** : dans Paramètres (Identité, Facturation, Paie, Convention HCR, Relances, Messagerie) et dans Statistiques (Chiffres clés, Évolution sur 6 mois, Notes, Visites du site…), chaque section s'ouvre et se ferme d'un clic sur son titre. Une seule est ouverte à la fois ; la dernière ouverte est mémorisée pour chaque page sur l'appareil.
+
 **Onglets des pages en menu déroulant** : les onglets à l'intérieur des pages (affichage du planning, filtre des missions, canal du journal des envois, statut des candidatures, espace des droits d'accès) s'affichent en un bouton qui indique le choix en cours ; la liste s'ouvre au clic, se ferme après un choix, un clic ailleurs ou la touche Échap, et se parcourt aux flèches. Un seul menu est ouvert à la fois.
 
 ### Droits d'accès (administrateur)

@@ -840,3 +840,25 @@ tr.jr-coche td{background:var(--attente-bg,#FDF1DC)}
   .dd-liste{width:100%;max-width:none}
   .dd-liste button{padding:12px}
 }
+
+/* ---------- Sections repliables (Paramètres, Statistiques) ---------- */
+.acc-chev{display:flex;margin-left:auto;flex:none;transition:transform .15s;color:var(--ink-3)}
+.acc-chev svg{width:18px;height:18px;transform:rotate(90deg)}
+.acc-t[aria-expanded="true"] .acc-chev{transform:rotate(180deg)}
+.acc-t:focus-visible{outline:2px solid #C99948;outline-offset:2px}
+/* Statistiques : chaque section est une carte dont le titre ouvre ou ferme le contenu */
+.acc-stats{display:flex;flex-direction:column;gap:16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:0;box-shadow:var(--shadow-sm)}
+.acc-stats.ouvert{background:none;border-color:transparent;box-shadow:none}
+.acc-stats>h2.stats-titre{margin:0}
+.acc-stats .acc-t{display:flex;align-items:center;gap:10px;width:100%;border:0;background:none;font:inherit;color:inherit;text-align:left;padding:14px 16px;cursor:pointer;border-radius:12px}
+.acc-stats .acc-t:hover{background:var(--hover)}
+.acc-stats.ouvert .acc-t{padding:4px 0}
+.acc-stats.ouvert .acc-t:hover{background:none}
+.acc-stats>.acc-c{display:flex;flex-direction:column;gap:16px}
+.acc-stats>.acc-c[hidden]{display:none}
+/* Paramètres : l'en-tête du groupe ouvre ou ferme le formulaire */
+.acc-h{cursor:pointer;position:relative;padding-right:56px!important}
+.acc-h:hover{background:var(--hover)}
+.acc-seul{position:absolute;right:10px;top:12px;width:36px;height:36px;display:grid;place-items:center;border:0;background:none;border-radius:8px;cursor:pointer}
+.acc-seul .acc-chev{margin:0}
+section.acc:not(.ouvert)>.acc-h{border-bottom:0}

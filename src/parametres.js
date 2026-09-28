@@ -7,6 +7,8 @@ const path = require('node:path');
 const crypto = require('node:crypto');
 const { db, one, all, run, DATA_DIR } = require('./db');
 const HCR = require('./hcr-grille');
+/** E-mail de contact de l'agence. */
+const EMAIL_AGENCE = 'chr-interims@gmail.com';
 
 db.exec(`CREATE TABLE IF NOT EXISTS parametres (cle TEXT PRIMARY KEY, valeur TEXT NOT NULL, updated_at TEXT NOT NULL DEFAULT (datetime('now')))`);
 
@@ -49,7 +51,7 @@ const GROUPES = [
     { k: 'code_postal', l: 'Code postal', motif: '^\\d{5}$' },
     { k: 'ville', l: 'Ville' },
     { k: 'telephone', l: 'Téléphone', type: 'tel' },
-    { k: 'email', l: 'E-mail de contact', type: 'email' },
+    { k: 'email', l: 'E-mail de contact', type: 'email', def: EMAIL_AGENCE, aide: 'Affiché sur le site, les e-mails (adresse de réponse), les contrats et les factures.' },
     { k: 'site', l: 'Site internet', type: 'url' },
     { k: 'representant_nom', l: 'Représentant légal (prénom et nom)', aide: 'Signataire des contrats de mission pour l\'agence.' },
     { k: 'representant_qualite', l: 'Qualité du représentant', def: 'Gérant(e)' },
@@ -98,7 +100,7 @@ const GROUPES = [
     { k: 'smtp_secure', l: 'Connexion chiffrée directe (SSL, port 465)', type: 'select', options: ['non', 'oui'], def: 'non' },
     { k: 'smtp_user', l: 'Identifiant SMTP', env: 'SMTP_USER' },
     { k: 'smtp_pass', l: 'Mot de passe ou clé SMTP', type: 'password', env: 'SMTP_PASS' },
-    { k: 'smtp_from', l: 'Adresse d\'expédition', env: 'SMTP_FROM', aide: 'Exemple : CHR Intérim <missions@chr-interim.fr>. L\'adresse doit être autorisée chez votre fournisseur.' },
+    { k: 'smtp_from', l: 'Adresse d\'expédition', env: 'SMTP_FROM', aide: 'Exemple : CHR Intérim <chr-interims@gmail.com>. L\'adresse doit être autorisée chez votre fournisseur.' },
     { k: 'twilio_sid', l: 'Twilio : Account SID', env: 'TWILIO_ACCOUNT_SID', motif: '^AC[0-9a-fA-F]{32}$', aide: 'Commence par AC, visible sur l\'accueil de la console Twilio.' },
     { k: 'twilio_token', l: 'Twilio : Auth Token', type: 'password', env: 'TWILIO_AUTH_TOKEN' },
     { k: 'twilio_sms_from', l: 'Expéditeur des SMS', env: 'TWILIO_SMS_FROM', def: 'CHR Interim', motif: '^(\\+\\d{8,15}|[A-Za-z][A-Za-z0-9 ]{0,10})$', aide: 'Nom affiché (11 caractères maximum, par exemple « CHR Interim ») ou numéro Twilio au format +33…' },
@@ -147,6 +149,12 @@ function enregistrer(body, fail) {
     run('INSERT INTO parametres (cle, valeur) VALUES (?,?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, updated_at = datetime(\'now\')', k, v);
   }
   for (const k of body.effacer || []) if (CHAMPS[k]?.type === 'password') run('DELETE FROM parametres WHERE cle = ?', k);
+}
+
+// Une fois : l'e-mail de contact de l'agence devient chr-interims@gmail.com (modifiable ensuite dans Paramètres).
+if (!one('SELECT 1 FROM parametres WHERE cle = \'migration_email_contact\'')) {
+  run('INSERT INTO parametres (cle, valeur) VALUES (\'email\', ?) ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur, updated_at = datetime(\'now\')', EMAIL_AGENCE);
+  run('INSERT INTO parametres (cle, valeur) VALUES (\'migration_email_contact\', \'fait\')');
 }
 
 module.exports = { get, num, vuePublique, enregistrer, GROUPES };

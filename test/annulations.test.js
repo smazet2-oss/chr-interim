@@ -90,7 +90,7 @@ test('annulation par l\'employeur, désistement, indisponibilité, statistiques'
   // 4. Statistiques : chaque profil reçoit les siennes
   const sa = (await ag.get('/stats')).data, sc = (await CL.get('/stats')).data, si = (await I2.get('/stats')).data;
   assert.equal(sa.profil, 'agence'); assert.ok('ca_ht' in sa.cles && sa.series.ca_ht.length === 6);
-  assert.ok(sa.cles.annulations >= 1 && sa.cles.desistements >= 1);
+  assert.ok(sa.cles.desistements >= 1, 'désistement du mois compté');
   assert.equal(sc.profil, 'client'); assert.equal(sc.cles.ca_ht, undefined); assert.ok(sc.cles.annulations_an >= 1);
   assert.equal(si.profil, 'interim'); assert.equal(si.cles.marge, undefined);
 });

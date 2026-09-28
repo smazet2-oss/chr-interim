@@ -788,3 +788,9 @@ table.liens-suivi .mono{overflow-wrap:anywhere}
 
 /* Préremplissage des réglages e-mail */
 .prerempli{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding-bottom:0}
+
+/* Journal des envois : statut et raison de l'échec lisibles en entier, même sur téléphone */
+.envoi-statut{display:flex;flex-direction:column;align-items:flex-start;gap:4px;min-width:0;max-width:340px}
+.envoi-statut .small{overflow-wrap:anywhere;white-space:normal}
+.envoi-erreur{color:var(--danger-fg)}
+@media (max-width:640px){table.fiches .envoi-statut{flex:1 1 auto;min-width:0;max-width:none;align-items:flex-end;text-align:right}}

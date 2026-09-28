@@ -142,7 +142,8 @@ async function envoyer(canal, dest, sujet, texte, opts = {}) {
 
 /** Erreurs SMTP les plus fréquentes, traduites avec la marche à suivre. */
 function erreurSmtp(e) {
-  const m = String(e.message || ''), gmail = /gmail|google/i.test(String(P.get('smtp_host')));
+  // Les erreurs OpenSSL commencent par un identifiant technique (ex. 40E8…0000:error:…) : il est retiré.
+  const m = String(e.message || '').replace(/^[0-9a-f]{8,}:error:[0-9A-F]+:/i, ''), gmail = /gmail|google/i.test(String(P.get('smtp_host')));
   if (e.code === 'EAUTH' || /\b535\b|534|Username and Password not accepted|Invalid login|Application-specific password/i.test(m))
     return gmail ? 'Gmail refuse la connexion : utilisez un mot de passe d\'application (16 lettres, validation en deux étapes activée), pas le mot de passe du compte. ' + m
       : 'Identifiant ou mot de passe SMTP refusé. ' + m;

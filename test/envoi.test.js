@@ -135,3 +135,8 @@ test('erreurs SMTP traduites avec la marche à suivre', () => {
   assert.match(erreurSmtp({ message: '553 5.7.1 Sender address rejected' }), /expédition refusée/);
   assert.equal(erreurSmtp({ message: 'autre' }), 'autre');
 });
+
+test('erreur OpenSSL : identifiant technique retiré', () => {
+  const r = require('../src/notify').erreurSmtp({ code: 'ESOCKET', message: '40E8F1D5D67F0000:error:0A00010B:SSL routines:ssl3_get_record:wrong version number' });
+  assert.ok(!r.includes('40E8F1D5D67F0000'));
+});

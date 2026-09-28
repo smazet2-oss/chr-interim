@@ -868,7 +868,7 @@ V.agence.journal = async () => {
   return head('Journal des envois', 'Tous les messages WhatsApp, SMS et e-mail envoyés par la plateforme. Un canal non configuré est simulé : le message est enregistré ici sans être envoyé.') +
     panel('Canaux', '', `<div class="panel-b statusline" style="gap:18px">${conf}</div>`) +
     panel('200 derniers messages', '', L.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Canal</th><th>Destinataire</th><th>Message</th><th>Statut</th></tr></thead><tbody>
-    ${L.map(x => `<tr><td class="num">${esc(x.created_at)}</td><td>${CANAUX[x.canal]?.[1] || x.canal}</td><td class="mono">${esc(x.destinataire)}</td><td style="min-width:260px">${esc(x.contenu)}</td><td>${badge(...st[x.statut])}${x.detail ? `<div class="small muted">${esc(x.detail)}</div>` : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucun message envoyé.'));
+    ${L.map(x => `<tr><td class="num">${esc(x.created_at)}</td><td>${CANAUX[x.canal]?.[1] || x.canal}</td><td class="mono">${esc(x.destinataire)}</td><td style="min-width:260px">${esc(x.contenu)}</td><td><div class="envoi-statut">${badge(...st[x.statut])}${x.detail ? `<div class="small ${x.statut === 'echec' ? 'envoi-erreur' : 'muted'}">${esc(x.detail)}</div>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucun message envoyé.'));
 };
 
 V.agence.parametres = async () => {

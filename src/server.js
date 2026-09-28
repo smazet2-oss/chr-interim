@@ -168,11 +168,7 @@ prospects.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 // Page publique « Je cherche des missions » (candidature d'intérimaire), sans compte.
 const candidats = require('./candidats');
 candidats.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), HttpError });
-// Job dating des alternants : application des recruteurs (connexion par code d'accès, sans compte).
-const jobdating = require('./jobdating');
-jobdating.recruteur(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 api.use(auth);
-jobdating.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
 prospects.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 candidats.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
@@ -929,12 +925,9 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'Route inconnue.' })
 // Version du code : chaque déploiement change l'adresse de app.js et app.css, les navigateurs rechargent donc toujours la dernière version.
 const VERSION = (process.env.RENDER_GIT_COMMIT || String(Date.now())).slice(0, 12);
 const INDEX = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8')
-  .replace('href="/app.css"', `href="/app.css?v=${VERSION}"`).replace('src="/app.js"', `src="/app.js?v=${VERSION}"`)
-  .replace('src="/jobdating-agence.js"', `src="/jobdating-agence.js?v=${VERSION}"`);
+  .replace('href="/app.css"', `href="/app.css?v=${VERSION}"`).replace('src="/app.js"', `src="/app.js?v=${VERSION}"`);
 function req_versionnee(res) { return res.req && res.req.query && res.req.query.v === VERSION ? 'public, max-age=31536000, immutable' : 'no-cache'; }
 const envoyerIndex = (req, res) => { res.set('Cache-Control', 'no-cache'); res.type('html').send(INDEX); };
-// Job dating : application des recruteurs (/recruteur) et lien des QR codes des badges (/jd/…).
-jobdating.pages(app, path.join(__dirname, '..', 'public'));
 app.get(['/', '/index.html'], envoyerIndex);
 app.use(express.static(path.join(__dirname, '..', 'public'), {
   index: false,

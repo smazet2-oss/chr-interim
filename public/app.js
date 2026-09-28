@@ -39,6 +39,7 @@ const P = {
   eye: '<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>',
   eyeoff: '<path d="M3 3l18 18M10.6 5.1A10.4 10.4 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.2 4.2M6.6 6.6A17.4 17.4 0 0 0 2 12s3.5 7 10 7a9.7 9.7 0 0 0 5.4-1.6M9.9 9.9a3 3 0 0 0 4.2 4.2"/>',
   ban: '<circle cx="12" cy="12" r="9"/><path d="m5.6 5.6 12.8 12.8"/>',
+  shield: '<path d="M12 3 4 6v6c0 5 3.4 8.5 8 9.5 4.6-1 8-4.5 8-9.5V6l-8-3Z"/><path d="m9 12 2 2 4-4"/>',
   target: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
   mail: '<rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/>',
   phone: '<rect x="5" y="2" width="14" height="20" rx="2"/><path d="M12 18h.01"/>',
@@ -114,7 +115,7 @@ const NAV = {
       ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star']]],
     ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target']]],
     ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
-    ['-', 'Administration'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
+    ['-', 'Administration'], ['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']],
   // Employeur et intérimaire : par ordre d'importance, l'administratif et le social en dernier. ['-', titre] = intertitre.
   client: [['-', 'Activité'], ['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes missions', 'briefcase'], ['jour', 'Planning', 'cal'], ['heures', 'Heures et évaluations', 'clock'],
     ['-', 'Suivi'], ['stats', 'Statistiques', 'chart'], ['interimaires', 'Intérimaires', 'users'],
@@ -124,8 +125,17 @@ const NAV = {
     ['-', 'Administratif et social'], ['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']],
 };
 /** Menu à plat (listes déroulantes dépliées) et groupe d'une rubrique. */
-const navPlat = prof => NAV[prof].flatMap(n => n[0] === '+' ? n[3] : [n]);
-const groupeDe = (prof, v) => NAV[prof].find(n => n[0] === '+' && n[3].some(x => x[0] === v));
+/** Menu du compte connecté : sans les rubriques verrouillées (Droits d'accès réservé à l'administrateur). */
+function navDe(prof) {
+  const off = new Set(S.me?.vues_verrouillees || []); if (!S.me?.super_admin) off.add('droits');
+  const L = NAV[prof].map(n => n[0] === '+' ? [n[0], n[1], n[2], n[3].filter(e => !off.has(e[0]))] : n)
+    .filter(n => n[0] === '-' || (n[0] === '+' ? n[3].length : !off.has(n[0])));
+  return L.filter((n, k) => n[0] !== '-' || (L[k + 1] && L[k + 1][0] !== '-'));
+}
+/** Une fonction est-elle accessible au compte connecté ? */
+const peut = k => !(S.me?.verrous || []).includes(k);
+const navPlat = prof => navDe(prof).flatMap(n => n[0] === '+' ? n[3] : [n]);
+const groupeDe = (prof, v) => navDe(prof).find(n => n[0] === '+' && n[3].some(x => x[0] === v));
 /** Listes déroulantes ouvertes : celle de la rubrique affichée, plus celles ouvertes par l'utilisateur (mémorisé sur cet appareil). */
 let NAV_OUVERT = (() => { try { return new Set(JSON.parse(localStorage.getItem('chr-nav') || '[]')); } catch { return new Set(); } })();
 const memoNav = () => { try { localStorage.setItem('chr-nav', JSON.stringify([...NAV_OUVERT])); } catch { /* stockage indisponible */ } };
@@ -225,7 +235,8 @@ async function renderApp() {
   $('#space').textContent = SPACE[prof];
   const lien = ([k, l, i]) => `<button data-a="nav" data-v="${k}" ${S.view === k ? 'aria-current="page"' : ''}>${ic(i)}<span>${l}</span><span class="count" data-count="${k}" hidden></span></button>`;
   const g0 = groupeDe(prof, S.view); if (g0) NAV_OUVERT.add(g0[1]);
-  $('#nav').innerHTML = NAV[prof].map((n, x) => {
+  if (!navPlat(prof).some(n => n[0] === S.view)) S.view = 'accueil';
+  $('#nav').innerHTML = navDe(prof).map((n, x) => {
     if (n[0] === '-') return `<div class="nav-sep" role="presentation">${n[1]}</div>`;
     if (n[0] !== '+') return lien(n);
     const ouvert = NAV_OUVERT.has(n[1]), actif = n[3].some(e => e[0] === S.view);
@@ -329,12 +340,12 @@ function missionCard(m, mode) {
   const rows = mode === 'agence' ? m.envois.map(e => ({ id: e.interim_id, nom: e.nom, poste: e.poste, etat: e.desistement ? 'desiste' : e.etat, canaux: e.canaux, contrat: e.contrat, desistement: e.desistement }))
     : m.candidats.map(c => ({ id: c.interim_id, nom: `${c.prenom} ${c.nom}`, poste: c.poste, etat: c.etat, note: c.note, comp: c.competences, contrat: c.contrat }));
   const nomM = esc(`${m.nb_postes} × ${m.poste} · ${fdate(m.date, 'long')} ${m.debut}–${m.fin}`), futur = m.date >= (S.cfg?.aujourdhui || '');
-  const annulBtn = m.statut !== 'annulee' && (mode === 'agence' || futur) ? btn(mode === 'agence' ? 'Annuler' : 'Annuler la mission', 'ban', `data-a="annuler" data-id="${m.id}" data-n="${nomM}"`, 'sm ghost') : '';
+  const annulBtn = m.statut !== 'annulee' && (mode === 'agence' || (futur && peut('c_annuler'))) ? btn(mode === 'agence' ? 'Annuler' : 'Annuler la mission', 'ban', `data-a="annuler" data-id="${m.id}" data-n="${nomM}"`, 'sm ghost') : '';
   const actions = (mode === 'agence' && !locked && m.statut !== 'annulee'
     ? btn(m.statut === 'nouvelle' ? 'Valider et diffuser' : 'Envoyer à d\'autres', 'send', `data-a="diffuser" data-id="${m.id}"`, m.statut === 'nouvelle' ? 'sm primary' : 'sm') : '') + annulBtn;
   const body = m.statut === 'nouvelle' ? empty(mode === 'agence' ? 'Choisissez les intérimaires et le moyen d\'envoi pour diffuser cette mission.' : 'Votre demande est en cours de validation par l\'agence.')
     : rows.length ? `<div class="list">${rows.map(r => `<div class="li" style="flex-wrap:wrap"><div class="person"><div class="avatar">${initials(r.nom)}</div><div><b>${esc(r.nom)}</b><span>${esc(r.poste)}${r.canaux ? ' · envoyé par ' + r.canaux.map(c => CANAUX[c]?.[1] || 'l\'espace intérimaire').join(', ') : ''}${r.desistement ? ` · motif : ${esc(r.desistement.motif)}` : ''}${r.note !== undefined ? ' · ' + stars(r.note) : ''}</span></div></div>
-      <div class="row">${badge(...REP[r.etat ?? 'null'])}${contratMini(r.contrat)}${r.etat === 'accepte' && !locked ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="1"`, 'sm primary') : ''}</div></div>`).join('')}</div>`
+      <div class="row">${badge(...REP[r.etat ?? 'null'])}${contratMini(r.contrat)}${r.etat === 'accepte' && !locked && (mode === 'agence' || peut('c_decision')) ? btn('Refuser', '', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="0"`, 'sm') + btn('Accepter', 'check', `data-a="decision" data-m="${m.id}" data-i="${r.id}" data-ok="1"`, 'sm primary') : ''}</div></div>`).join('')}</div>`
       : empty(mode === 'agence' ? 'Aucun intérimaire contacté.' : 'Diffusée. En attente de réponses des intérimaires.');
   return `<section class="panel"><div class="panel-h"><div><h2>${iconeCeSoir(m, true)}${m.nb_postes} × ${esc(m.poste)}${mode === 'agence' ? ` <span class="muted" style="font-weight:400">· ${esc(m.client_nom)}</span>` : ''}</h2>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h</div></div><div class="row">${badge(sc, sl)}${actions}${locked ? ro('Mission verrouillée') : ''}</div></div>
@@ -347,7 +358,7 @@ function missionInterim(m) {
     decline: badge('off', 'Vous avez décliné'), annulee: badge('off', 'Mission annulée'), desiste: badge('off', 'Vous vous êtes désisté(e)'),
     en_attente: `<button class="btn sm" disabled>${ic('clock')}En attente de confirmation</button>`,
     complet: `<button class="btn sm" disabled>${ic('lock')}Complet</button>`,
-    a_repondre: btn('Refuser', '', `data-a="repondre" data-id="${m.id}" data-ok="0"`, 'sm') + btn('Accepter la mission', 'check', `data-a="repondre" data-id="${m.id}" data-ok="1"`, 'sm primary'),
+    a_repondre: peut('i_accepter') ? btn('Refuser', '', `data-a="repondre" data-id="${m.id}" data-ok="0"`, 'sm') + btn('Accepter la mission', 'check', `data-a="repondre" data-id="${m.id}" data-ok="1"`, 'sm primary') : badge('pris', 'Proposée'),
   };
   return `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="min-width:220px;flex:1"><b>${iconeCeSoir({ ...m, statut: '' }, true)}${esc(m.poste)} · ${esc(m.client_nom)}</b>
     <div class="small muted">${fdate(m.date, 'long')} · ${m.debut}–${m.fin} · taux horaire brut ${eur(m.taux_horaire)}/h · ${m.nb_postes} poste${m.nb_postes > 1 ? 's' : ''}</div>
@@ -357,7 +368,7 @@ function missionInterim(m) {
     ${['confirmee', 'signature'].includes(m.etat) && m.documents.length ? `<div class="small" style="margin-top:6px">${ic('file', 'style="vertical-align:-3px;color:var(--ink-3)"')} Documents : ${docLinks(m.documents)}</div>` : ''}</div>
     ${m.etat === 'annulee' && m.motif_annulation ? `<div class="small" style="margin-top:4px">Motif de l'annulation : ${esc(m.motif_annulation)}</div>` : ''}
     ${m.etat === 'desiste' && m.motif_desistement ? `<div class="small muted" style="margin-top:4px">Motif : ${esc(m.motif_desistement)}</div>` : ''}</div>
-    <div class="row">${E[m.etat] || ''}${['en_attente', 'signature', 'confirmee'].includes(m.etat) && m.date >= (S.cfg?.aujourdhui || '') ? btn('Me désister', 'ban', `data-a="desister" data-id="${m.id}" data-n="${esc(`${m.poste} · ${m.client_nom} · ${fdate(m.date, 'long')} ${m.debut}–${m.fin}`)}"`, 'sm ghost') : ''}</div></div>`;
+    <div class="row">${E[m.etat] || ''}${['en_attente', 'signature', 'confirmee'].includes(m.etat) && m.date >= (S.cfg?.aujourdhui || '') && peut('i_desister') ? btn('Me désister', 'ban', `data-a="desister" data-id="${m.id}" data-n="${esc(`${m.poste} · ${m.client_nom} · ${fdate(m.date, 'long')} ${m.debut}–${m.fin}`)}"`, 'sm ghost') : ''}</div></div>`;
 }
 
 
@@ -450,7 +461,7 @@ function actionsContrat(k) {
   if (k.statut !== 'a_signer') return '';
   const p = S.me.profil, signe = p === 'interim' ? (k.signe_le || k.interim_signe) : (k.client_signe_le || k.client_signe);
   if (p === 'agence') return btn('Relancer', 'send', `data-a="krelance" data-id="${k.id}"`, 'sm');
-  return signe ? '' : btn(p === 'interim' ? 'Signer mon contrat' : 'Signer le contrat', 'edit', `data-a="signer" data-id="${k.id}" data-n="${esc(k.numero)}"`, 'sm primary');
+  return signe || !peut(p === 'interim' ? 'i_contrats' : 'c_contrats') ? '' : btn(p === 'interim' ? 'Signer mon contrat' : 'Signer le contrat', 'edit', `data-a="signer" data-id="${k.id}" data-n="${esc(k.numero)}"`, 'sm primary');
 }
 function contratsPanel(ks) {
   const p = S.me.profil;
@@ -474,7 +485,7 @@ const alerteHeures = bl => bl.length ? `<div class="extra" style="grid-template-
 function gestionProfil(type, r) {
   const nom = type === 'clients' ? r.nom : `${r.prenom} ${r.nom}`;
   return (r.suspendu ? btn('Réactiver', 'check', `data-a="reactiver" data-t="${type}" data-id="${r.id}"`, 'sm primary') : btn('Suspendre', 'lock', `data-a="suspendre" data-t="${type}" data-id="${r.id}" data-n="${esc(nom)}"`, 'sm'))
-    + btn('Supprimer', 'trash', `data-a="supprimer" data-t="${type}" data-id="${r.id}" data-n="${esc(nom)}"`, 'sm danger');
+    + (peut('a_suppression') ? btn('Supprimer', 'trash', `data-a="supprimer" data-t="${type}" data-id="${r.id}" data-n="${esc(nom)}"`, 'sm danger') : '');
 }
 const suspenduInfo = r => r.suspendu ? `<div class="extra" style="grid-template-columns:1fr;background:var(--off-bg);border-color:var(--line-strong);color:var(--ink-2)"><div class="small"><b>${ic('lock', 'style="vertical-align:-3px"')} Profil suspendu depuis le ${fdate(r.suspendu_le, 'num')}</b>${r.motif_suspension ? ` · ${esc(r.motif_suspension)}` : ''}<br>Connexion impossible${r.prenom ? ', aucune mission proposée' : ', aucune nouvelle mission'} tant que le profil n'est pas réactivé.</div></div>` : '';
 
@@ -870,7 +881,7 @@ V.client.accueil = async () => {
   const cand = ms.filter(m => m.statut === 'diffusee' && m.candidats.some(c => c.etat === 'accepte'));
   const aSigner = ms.flatMap(m => m.candidats.filter(c => c.contrat && c.contrat.statut === 'a_signer' && !c.contrat.client_signe));
   const hA = hs.filter(h => h.ouvert && !h.valide_client), du = fs.filter(f => !f.payee_le);
-  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.client?.nom || ''), btn('Nouvelle demande', 'plus', 'data-a="nav" data-v="demandes"', 'primary')) +
+  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.client?.nom || ''), peut('c_demandes') ? btn('Nouvelle demande', 'plus', 'data-a="nav" data-v="demandes"', 'primary') : '') +
     (aSigner.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('edit')}</div><div><b>${aSigner.length} contrat${aSigner.length > 1 ? 's' : ''} de mission à signer</b><div class="small muted">La mission est validée quand l'intérimaire et vous avez signé.</div></div>${btn('Signer', 'chev', 'data-a="nav" data-v="contrats"', 'sm primary')}</div></section>` : '') +
     `<div class="kpis">${kpi('Intérimaires aujourd\'hui', 'users', jour.length)}${kpi('Candidats à confirmer', 'check', cand.reduce((a, m) => a + m.candidats.filter(c => c.etat === 'accepte').length, 0))}${kpi('Heures à valider', 'clock', hA.length)}${kpi('Factures à régler', 'receipt', eur(du.reduce((a, f) => a + f.montant_ttc, 0)))}</div>
     <div class="grid2">${panel('Aujourd\'hui', btn('Planning du jour', 'chev', 'data-a="nav" data-v="jour"', 'sm'), jour.length ? jour.map(j => `<div class="shift"><div class="time"><b>${j.debut}</b>${j.fin}</div><div class="person"><div class="avatar">${initials(j.prenom + ' ' + j.nom)}</div><div><b>${esc(j.prenom)} ${esc(j.nom)}</b><span>${esc(j.poste)}</span></div></div><div></div></div>`).join('') : empty('Personne n\'est prévu aujourd\'hui.'))}
@@ -882,7 +893,7 @@ V.client.demandes = async () => {
   return head('Mes missions', 'Envoyez vos besoins. L\'agence les valide et les diffuse, puis vous acceptez ou refusez les intérimaires qui ont accepté la mission.') +
     `<div class="grid-main"><div style="display:flex;flex-direction:column;gap:18px;min-width:0">${actives.map(m => missionCard(m, 'client')).join('') || panel(null, '', empty('Aucune demande en cours.'))}
     ${passees.length ? panel('Historique', '', `<div class="list">${passees.slice(-10).reverse().map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)}</div></div>${badge(...missionStatut(m))}</div>`).join('')}</div>`) : ''}</div>
-    ${panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f">Date<input type="date" name="date" min="${t}" required value="${S.p.dem_date || addDays(t || new Date().toISOString().slice(0, 10), 7)}"></label>
+    ${!peut('c_demandes') ? panel('Nouvelle demande', '', `<div class="panel-b small muted">${ic('lock', 'style="width:14px;height:14px;vertical-align:-2px"')} Les demandes de mission passent par l'agence : contactez-la.</div>`) : panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f">Date<input type="date" name="date" min="${t}" required value="${S.p.dem_date || addDays(t || new Date().toISOString().slice(0, 10), 7)}"></label>
       <label class="f">Poste<input type="text" name="poste" required list="postes-liste" placeholder="Serveur"></label>${listePostes()}
       <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
       <label class="f">Nombre de personnes<input type="number" name="nb_postes" value="1" min="1" max="30" required></label><label class="f full">Précisions pour l'agence<textarea name="commentaire" placeholder="Tenue, lieu de rendez-vous…"></textarea></label>
@@ -939,7 +950,7 @@ V.interim.accueil = async () => {
   const next = ms.filter(m => m.etat === 'confirmee' && m.date >= t)[0];
   const aSigner = ms.filter(m => m.etat === 'signature' && !m.contrat?.interim_signe);
   const aConf = hs.filter(h => h.ouvert && !h.valide_interim);
-  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.interim?.poste || ''), btn('Je suis indisponible', 'ban', 'data-a="indispo"', 'btn-indispo')) +
+  return head('Bonjour ' + esc(S.me.nom.split(' ')[0]), esc(S.me.interim?.poste || ''), peut('i_indispo') ? btn('Je suis indisponible', 'ban', 'data-a="indispo"', 'btn-indispo') : '') +
     (pend.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('bell')}</div><div><b>${pend.length} nouvelle${pend.length > 1 ? 's' : ''} mission${pend.length > 1 ? 's' : ''} en attente de votre réponse</b><div class="small muted">Les places sont attribuées aux premiers qui acceptent.</div></div>${btn('Voir', 'chev', 'data-a="nav" data-v="missions"', 'sm primary')}</div></section>` : '') +
     (aSigner.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('edit')}</div><div><b>${aSigner.length} contrat${aSigner.length > 1 ? 's' : ''} de mission à signer</b><div class="small muted">Votre mission n'est confirmée qu'une fois le contrat signé par vous et l'employeur.</div></div>${btn('Signer', 'chev', 'data-a="nav" data-v="contrats"', 'sm primary')}</div></section>` : '') +
     (next ? `<section class="panel"><div class="hero"><div class="when"><span>${fdate(next.date).split(' ')[0]}</span><b>${Number(next.date.slice(8))}</b><span>${new Date(next.date + 'T12:00').toLocaleDateString('fr-FR', { month: 'short' })}</span></div><div style="flex:1;min-width:200px"><div class="small muted">Prochaine mission</div><h2 style="font-size:17px">${esc(next.poste)} · ${esc(next.client_nom)}</h2><div class="row small muted">${ic('clock')}${next.debut} – ${next.fin}</div></div>${badge('libre', 'Confirmée')}</div></section>` : '') +
@@ -957,7 +968,7 @@ V.interim.heures = async () => {
   const hs = await GET('/heures');
   return head('Mes heures', 'Vos horaires sont ceux prévus par l\'employeur. Si vous avez fait des heures en plus, déclarez-les avec une justification : elles sont payées après accord de l\'employeur.') +
     panel(null, '', hs.length ? hs.map(h => `<div class="shift"><div class="time"><b>${h.debut}</b>${h.fin}</div><div><b>${esc(h.client_nom)}</b><div class="small muted">${fdate(h.date)} · ${esc(h.poste)} · ${num(h.heures_prevues)} h prévues${h.extra ? ` · +${num(h.extra)} h déclarées` : ''}</div>
-    ${h.ouvert && !h.valide_interim ? `<form data-f="confirmer" data-id="${h.id}" style="margin-top:8px;display:flex;flex-direction:column;gap:10px"><label class="check"><input type="checkbox" name="avec_extra" data-a="toggleextra"> J'ai fait des heures en plus</label>
+    ${h.ouvert && !h.valide_interim && peut('i_heures') ? `<form data-f="confirmer" data-id="${h.id}" style="margin-top:8px;display:flex;flex-direction:column;gap:10px"><label class="check"><input type="checkbox" name="avec_extra" data-a="toggleextra"> J'ai fait des heures en plus</label>
       <div class="extra" hidden><label class="f">Heures supplémentaires<input type="number" name="extra" step="0.25" min="0.25" max="8" value="1"></label><label class="f full">Justification<textarea name="justification" maxlength="500"></textarea></label></div>
       <div class="note-etab"><div class="small" style="font-weight:600">Notez l'établissement <span class="req">*</span> <span class="muted" style="font-weight:400">· votre avis aide l'agence à évaluer sa fiabilité</span></div>
         <div class="rate" data-rate>${[1, 2, 3, 4, 5].map(n => `<button type="button" data-a="star" data-n="${n}" aria-label="${n} étoile${n > 1 ? 's' : ''}">★</button>`).join('')}</div><input type="hidden" name="note">
@@ -1339,7 +1350,7 @@ async function planningSemaine(prof) {
   };
   const entete = j => {
     const k = jours.indexOf(j), d = D[j], futur = j >= t;
-    const dispo = prof === 'interim' ? (futur ? `<button type="button" class="pl-dispo ${d || 'nr'}" data-a="dispo" data-d="${j}" data-e="${d || ''}" title="Changer ma disponibilité">${d === 'disponible' ? 'Disponible' : d === 'indisponible' ? 'Indisponible' : 'Non renseigné'}</button>` : d ? `<span class="pl-dispo ${d}">${d === 'disponible' ? 'Disponible' : 'Indisponible'}</span>` : '') : '';
+    const dispo = prof === 'interim' ? (futur && peut('i_dispos') ? `<button type="button" class="pl-dispo ${d || 'nr'}" data-a="dispo" data-d="${j}" data-e="${d || ''}" title="Changer ma disponibilité">${d === 'disponible' ? 'Disponible' : d === 'indisponible' ? 'Indisponible' : 'Non renseigné'}</button>` : d ? `<span class="pl-dispo ${d}">${d === 'disponible' ? 'Disponible' : 'Indisponible'}</span>` : '') : '';
     return `<div class="pl-jh${j === t ? ' auj' : ''}"><button type="button" class="pl-jh-b" data-a="jour" data-d="${j}"><span>${JOURS_C[k]}</span><b>${Number(j.slice(8))}</b></button>${dispo}</div>`;
   };
   return `<div class="pl-sem"><div class="pl-sem-tete"><span></span>${jours.map(entete).join('')}</div>
@@ -1384,7 +1395,7 @@ async function agendaListe(prof) {
       <span class="badge s-${PL_ETAT[e.etat]}">${esc(e.libelle)}${prof === 'interim' || e.etat === 'pourvue' ? '' : ` · ${e.retenus}/${e.nb_postes}`}</span></span>${ic('chev')}</button>`;
   };
   const groupes = jours.filter(j => E[j] || j === t || prof === 'interim').map(j => {
-    const d = D[j], dispo = prof === 'interim' && j >= t ? `<button type="button" class="pl-dispo ${d || 'nr'}" data-a="dispo" data-d="${j}" data-e="${d || ''}">${d === 'disponible' ? 'Disponible' : d === 'indisponible' ? 'Indisponible' : 'Disponibilité ?'}</button>` : '';
+    const d = D[j], dispo = prof === 'interim' && j >= t && peut('i_dispos') ? `<button type="button" class="pl-dispo ${d || 'nr'}" data-a="dispo" data-d="${j}" data-e="${d || ''}">${d === 'disponible' ? 'Disponible' : d === 'indisponible' ? 'Indisponible' : 'Disponibilité ?'}</button>` : '';
     return `<div class="ag-jour" id="ag-${j}"><div class="ag-titre${j === t ? ' auj' : ''}"><b>${j === t ? 'Aujourd\'hui · ' + fdate(j, 'long') : fdate(j, 'long').replace(/^./, c => c.toUpperCase())}</b>${dispo || `<span class="small muted">${(E[j] || []).length ? `${E[j].length} mission${E[j].length > 1 ? 's' : ''}` : ''}</span>`}</div>
       ${(E[j] || []).map(carte).join('') || '<div class="small muted ag-vide">Aucune mission</div>'}</div>`;
   }).join('');
@@ -1392,10 +1403,44 @@ async function agendaListe(prof) {
     <div class="ag-nav">${btn('', 'left', 'data-a="sem" data-d="-7" aria-label="Semaine précédente"', 'sm')}<b>Semaine ${semaineIso(S.p.sem)}</b>${btn('', 'chev', 'data-a="sem" data-d="7" aria-label="Semaine suivante"', 'sm')}</div>
     <div class="ag-bande">${jours.map((j, k) => `<button type="button" class="ag-j${j === t ? ' auj' : ''}" data-a="agjour" data-d="${j}"><span>${JOURS_C[k][0]}</span><b>${Number(j.slice(8))}</b><i class="pl-pt ${pire(j) ? 'pl-' + PL_ETAT[pire(j)] : 'pl-vide'}"></i></button>`).join('')}</div>
     ${legendePlanning(prof)}<div class="ag-liste">${groupes || empty('Aucune mission cette semaine.')}</div>
-    ${prof !== 'interim' ? `<div class="ag-action">${btn(prof === 'client' ? 'Nouvelle demande' : 'Nouvelle mission', 'plus', prof === 'client' ? 'data-a="nav" data-v="demandes"' : 'data-a="newmission"', 'primary')}</div>` : ''}</section>`;
+    ${prof !== 'interim' && (prof === 'agence' || peut('c_demandes')) ? `<div class="ag-action">${btn(prof === 'client' ? 'Nouvelle demande' : 'Nouvelle mission', 'plus', prof === 'client' ? 'data-a="nav" data-v="demandes"' : 'data-a="newmission"', 'primary')}</div>` : ''}</section>`;
 }
 // Passage ordinateur ↔ téléphone : la vue du planning s'adapte.
 matchMedia('(max-width: 640px)').addEventListener('change', () => { if (S.me && ['planning', 'jour', 'dispo'].includes(S.view)) reload(); });
+
+/* ---------------- Droits d'accès (administrateur) ---------------- */
+const ESPACES = { agence: ['Agence', 'Collaborateurs de l\'agence (hors administrateurs)', 'building'], client: ['Employeurs', 'Comptes des entreprises clientes', 'briefcase'], interim: ['Intérimaires', 'Comptes des intérimaires', 'users'] };
+const interrupteur = (on, attrs, libelle) => `<button type="button" class="switch${on ? ' on' : ''}" role="switch" aria-checked="${on}" aria-label="${esc(libelle)}" ${attrs}><span></span></button><span class="switch-l ${on ? 'ok' : 'ko'}">${on ? 'Accessible' : 'Verrouillé'}</span>`;
+V.agence.droits = async () => {
+  const d = await GET('/droits'), e = ESPACES[S.p.de] ? S.p.de : 'client', F = d.catalogue[e], R = d.profils[e];
+  const comptes = d.comptes.filter(c => c.profil === e);
+  const lignesF = F.map(f => { const on = R[f.k] !== false; return `<div class="dr-l"><div><b>${esc(f.l)}</b><div class="small muted">${esc(f.d)}${f.vues.length ? ' · rubrique masquée si verrouillée' : ''}</div></div>
+    <div class="dr-sw">${interrupteur(on, `data-a="droit" data-c="profil:${e}" data-f="${f.k}" data-v="${!on}"`, `${f.l} : ${on ? 'verrouiller' : 'rendre accessible'} pour ${ESPACES[e][0]}`)}</div></div>`; }).join('');
+  const lignesC = comptes.map(c => {
+    const perso = Object.keys(c.reglages).length;
+    return `<div class="li" style="flex-wrap:wrap"><div class="person"><div class="avatar">${initials(c.nom)}</div><div><b>${esc(c.nom)}</b><span><span class="mono">${esc(c.username)}</span>${c.client_nom ? ' · ' + esc(c.client_nom) : ''}${c.actif ? '' : ' · désactivé'}</span></div></div>
+      <div class="row">${c.super_admin ? badge('libre', 'Administrateur · accès complet') : `${c.verrous.length ? badge('attente', `${c.verrous.length} fonction${c.verrous.length > 1 ? 's' : ''} verrouillée${c.verrous.length > 1 ? 's' : ''}`) : badge('libre', 'Tout accessible')}${perso ? badge('pris', `${perso} réglage${perso > 1 ? 's' : ''} personnalisé${perso > 1 ? 's' : ''}`) : ''}`}
+      ${c.super_admin && c.id === S.me.id ? '' : btn(c.super_admin ? 'Gérer' : 'Personnaliser', 'shield', `data-a="droitscompte" data-id="${c.id}"`, 'sm')}</div></div>`;
+  }).join('');
+  return head('Droits d\'accès', 'Choisissez, pour chaque espace puis pour chaque compte, les fonctions accessibles ou verrouillées. Une fonction verrouillée disparaît du menu et ses actions sont refusées par le serveur. Les administrateurs gardent un accès complet.') +
+    `<div class="seg" style="align-self:flex-start;margin-bottom:4px">${Object.entries(ESPACES).map(([k, [l, , i]]) => `<button type="button" aria-pressed="${k === e}" data-a="despace" data-e="${k}">${ic(i)}${l}</button>`).join('')}</div>` +
+    `<div class="grid-main">${panel(`Réglage de l'espace ${ESPACES[e][0]}`, `<span class="small muted">${esc(ESPACES[e][1])}</span>`, `<div class="panel-b dr">${lignesF}</div>`)}
+    ${panel(`Comptes (${comptes.length})`, '', comptes.length ? `<div class="panel-b small muted" style="padding-bottom:0">Un réglage personnalisé prime sur celui de l'espace, pour ce compte seulement.</div><div class="list">${lignesC}</div>` : empty('Aucun compte dans cet espace.'))}</div>`;
+};
+async function droitsCompteModal(id) {
+  const d = await GET('/droits'), c = d.comptes.find(x => x.id === id); if (!c) return;
+  const F = d.catalogue[c.profil], R = d.profils[c.profil];
+  const ligne = f => {
+    const v = f.k in c.reglages ? String(c.reglages[f.k]) : '', base = R[f.k] !== false;
+    return `<div class="dr-l"><div><b>${esc(f.l)}</b><div class="small muted">${esc(f.d)}</div></div>
+      <label class="dr-sel"><span class="sr">${esc(f.l)}</span><select data-a="droitcompte" data-c="user:${c.id}" data-f="${f.k}">
+      <option value="" ${v === '' ? 'selected' : ''}>Espace : ${base ? 'accessible' : 'verrouillé'}</option><option value="true" ${v === 'true' ? 'selected' : ''}>Accessible</option><option value="false" ${v === 'false' ? 'selected' : ''}>Verrouillé</option></select></label></div>`;
+  };
+  openModal(`${modalHead(ic('shield') + esc(c.nom), `${ESPACES[c.profil][0]} · ${esc(c.username)}`)}<div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
+    ${c.profil === 'agence' ? `<div class="dr-l dr-admin"><div><b>Administrateur</b><div class="small muted">Accès complet à toutes les fonctions et gestion des droits.</div></div><div class="dr-sw">${interrupteur(c.super_admin, `data-a="dradmin" data-id="${c.id}" data-v="${!c.super_admin}"`, 'Administrateur')}</div></div>` : ''}
+    ${c.super_admin ? '<p class="small muted">Un administrateur n\'a aucune restriction.</p>' : `<div class="dr">${F.map(ligne).join('')}</div>`}</div>
+    <div class="panel-f" style="justify-content:flex-end">${btn('Fermer', '', 'data-a="close"', 'primary')}</div>`);
+}
 
 /* ---------------- Formulaires en fenêtre ---------------- */
 async function missionForm() {
@@ -1556,6 +1601,10 @@ const A = {
   prospect: el => act(() => prospectModal(Number(el.dataset.id)), el),
   visite: () => visiteModal(),
   pfiltre: el => go('prospects', { pf: el.dataset.f }),
+  despace: el => go('droits', { de: el.dataset.e }),
+  droit: el => act(async () => { await PUT('/droits', { cible: el.dataset.c, fonction: el.dataset.f, acces: el.dataset.v === 'true' }); toast(el.dataset.v === 'true' ? 'Fonction rendue accessible' : 'Fonction verrouillée'); reload(); }, el),
+  droitscompte: el => act(() => droitsCompteModal(Number(el.dataset.id)), el),
+  dradmin: el => act(async () => { await PUT('/droits/admin', { user_id: Number(el.dataset.id), super_admin: el.dataset.v === 'true' }); toast(el.dataset.v === 'true' ? 'Compte nommé administrateur' : 'Rôle d\'administrateur retiré'); await droitsCompteModal(Number(el.dataset.id)); reload(); }, el),
   decider: (el, e) => { e.stopPropagation(); act(() => decisionModal(el.dataset.t, Number(el.dataset.id), el.dataset.d), el); },
   cfiltre: el => go('candidats', { cf: el.dataset.f }),
   contactonglet: el => renderContact(el.dataset.o),
@@ -1720,7 +1769,11 @@ document.addEventListener('click', e => {
   if (el.type === 'checkbox') return; // géré par l'événement change
   fn(el, e);
 });
-document.addEventListener('change', e => { const el = e.target; if (el.dataset?.a === 'toggleextra') A.toggleextra(el); });
+document.addEventListener('change', e => {
+  const el = e.target; if (el.dataset?.a === 'toggleextra') A.toggleextra(el);
+  // Réglage d'un compte : comme l'espace, accessible ou verrouillé
+  if (el.dataset?.a === 'droitcompte') act(async () => { await PUT('/droits', { cible: el.dataset.c, fonction: el.dataset.f, acces: el.value === '' ? null : el.value === 'true' }); toast('Réglage du compte enregistré'); reload(); });
+});
 document.addEventListener('keydown', e => { if ((e.key === 'Enter' || (e.key === ' ' && e.target.matches('.cs-jour'))) && e.target.matches('tr.clickable[data-a],.cs-jour')) { e.preventDefault(); e.target.click(); } if (e.key === 'Escape') closeModal(); });
 /** Minimum HCR d'un poste (Paramètres › Convention HCR), SMIC pour un poste hors liste. */
 function tauxPoste(poste) { const T = S.cfg?.taux_postes || {}, k = Object.keys(T).find(p => p.toLowerCase() === String(poste || '').trim().toLowerCase()); return k ? T[k] : (S.cfg?.smic || 0); }

@@ -122,7 +122,7 @@ function echecConnexion(ip) {
 
 /* ---------------- Authentification ---------------- */
 function meData(u) {
-  const me = { id: u.id, username: u.username, nom: u.nom, profil: u.profil, must_change: !!u.must_change };
+  const me = { id: u.id, username: u.username, nom: u.nom, profil: u.profil, must_change: !!u.must_change, super_admin: !!u.super_admin, verrous: require('./droits').verrous(u), vues_verrouillees: require('./droits').vuesVerrouillees(u) };
   if (u.client_id) me.client = one('SELECT id, nom, secteur, ville FROM clients WHERE id = ?', u.client_id);
   if (u.interim_id) me.interim = one('SELECT id, prenom, nom, poste, ville FROM interimaires WHERE id = ?', u.interim_id);
   return me;
@@ -169,6 +169,9 @@ prospects.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 const candidats = require('./candidats');
 candidats.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), HttpError });
 api.use(auth);
+// Droits d'accès par espace et par compte (contrôle de chaque requête).
+const droits = require('./droits');
+droits(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 prospects.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 candidats.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
@@ -949,7 +952,7 @@ function initAdmin() {
   if (one('SELECT 1 FROM users LIMIT 1')) return;
   const username = process.env.ADMIN_USERNAME || 'admin';
   const password = process.env.ADMIN_PASSWORD || genPassword();
-  run('INSERT INTO users (username, password_hash, profil, nom, must_change) VALUES (?,?,?,?,1)', username, bcrypt.hashSync(password, 10), 'agence', 'Administrateur');
+  run('INSERT INTO users (username, password_hash, profil, nom, must_change, super_admin) VALUES (?,?,?,?,1,1)', username, bcrypt.hashSync(password, 10), 'agence', 'Administrateur');
   console.log(`\n  Compte agence créé : identifiant « ${username} », mot de passe provisoire « ${password} »\n  (à changer à la première connexion)\n`);
 }
 

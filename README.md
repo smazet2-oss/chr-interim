@@ -37,6 +37,15 @@ Tableau de bord, Planning et Missions en premier, puis trois listes déroulantes
 
 Viennent ensuite Accès utilisateurs, Journal des envois et Paramètres. Le logo ramène au tableau de bord.
 
+### Droits d'accès (administrateur)
+
+Rubrique **Administration › Droits d'accès**, visible des seuls administrateurs (le compte `admin` créé au premier démarrage ; d'autres comptes agence peuvent être nommés administrateurs).
+
+- **Par espace** (Agence, Employeurs, Intérimaires) : un interrupteur « Accessible / Verrouillé » par fonction, appliqué à tous les comptes de l'espace. Pour l'agence, il concerne les collaborateurs non administrateurs (statistiques, candidatures, contrats, paie, facturation, suppression de fiches, accès utilisateurs, journal, paramètres).
+- **Par compte** (« Personnaliser ») : pour chaque fonction, « comme l'espace », « accessible » ou « verrouillé » ; le réglage du compte prime.
+- Une fonction verrouillée disparaît du menu et ses boutons sont masqués ; **le serveur refuse aussi ses actions**. Une simulation verrouillée (paie de l'intérimaire, coût pour l'employeur) est retirée des données envoyées.
+- Les administrateurs ne sont jamais restreints ; il reste toujours au moins un administrateur.
+
 ### Comptes et connexion
 
 Chaque champ de mot de passe a un bouton « œil » pour afficher ce que l'on saisit.

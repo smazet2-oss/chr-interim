@@ -1350,16 +1350,17 @@ function classement(titre, L, fmt, vide) {
   return panel(titre, '', L.length ? `<div class="panel-b classement">${L.map(x => `<div class="cl-l" title="${esc(x.nom)} : ${esc(fmt(x.valeur))}"><span class="cl-n">${esc(x.nom)}</span><span class="cl-b"><span style="width:${x.valeur / max * 100}%"></span></span><span class="cl-v num">${fmt(x.valeur)}</span></div>`).join('')}</div>` : empty(vide));
 }
 /** Barre des statistiques : vue (agence : activité ou étude de marché) et mois affiché (liste des mois, par année). */
-const vueStats = v => S.me.profil === 'agence' ? `<div class="seg" data-titre="Statistiques">${[['activite', 'Activité'], ['etude', 'Étude de marché']].map(([k, l]) => `<button type="button" aria-pressed="${v === k}" data-a="svue" data-v="${k}">${l}</button>`).join('')}</div>` : '';
-function barreStats(d) {
+const vueStats = v => S.me.profil === 'agence' ? `<div class="seg" data-titre="Statistiques">${[['activite', 'Activité'], ['jours', 'Détail par jour'], ['etude', 'Étude de marché']].map(([k, l]) => `<button type="button" aria-pressed="${v === k}" data-a="svue" data-v="${k}">${l}</button>`).join('')}</div>` : '';
+function barreStats(d, vue = 'activite') {
   const ans = [...new Set(d.mois_choix.map(m => m.slice(0, 4)))];
   const lib = m => moisLong(m).replace(/^./, c => c.toUpperCase()) + (m === d.mois_courant ? ' (en cours)' : '');
-  return `<div class="stats-barre">${vueStats('activite')}<label class="f stats-mois">Mois affiché<select data-j="smois">${ans.map(a => `<optgroup label="${a}">${d.mois_choix.filter(m => m.startsWith(a)).map(m => `<option value="${m}" ${m === d.mois ? 'selected' : ''}>${lib(m)}</option>`).join('')}</optgroup>`).join('')}</select></label></div>`;
+  return `<div class="stats-barre">${vueStats(vue)}<label class="f stats-mois">Mois affiché<select data-j="smois">${ans.map(a => `<optgroup label="${a}">${d.mois_choix.filter(m => m.startsWith(a)).map(m => `<option value="${m}" ${m === d.mois ? 'selected' : ''}>${lib(m)}</option>`).join('')}</optgroup>`).join('')}</select></label></div>`;
 }
 const urlStats = () => '/stats' + (S.p.smois ? '?mois=' + S.p.smois : '');
 const fmtH = n => num(n) + ' h', eur0 = n => (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
 V.agence.stats = async () => {
   if (S.p.svue === 'etude') return etudeStats();
+  if (S.p.svue === 'jours') return joursStats();
   const d = await GET(urlStats()), k = d.cles;
   return head('Statistiques', `Chiffres clés de ${moisLong(d.mois)} (heures validées par les deux parties), comparés au mois précédent, et évolution sur 6 mois.`) +
     barreStats(d) + `<h2 class="stats-titre">${ic('dash')}Chiffres clés du mois</h2><div class="kpis">${tuile('Chiffre d\'affaires HT', 'receipt', k.ca_ht, eur0, k.ca_ht_prec)}${tuile('Marge brute estimée', 'chart', k.marge, eur0, undefined, k.marge_pc === null ? 'Aucune heure validée' : `${num(k.marge_pc)} % du chiffre d'affaires`)}
@@ -1377,6 +1378,29 @@ V.agence.stats = async () => {
     <div class="grid2">${classement('Répartition des notes des intérimaires', d.notes.interimaires.repartition, num, 'Aucun avis.')}${classement('Répartition des notes des établissements', d.notes.clients.repartition, num, 'Aucun avis.')}</div>
     <div class="grid2">${classement('Intérimaires les moins bien notés', d.notes.interimaires_bas, v => num(v) + ' / 5', 'Aucun avis.')}${classement('Établissements les moins bien notés', d.notes.clients_bas, v => num(v) + ' / 5', 'Aucun avis.')}</div>` + visitesStats(d.visites);
 };
+/** Statistiques › Détail par jour : visites du site et candidatures, jour par jour, pour le mois choisi. */
+function histoJours(titre, L, cle, fmt = num) {
+  const max = Math.max(...L.map(x => x[cle]), 0) || 1, auj = S.cfg?.aujourdhui;
+  const jr = d => new Date(d + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
+  return panel(titre, '', `<div class="panel-b"><div class="barres barres-jours" style="grid-template-columns:repeat(${L.length},minmax(0,1fr))" role="img" aria-label="${esc(titre)} : ${L.map(x => `${jr(x.date)} ${fmt(x[cle])}`).join(', ')}">
+    ${L.map(x => { const we = [0, 6].includes(new Date(x.date + 'T12:00').getDay()); return `<div class="barre${x.date === auj ? ' cur' : ''}${we ? ' we' : ''}" title="${esc(jr(x.date))} : ${esc(fmt(x[cle]))}"><span class="barre-v">${x[cle] || ''}</span><span class="barre-b" style="height:${Math.max(x[cle] ? 3 : 0, x[cle] / max * 100)}%"></span><span class="barre-m">${Number(x.date.slice(8))}</span></div>`; }).join('')}</div></div>`);
+}
+async function joursStats() {
+  const d = await GET('/stats/jours' + (S.p.smois ? '?mois=' + S.p.smois : '')), t = d.totaux, L = d.jours;
+  const jr = (x, style = 'court') => new Date(x + 'T12:00').toLocaleDateString('fr-FR', style === 'court' ? { weekday: 'short', day: 'numeric', month: 'short' } : { weekday: 'long', day: 'numeric', month: 'long' });
+  const cand = L.map(x => ({ ...x, cand: x.cand_interim + x.cand_etab }));
+  const mv = d.meilleur_visites, mc = d.meilleur_candidatures, n = L.length;
+  const z = v => v ? num(v) : '<span class="muted">0</span>';
+  return head('Statistiques', `Détail jour par jour de ${moisLong(d.mois)} : visites du site (clics sur les liens, par page et par origine), demandes envoyées depuis le site et candidatures reçues.`) + barreStats(d, 'jours') +
+    `<h2 class="stats-titre">${ic('dash')}Vue d'ensemble du mois</h2><div class="kpis">${kpi('Visites du site', 'eye', num(t.visites), `${num(Math.round(t.visites / (n || 1) * 10) / 10)} par jour en moyenne`)}${kpi('Demandes envoyées depuis le site', 'send', num(t.demandes), `${t.contact + t.candidature ? num(Math.round(t.demandes / (t.contact + t.candidature) * 1000) / 10) + ' % des visites des formulaires' : 'Aucune visite des formulaires'}`)}
+      ${kpi('Candidatures intérimaires', 'idcard', num(t.cand_interim), 'Formulaire /candidature')}${kpi('Candidatures établissements', 'building', num(t.cand_etab), `Formulaire /contact${t.visites_terrain ? ` · ${t.visites_terrain} visite(s) terrain` : ''}`)}</div>
+    <div class="kpis">${kpi('Meilleur jour (visites)', 'star', mv ? jr(mv.date, 'long').replace(/^./, c => c.toUpperCase()) : '—', mv ? `${num(mv.visites)} visite${mv.visites > 1 ? 's' : ''}` : 'Aucune visite')}${kpi('Meilleur jour (candidatures)', 'star', mc ? jr(mc.date, 'long').replace(/^./, c => c.toUpperCase()) : '—', mc ? `${num(mc.cand_interim + mc.cand_etab)} candidature(s)` : 'Aucune candidature')}</div>
+    <h2 class="stats-titre">${ic('chart')}Graphiques jour par jour</h2>${histoJours('Visites par jour', L, 'visites')}${histoJours('Candidatures par jour (intérimaires et établissements)', cand, 'cand')}
+    <h2 class="stats-titre">${ic('list')}Tableau jour par jour</h2>` +
+    panel(null, '', `<div class="scroll"><table class="jours-table"><thead><tr><th>Jour</th><th class="r">Visites</th><th class="r" title="Visites de la page de connexion">Connexion</th><th class="r" title="Visites de la page établissements (/contact)">Page étab.</th><th class="r" title="Visites de la page candidats (/candidature)">Page candidats</th><th>Origine principale</th><th class="r" title="Formulaires envoyés depuis le site">Demandes</th><th class="r" title="Candidatures intérimaires">Cand. intérimaires</th><th class="r" title="Candidatures établissements (formulaire /contact)">Cand. établissements</th></tr></thead><tbody>
+      ${L.slice().reverse().map(x => { const vide = !x.visites && !x.cand_interim && !x.cand_etab; return `<tr class="${vide ? 'jour-vide' : ''}${[0, 6].includes(new Date(x.date + 'T12:00').getDay()) ? ' jour-we' : ''}"><td class="num"><b>${jr(x.date)}</b></td><td class="r num">${z(x.visites)}</td><td class="r num">${z(x.connexion)}</td><td class="r num">${z(x.contact)}</td><td class="r num">${z(x.candidature)}</td><td>${x.origine ? `<span>${esc(x.origine.nom)} <span class="muted small">(${x.origine.n})</span></span>` : '<span class="muted">—</span>'}</td><td class="r num">${z(x.demandes)}</td><td class="r num">${z(x.cand_interim)}</td><td class="r num">${z(x.cand_etab)}</td></tr>`; }).join('')}</tbody>
+      <tfoot><tr><td><b>Total</b></td><td class="r num"><b>${num(t.visites)}</b></td><td class="r num">${num(t.connexion)}</td><td class="r num">${num(t.contact)}</td><td class="r num">${num(t.candidature)}</td><td></td><td class="r num"><b>${num(t.demandes)}</b></td><td class="r num"><b>${num(t.cand_interim)}</b></td><td class="r num"><b>${num(t.cand_etab)}</b></td></tr></tfoot></table></div>`);
+}
 /** Statistiques › Étude de marché : résultats compilés et anonymes par année (2026, 2027, 2028…), comparés à l'année précédente. */
 const UNITE_ETUDE = k => /^prix_/.test(k) ? ' € HT/h' : k === 'taux_souhaite' ? ' € brut/h' : '';
 async function etudeStats() {

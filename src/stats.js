@@ -45,6 +45,31 @@ function moinsBienNotes(sens, cle, nom) {
 
 module.exports = function register(api, h) {
   const { today } = h;
+  /** Détail jour par jour d'un mois (agence) : visites du site par page et par origine, demandes envoyées, candidatures. Dates à l'heure de Paris. */
+  api.get('/stats/jours', (req, res) => {
+    if (req.user.profil !== 'agence') return res.status(403).json({ error: 'Accès refusé.' });
+    const auj = today(), q = String(req.query.mois || ''), m = /^\d{4}-(0[1-9]|1[0-2])$/.test(q) && q <= auj.slice(0, 7) ? q : auj.slice(0, 7);
+    const fin = m === auj.slice(0, 7) ? Number(auj.slice(8, 10)) : new Date(Date.UTC(Number(m.slice(0, 4)), Number(m.slice(5, 7)), 0)).getUTCDate();
+    const jours = [...Array(fin)].map((_, k) => `${m}-${String(k + 1).padStart(2, '0')}`);
+    const paris = dt => new Date(String(dt).replace(' ', 'T') + 'Z').toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+    // Fenêtre élargie d'un jour de chaque côté (heure de Paris), puis tri par jour
+    const de = m + '-01', bornes = [new Date(Date.parse(de + 'T00:00Z') - 864e5).toISOString().slice(0, 10), new Date(Date.parse(jours[jours.length - 1] + 'T00:00Z') + 2 * 864e5).toISOString().slice(0, 10)];
+    const prendre = sql => all(sql, ...bornes).map(x => ({ ...x, jour: paris(x.created_at) })).filter(x => x.jour.startsWith(m));
+    const V = prendre('SELECT page, source, converti, created_at FROM visites WHERE created_at >= ? AND created_at < ?');
+    const C = prendre('SELECT created_at FROM candidats WHERE created_at >= ? AND created_at < ?');
+    const E = prendre('SELECT source, created_at FROM prospects WHERE created_at >= ? AND created_at < ?');
+    const { SOURCES } = require('./visites');
+    const L = jours.map(j => {
+      const v = V.filter(x => x.jour === j), src = Object.entries(v.reduce((o, x) => (o[x.source] = (o[x.source] || 0) + 1, o), {})).sort((a, b) => b[1] - a[1]);
+      return { date: j, visites: v.length, connexion: v.filter(x => x.page === 'connexion').length, contact: v.filter(x => x.page === 'contact').length, candidature: v.filter(x => x.page === 'candidature').length,
+        demandes: v.filter(x => x.converti).length, origine: src.length ? { cle: src[0][0], nom: SOURCES[src[0][0]] || src[0][0], n: src[0][1] } : null,
+        cand_interim: C.filter(x => x.jour === j).length, cand_etab: E.filter(x => x.jour === j && x.source === 'site').length, visites_terrain: E.filter(x => x.jour === j && x.source === 'visite').length };
+    });
+    const tot = k => L.reduce((a, x) => a + x[k], 0), meilleur = k => L.reduce((b, x) => (x[k] > (b?.[k] || 0) ? x : b), null);
+    res.json({ mois: m, mois_courant: auj.slice(0, 7), mois_choix: [...Array(24)].map((_, k) => moisDe(auj, -k)).filter(x => x >= '2024-01'), jours: L,
+      totaux: Object.fromEntries(['visites', 'connexion', 'contact', 'candidature', 'demandes', 'cand_interim', 'cand_etab', 'visites_terrain'].map(k => [k, tot(k)])),
+      meilleur_visites: meilleur('visites'), meilleur_candidatures: L.reduce((b, x) => (x.cand_interim + x.cand_etab > (b ? b.cand_interim + b.cand_etab : 0) ? x : b), null) });
+  });
   api.get('/stats', (req, res) => {
     // Mois affiché : ?mois=AAAA-MM (liste déroulante), sinon le mois en cours. Les états du jour (encours, contrats à signer…) restent au jour.
     const auj = today(), q = String(req.query.mois || '');

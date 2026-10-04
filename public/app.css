@@ -881,3 +881,19 @@ section.acc:not(.ouvert)>.acc-h{border-bottom:0}
 .etude-grille .cl-v{min-width:92px;text-align:right}
 .etude-q{border-bottom:1px solid var(--line)}
 .etude-choix{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;color:var(--ink-2)}
+
+/* ---------- Statistiques : détail par jour ---------- */
+.barres-jours{gap:3px}
+.barres-jours .barre-v{font-size:10.5px}
+.barres-jours .barre-m{font-size:10.5px}
+.barres-jours .barre.we .barre-m{color:var(--ink-3);font-weight:400}
+.jours-table tr.jour-vide td{color:var(--ink-3)}
+.jours-table td:first-child,.jours-table th{white-space:nowrap}
+.jours-table th,.jours-table td{padding-left:10px;padding-right:10px}
+.jours-table tr.jour-we td:first-child b{color:#7E5F24}
+.jours-table tfoot td{border-top:2px solid var(--line-strong);background:var(--surface-2)}
+@media (max-width:640px){
+  .barres-jours .barre-v{display:none}
+  .barres-jours .barre:nth-child(odd):not(.cur) .barre-m{visibility:hidden}
+  table.jours-table tr.jour-vide,table.jours-table tfoot{display:none}
+}

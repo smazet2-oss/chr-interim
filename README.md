@@ -137,6 +137,8 @@ Les calculs reposent sur les heures validées par les deux parties (majorations 
 
 **Mois affiché** : une liste déroulante en haut de chaque page Statistiques (agence, employeur, intérimaire) permet de choisir n'importe quel mois des 24 derniers ; chiffres clés, comparaison avec le mois précédent et histogrammes sur 6 mois se recalculent pour ce mois. Les états du jour (encours clients, contrats à signer, missions à venir) restent au jour.
 
+**Détail par jour** (agence, Statistiques › Détail par jour) : pour le mois choisi, jour par jour (heure de Paris) : visites du site (total, page de connexion, page établissements, page candidats, origine principale), demandes envoyées depuis le site, candidatures intérimaires et établissements. Vue d'ensemble (totaux, moyenne par jour, meilleurs jours), histogrammes jour par jour et tableau avec total ; les week-ends sont repérés.
+
 **Visites du site et origines** (agence) : nombre de clics sur les liens du site (page de connexion, `/contact`, `/candidature`), par mois et par origine : Facebook, Instagram, e-mail, SMS, QR code, moteur de recherche, adresse du site (saisie directe ou favori), autre site. Pour chaque origine : demandes envoyées depuis le site et taux de transformation.
 
 - L'origine vient d'abord du lien : ajoutez `?src=facebook`, `?src=mail`, `?src=sms` (ou `utm_source`) aux liens que vous partagez ; la page Statistiques propose ces liens prêts à copier. Les QR codes imprimés contiennent `?src=qr`. Sans marque, le site précédent est utilisé (facebook.com, messageries en ligne, Google…) ; sans site précédent, la visite est comptée dans « Adresse du site ».

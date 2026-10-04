@@ -23,7 +23,7 @@ const T = '*';
 /** Fonctions verrouillables par espace : menu (vues) et actions du serveur (méthode, chemin sous /api). */
 const FONCTIONS = {
   agence: [
-    { k: 'a_stats', l: 'Statistiques', d: 'Chiffre d\'affaires, marge, notes.', vues: ['stats'], api: [['GET', /^\/stats$/]] },
+    { k: 'a_stats', l: 'Statistiques', d: 'Chiffre d\'affaires, marge, notes.', vues: ['stats'], api: [['GET', /^\/stats(\/jours)?$/]] },
     { k: 'a_etude', l: 'Étude de marché', d: 'Envoi du questionnaire et résultats anonymes.', vues: ['etude_i', 'etude_c'], api: [[T, /^\/etude\//]] },
     { k: 'a_candidatures', l: 'Candidatures intérimaires et clients', d: 'Consulter, accepter, refuser, convertir.', vues: ['candidats', 'prospects'], api: [[T, /^\/(candidats|prospects)(\/|$)/]] },
     { k: 'a_contrats', l: 'Contrats de mission', d: 'Liste et relances de signature.', vues: ['contrats'], api: [['POST', /^\/contrats\/\d+\/relancer$/]] },

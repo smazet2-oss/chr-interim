@@ -46,7 +46,11 @@ function moinsBienNotes(sens, cle, nom) {
 module.exports = function register(api, h) {
   const { today } = h;
   api.get('/stats', (req, res) => {
-    const t = today(), mc = t.slice(0, 7), mp = moisDe(t, -1), an = t.slice(0, 4), p = req.user.profil;
+    // Mois affiché : ?mois=AAAA-MM (liste déroulante), sinon le mois en cours. Les états du jour (encours, contrats à signer…) restent au jour.
+    const auj = today(), q = String(req.query.mois || '');
+    const t = /^\d{4}-(0[1-9]|1[0-2])$/.test(q) && q <= auj.slice(0, 7) ? (q === auj.slice(0, 7) ? auj : q + '-28') : auj;
+    const mc = t.slice(0, 7), mp = moisDe(t, -1), an = t.slice(0, 4), p = req.user.profil;
+    const choix = [...Array(24)].map((_, k) => moisDe(auj, -k)).filter(m => m >= '2024-01');
     const mois6 = [-5, -4, -3, -2, -1, 0].map(k => moisDe(t, k)), debut6 = mois6[0] + '-01';
     const ceMois = L => L.filter(x => x.mois === mc), moisPrec = L => L.filter(x => x.mois === mp);
 
@@ -57,11 +61,11 @@ module.exports = function register(api, h) {
       const delais = all('SELECT (julianday(verrouillee_at) - julianday(created_at)) * 24 AS h FROM missions WHERE verrouillee_at IS NOT NULL AND date >= ?', debut6).map(x => x.h).filter(x => x >= 0);
       const des = one('SELECT COUNT(*) n FROM desistements WHERE substr(created_at, 1, 7) = ?', mc).n;
       const k = one('SELECT SUM(statut = \'signe\') s, SUM(statut = \'a_signer\') a FROM contrats');
-      const fa = one('SELECT COALESCE(SUM(CASE WHEN payee_le IS NULL THEN montant_ht * (100 + tva_taux) / 100 END), 0) du, COALESCE(SUM(CASE WHEN payee_le IS NULL AND echeance < ? THEN montant_ht * (100 + tva_taux) / 100 END), 0) retard FROM factures', t);
+      const fa = one('SELECT COALESCE(SUM(CASE WHEN payee_le IS NULL THEN montant_ht * (100 + tva_taux) / 100 END), 0) du, COALESCE(SUM(CASE WHEN payee_le IS NULL AND echeance < ? THEN montant_ht * (100 + tva_taux) / 100 END), 0) retard FROM factures', auj);
       const actifs = new Set(ceMois(H).map(x => x.interim_id)).size;
       const iTot = one('SELECT COUNT(*) n, SUM(dossier_complet) c FROM interimaires WHERE suspendu = 0');
       return res.json({
-        profil: p, mois: mc, mois6,
+        profil: p, mois: mc, mois6, mois_courant: auj.slice(0, 7), mois_choix: choix,
         cles: {
           ca_ht: r2(somme(ceMois(H), 'ht')), ca_ht_prec: r2(somme(moisPrec(H), 'ht')),
           marge: r2(somme(ceMois(H), 'ht') - somme(ceMois(H), 'cout')), marge_pc: pc(somme(ceMois(H), 'ht') - somme(ceMois(H), 'cout'), somme(ceMois(H), 'ht')),
@@ -96,7 +100,7 @@ module.exports = function register(api, h) {
       const tva = 1 + P.num('tva_taux', 20) / 100, Ma = M.filter(m => m.statut !== 'annulee');
       const venus = all(`SELECT r.interim_id, COUNT(*) n FROM reponses r JOIN missions m ON m.id = r.mission_id WHERE m.client_id = ? AND r.etat = 'retenu' AND m.statut = 'verrouillee' GROUP BY r.interim_id`, cid);
       return res.json({
-        profil: p, mois: mc, mois6,
+        profil: p, mois: mc, mois6, mois_courant: auj.slice(0, 7), mois_choix: choix,
         cles: {
           depenses_ht: r2(somme(ceMois(H), 'ht')), depenses_ht_prec: r2(somme(moisPrec(H6), 'ht')), depenses_an_ttc: r2(somme(H, 'ht') * tva),
           heures: r2(somme(ceMois(H), 'total')), heures_an: r2(somme(H, 'total')),
@@ -117,9 +121,9 @@ module.exports = function register(api, h) {
     const iid = req.user.interim_id, H = heuresValorisees('AND h.interim_id = ? AND m.date >= ?', iid, an + '-01-01');
     const H6 = heuresValorisees('AND h.interim_id = ? AND m.date >= ?', iid, debut6);
     const env = one(`SELECT COUNT(*) n, SUM(r.etat IN ('accepte', 'retenu')) + (SELECT COUNT(*) FROM desistements d WHERE d.interim_id = ?) acc FROM envois e LEFT JOIN reponses r ON r.mission_id = e.mission_id AND r.interim_id = e.interim_id WHERE e.interim_id = ?`, iid, iid);
-    const aVenir = all(`SELECT m.date FROM reponses r JOIN missions m ON m.id = r.mission_id WHERE r.interim_id = ? AND r.etat = 'retenu' AND m.statut = 'verrouillee' AND m.date >= ?`, iid, t).length;
+    const aVenir = all(`SELECT m.date FROM reponses r JOIN missions m ON m.id = r.mission_id WHERE r.interim_id = ? AND r.etat = 'retenu' AND m.statut = 'verrouillee' AND m.date >= ?`, iid, auj).length;
     return res.json({
-      profil: p, mois: mc, mois6,
+      profil: p, mois: mc, mois6, mois_courant: auj.slice(0, 7), mois_choix: choix,
       cles: {
         gains_brut: r2(somme(ceMois(H), 'total_brut')), gains_brut_prec: r2(somme(moisPrec(H6), 'total_brut')), gains_an: r2(somme(H, 'total_brut')),
         net_estime_mois: r2(somme(ceMois(H), 'total_brut') * (1 - P.num('cotisations_salariales_taux', 22) / 100)),

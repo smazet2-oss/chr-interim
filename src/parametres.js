@@ -93,6 +93,11 @@ const GROUPES = [
     { k: 'relance_facture_j', l: 'Facture échue : relancer tous les (jours)', type: 'number', def: '7', min: 1, max: 60 },
     { k: 'relances_max', l: 'Nombre maximum de relances automatiques', type: 'number', def: '3', min: 1, max: 10 },
   ] },
+  { id: 'etude', titre: 'Étude de marché', aide: 'Questionnaire annuel envoyé par e-mail aux intérimaires et aux établissements (rubriques Intérimaires et Clients › Étude de marché).', champs: [
+    { k: 'etude_relance', l: 'Relance automatique des personnes qui n\'ont pas répondu', type: 'select', options: ['oui', 'non'], def: 'oui', aide: 'Une seule relance par personne et par année.' },
+    { k: 'etude_relance_jours', l: 'Délai avant la relance (jours)', type: 'number', def: '7', min: 1, max: 60 },
+    { k: 'etude_auto', l: 'Inviter automatiquement les nouveaux intérimaires et les nouveaux clients', type: 'select', options: ['non', 'oui'], def: 'non', aide: 'Ceux créés après l\'activation reçoivent le questionnaire de l\'année en cours.' },
+  ] },
   { id: 'messagerie', titre: 'Messagerie : e-mail, SMS et WhatsApp', aide: 'Sans ces réglages, les messages sont seulement enregistrés dans le journal des envois. Les mots de passe et clés sont chiffrés.', champs: [
     { k: 'site_url', l: 'Adresse publique du site', type: 'url', env: 'APP_URL', motif: '^https?://[^\\s/]+', aide: 'Exemple : https://chr-interim.onrender.com. Utilisée dans les liens des messages et pour afficher le logo dans WhatsApp.' },
     { k: 'mail_methode', l: 'Méthode d\'envoi des e-mails', type: 'select', options: ['SMTP', 'API Brevo (HTTPS)'], def: 'SMTP', aide: 'Choisissez « API Brevo » si l\'hébergeur bloque les ports SMTP (offre gratuite de Render) : l\'envoi passe alors par le web.' },

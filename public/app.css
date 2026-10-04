@@ -862,3 +862,22 @@ tr.jr-coche td{background:var(--attente-bg,#FDF1DC)}
 .acc-seul{position:absolute;right:10px;top:12px;width:36px;height:36px;display:grid;place-items:center;border:0;background:none;border-radius:8px;cursor:pointer}
 .acc-seul .acc-chev{margin:0}
 section.acc:not(.ouvert)>.acc-h{border-bottom:0}
+
+/* ---------- Statistiques : barre (vue, mois) ---------- */
+.stats-barre{display:flex;flex-wrap:wrap;align-items:flex-end;gap:12px}
+.stats-mois{flex:0 1 240px;margin:0}
+@media (max-width:640px){.stats-mois{flex:1 1 100%}}
+
+/* ---------- Étude de marché ---------- */
+.etude-badge{align-self:flex-start}
+.etude-ok{display:flex;gap:10px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:var(--libre-bg,#E4F4EA);color:var(--libre-fg,#17663A);font-size:14px}
+.etude-ok svg{width:18px;height:18px;flex:none;margin-top:1px}
+.etude-num{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.etude-num>div{display:flex;flex-direction:column;gap:2px}
+.etude-num b{font-size:18px;font-variant-numeric:tabular-nums}
+.etude-delta{margin-left:6px;font-size:11px;font-weight:600;color:var(--ink-3)}
+.etude-delta.up{color:var(--libre-fg,#17663A)}
+.etude-delta.down{color:var(--danger-fg)}
+.etude-grille .cl-v{min-width:92px;text-align:right}
+.etude-q{border-bottom:1px solid var(--line)}
+.etude-choix{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px;color:var(--ink-2)}

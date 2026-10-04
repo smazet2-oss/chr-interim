@@ -6,6 +6,7 @@ const { one, all, run, tx } = require('./db');
 const dossier = require('./dossier');
 require('./prospects'); // crée la table des prospects
 require('./visites'); // crée la table des visites
+require('./etude'); // crée les tables de l'étude de marché
 require('./candidats'); // crée la table des candidatures
 
 if (one('SELECT 1 FROM clients LIMIT 1')) {
@@ -147,6 +148,26 @@ tx(() => {
     ['sms', '+33622334455', 'CHR Intérim : rappel, mission demain 07:00.', 'simule', 'Canal non configuré'],
     ['whatsapp', '+33633445566', 'CHR Intérim : vos heures sont à valider.', 'simule', 'Canal non configuré'],
   ]) run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)', c, d, t, st, det);
+  // Étude de marché de l'année : réponses anonymes de démonstration (établissements et intérimaires) et quelques invitations
+  {
+    const an = Number(jour(0).slice(0, 4)), pick = (L, k) => L[k % L.length], rid = () => require('crypto').randomBytes(16).toString('hex');
+    for (let k = 0; k < 14; k++) run('INSERT INTO etude_reponses (annee, cible, rid, source, reponses, complet) VALUES (?,?,?,?,?,1)', an, 'etablissement', rid(), k % 3 ? 'mail' : 'site', JSON.stringify({
+      type_etab: pick(['Restauration traditionnelle / gastronomique', 'Brasserie / restauration rapide', 'Hôtel / hôtel-restaurant', 'Bar / pub / discothèque', 'Traiteur / événementiel'], k),
+      effectif: pick(['Moins de 5 personnes', '5 à 15 personnes', '5 à 15 personnes', 'Plus de 15 personnes'], k),
+      frequence: pick(['Ponctuellement (1 à 3 fois par mois)', 'Régulièrement (plusieurs fois par semaine)', 'Saisonnier / événementiel', 'Ponctuellement (1 à 3 fois par mois)', 'Rarement / jamais'], k),
+      postes: [pick(['Cuisinier / chef de partie', 'Serveur / chef de rang', 'Commis / plongeur'], k), pick(['Serveur / chef de rang', 'Barman / limonadier', 'Réceptionniste / veilleur de nuit'], k + 1)],
+      delai: pick(['Court terme (24 à 48 h)', 'Urgence absolue (moins de 4 h)', 'Planifié (plus d\'une semaine)'], k),
+      problemes: [pick(['Manque de réactivité (délais trop longs)', 'Profils non qualifiés / sans expérience HCR', 'Retards, absences ou abandons de poste', 'Coût / tarifs trop élevés'], k)],
+      services: [pick(['Garantie de remplacement sous 2 heures', 'Profils évalués et équipés (tenue HCR)', 'Gestion 100 % dématérialisée (smartphone)'], k)],
+      prix_serveur: 22 + (k % 5), prix_cuisinier: 25 + (k % 6), coefficient: pick(['Entre 1,95 et 2,10', 'Moins de 1,95', 'Entre 2,10 et 2,25'], k), vehicule: k % 4 === 0 || undefined }));
+    for (let k = 0; k < 11; k++) run('INSERT INTO etude_reponses (annee, cible, rid, source, reponses, complet) VALUES (?,?,?,?,?,1)', an, 'interimaire', rid(), k % 2 ? 'mail' : 'site', JSON.stringify({
+      postes: [pick(['Serveur', 'Commis de cuisine', 'Plongeur', 'Barman', 'Cuisinier'], k)], experience: pick(['1 à 3 ans', 'Plus de 3 ans', 'Moins d\'un an', 'Débutant(e)'], k),
+      creneaux: ['Le soir', pick(['Le week-end', 'En semaine', 'La nuit'], k)], type_mission: pick(['Extras ponctuels', 'Missions régulières', 'Tout type de mission', 'Saison complète'], k),
+      prevenance: pick(['Sous 24 à 48 h', 'Le jour même', 'Avec une semaine de prévenance'], k), rayon: pick(['10 à 25 km', 'Moins de 10 km', 'Plus de 25 km'], k),
+      taux_souhaite: 12 + (k % 4) * 0.5, priorites: [pick(['Paiement rapide', 'Planning flexible', 'Missions proches de chez moi', 'Évoluer vers un CDI'], k)], canal: pick(['WhatsApp', 'SMS', 'E-mail'], k), vehicule: k % 3 === 0 || undefined }));
+    for (const [c, e, n, cl, rep] of [['etablissement', 'contact@lecomptoir.example', 'Brasserie Le Comptoir', 1, 1], ['etablissement', 'sophie@tabledumarche.example', 'Sophie Garnier', 1, 0], ['interimaire', 'yanis.benali@exemple.fr', 'Yanis', 1, 1]])
+      run(`INSERT INTO etude_envois (annee, cible, email, nom, jeton, envoye_le, statut, clique_le, repondu_le) VALUES (?,?,?,?,?, datetime('now', '-6 days'), 'envoye', ${cl ? "datetime('now', '-5 days')" : 'NULL'}, ${rep ? "datetime('now', '-5 days')" : 'NULL'})`, an, c, e, n, rid());
+  }
   // Visites du site sur 6 mois (mesure d'audience des liens), en hausse depuis les publications Facebook.
   const ORIGINES = ['facebook', 'facebook', 'facebook', 'mail', 'site', 'site', 'qr', 'recherche', 'facebook', 'mail', 'sms', 'autre'];
   for (let k = 0; k < 170; k++) {

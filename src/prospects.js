@@ -67,7 +67,7 @@ const STATUTS = ['nouveau', 'a_relancer', 'en_discussion', 'client', 'perdu'];
 const isDate = s => typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s);
 
 /** Valide les réponses contre le questionnaire : seules les options prévues sont acceptées. */
-function nettoyer(b, fail, champs = CHAMPS) {
+function nettoyer(b, fail, champs = CHAMPS, opts = {}) {
   const r = {};
   for (const c of Object.values(champs)) {
     let v = b[c.k];
@@ -87,7 +87,7 @@ function nettoyer(b, fail, champs = CHAMPS) {
     if (c.req && !r[c.k]) fail(400, `« ${c.l} » est obligatoire.`);
   }
   if (r.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(r.email)) fail(400, 'Adresse e-mail invalide.');
-  if (!r.email && !r.telephone) fail(400, 'Indiquez un téléphone ou un e-mail pour être recontacté.');
+  if (opts.contact !== false && !r.email && !r.telephone) fail(400, 'Indiquez un téléphone ou un e-mail pour être recontacté.');
   return r;
 }
 function enregistrer(r, extra) {

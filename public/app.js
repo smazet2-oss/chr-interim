@@ -114,8 +114,8 @@ const NAV = {
   // Une seule liste est ouverte à la fois (accordéon).
   agence: [['accueil', 'Tableau de bord', 'dash'], ['planning', 'Planning', 'cal'], ['missions', 'Missions', 'briefcase'],
     ['+', 'Intérimaires', 'users', [['interimaires', 'Fiches intérimaires', 'users'], ['candidats', 'Candidatures intérimaires', 'idcard'], ['contrats', 'Contrats de mission', 'file'],
-      ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star']]],
-    ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target']]],
+      ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star'], ['etude_i', 'Étude de marché', 'chart']]],
+    ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target'], ['etude_c', 'Étude de marché', 'chart']]],
     ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
     ['+', 'Administration', 'gear', [['stats', 'Statistiques', 'chart'], ['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']]]],
   client: [['accueil', 'Tableau de bord', 'dash'], ['jour', 'Planning', 'cal'], ['demandes', 'Mes missions', 'briefcase'],
@@ -177,6 +177,8 @@ const jetonVisite = page => { try { return VISITES[page] || sessionStorage.getIt
 async function boot() {
   if (location.pathname === '/contact') { suivreVisite('contact'); return renderContact('etablissement'); }
   if (location.pathname === '/candidature') { suivreVisite('candidature'); return renderContact('candidat'); }
+  const pe = location.pathname.match(/^\/etude\/(etablissements|interimaires|desinscription)$/);
+  if (pe) return pe[1] === 'desinscription' ? renderDesinscription() : renderEtude(pe[1]);
   try { S.me = await GET('/me'); } catch { S.me = null; }
   // Page de connexion : visite comptée si personne n'est connecté (les utilisateurs quotidiens ne faussent pas les chiffres).
   if (!S.me) suivreVisite('connexion');
@@ -248,7 +250,7 @@ addEventListener('resize', ajusterBandeau);
 addEventListener('load', ajusterBandeau);
 /** Sections repliables (Paramètres, Statistiques) : une seule ouverte à la fois, la dernière ouverte est mémorisée par page.
  *  Statistiques : chaque titre h2.stats-titre et ce qui le suit ; Paramètres : chaque section.panel[data-acc]. */
-const ACC_CLE = () => 'chr-acc-' + S.me?.profil + '-' + S.view;
+const ACC_CLE = () => 'chr-acc-' + S.me?.profil + '-' + S.view + (S.view === 'stats' ? '-' + (S.p.svue || 'activite') : '');
 function accordeon(root) {
   const secs = [];
   root.querySelectorAll(':scope > h2.stats-titre').forEach(h => {
@@ -270,6 +272,7 @@ function accordeon(root) {
   });
   if (!secs.length) return;
   let k = 0; try { const m = localStorage.getItem(ACC_CLE()); if (m !== null) k = Number(m); } catch { /* ignoré */ }
+  if (!(k < secs.length)) k = 0;
   secs.forEach((sec, i) => { sec.dataset.i = i; ouvrirSection(sec, i === k, false); });
 }
 function ouvrirSection(sec, ouvert, memo = true) {
@@ -1168,6 +1171,45 @@ async function renderContact(onglet) {
         <button class="btn primary" type="submit" style="justify-content:center">${ic('send')}${cand ? 'Envoyer ma candidature' : 'Envoyer ma demande'}</button></form>
       <p class="small muted" style="text-align:center">Vous avez déjà un compte ? <a class="link" href="/">Accéder à votre espace</a></p></div></div>`;
 }
+/** Page publique de l'étude de marché : la réponse cochée dans l'e-mail est déjà enregistrée, le reste du questionnaire suit. */
+let ETUDE = {};
+const bandeauPublic = nom => `<a class="auth-banner-lien" href="/" title="Accueil"><picture class="auth-banner"><source media="(max-width: 600px)" srcset="/img/bandeau-mobile.png" width="1080" height="600"><img class="auth-logo" src="/img/bandeau-horizontal.png" alt="${esc(nom)}, spécialiste des métiers HCR" width="1200" height="267"></picture></a>`;
+async function renderEtude(p) {
+  $('#app').hidden = true; $('#auth').hidden = false;
+  const q = new URLSearchParams(location.search), j = q.get('j') || '', v = q.get('v');
+  try { history.replaceState(null, '', location.pathname); } catch { /* ignoré */ }
+  let d; try { d = await GET('/public/etude/' + p); } catch { d = null; }
+  if (!d) { $('#auth').innerHTML = '<div class="auth"><div class="auth-card"><p>Questionnaire momentanément indisponible. Réessayez dans un instant.</p></div></div>'; return; }
+  document.title = `Étude de marché ${d.annee} · ${d.agence.nom}`;
+  ETUDE = { p, j, rid: null };
+  let pre = null;
+  if (j || v !== null) { try { const r = await POST(`/public/etude/${p}/debut`, { j, ...(v !== null ? { v } : {}) }); ETUDE.rid = r.rid; pre = r.reponse || null; } catch { /* réponse non enregistrée : le questionnaire reste complet */ } }
+  const etab = d.cible === 'etablissement', [k1, v1] = pre ? Object.entries(pre)[0] : [];
+  $('#auth').innerHTML = `<div class="auth contact">${bandeauPublic(d.agence.nom)}
+    <div class="auth-card contact-card"><div><span class="badge attente etude-badge">Étude de marché ${d.annee} · anonyme</span>
+      <h1 style="margin-top:10px">${etab ? 'Vos besoins en renforts' : 'Vos attentes pour vos missions'}</h1>
+      <p class="muted" style="margin-top:6px">${etab ? 'Hôtels, cafés, restaurants, traiteurs : aidez-nous à mieux répondre à vos besoins en extras.' : 'Serveurs, cuisiniers, plongeurs, réceptionnistes… : aidez-nous à vous proposer les missions qui vous correspondent.'} <b>Environ 5 minutes</b>, toutes les questions sont facultatives. Vos réponses sont <b>anonymes</b> : elles ne sont pas reliées à votre nom ni à votre adresse e-mail.</p></div>
+      ${pre ? `<div class="etude-ok">${ic('check')}<span>Votre réponse « ${esc(v1)} » est enregistrée. Merci ! Complétez les questions suivantes pour finir.</span></div>` : ''}
+      <form data-f="etude" novalidate>${questionnaireHtml(d.questionnaire)}
+        <input type="text" name="site_web" tabindex="-1" autocomplete="off" class="piege" aria-hidden="true">
+        <div class="err" role="alert" hidden></div>
+        <button class="btn primary" type="submit" style="justify-content:center">${ic('send')}Envoyer mes réponses</button></form>
+      <p class="small muted" style="text-align:center">${esc(d.agence.nom)}${d.agence.email ? ` · <a class="link" href="mailto:${esc(d.agence.email)}">${esc(d.agence.email)}</a>` : ''}</p></div></div>`;
+  if (pre) { const i = $(`#auth input[name="${k1}"][value="${CSS.escape(v1)}"]`); if (i) { i.checked = true; i.dispatchEvent(new Event('change', { bubbles: true })); } }
+}
+async function renderDesinscription() {
+  $('#app').hidden = true; $('#auth').hidden = false;
+  const j = new URLSearchParams(location.search).get('j') || '';
+  try { history.replaceState(null, '', location.pathname); } catch { /* ignoré */ }
+  document.title = 'Désinscription · CHR Intérim';
+  $('#auth').innerHTML = `<div class="auth contact">${bandeauPublic('CHR Intérim')}<div class="auth-card contact-card" style="text-align:center;align-items:center">
+    <h1>Ne plus recevoir l'étude de marché</h1><p class="muted">Vous ne recevrez plus nos invitations ni nos rappels pour l'étude de marché.</p>
+    <div class="err" role="alert" hidden></div>${btn('Confirmer la désinscription', 'ban', `data-a="desinscrire" data-j="${esc(j)}"`, 'primary')}</div></div>`;
+}
+function etudeMerci() {
+  return `<div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center"><div class="merci-ic">${ic('check')}</div><h1>Merci pour vos réponses !</h1>
+    <p class="muted">Elles sont enregistrées de façon anonyme et nous aideront à améliorer nos services en hôtellerie-restauration.</p><a class="btn" href="/">Retour à l'accueil</a></div>`;
+}
 function contactMerci() {
   const a = AGENCE_PUB || {};
   if (a.cand) return `<div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center"><div class="merci-ic">${ic('check')}</div><h1>Merci, votre candidature est envoyée</h1>
@@ -1307,11 +1349,20 @@ function classement(titre, L, fmt, vide) {
   const max = Math.max(...L.map(x => x.valeur), 0) || 1;
   return panel(titre, '', L.length ? `<div class="panel-b classement">${L.map(x => `<div class="cl-l" title="${esc(x.nom)} : ${esc(fmt(x.valeur))}"><span class="cl-n">${esc(x.nom)}</span><span class="cl-b"><span style="width:${x.valeur / max * 100}%"></span></span><span class="cl-v num">${fmt(x.valeur)}</span></div>`).join('')}</div>` : empty(vide));
 }
+/** Barre des statistiques : vue (agence : activité ou étude de marché) et mois affiché (liste des mois, par année). */
+const vueStats = v => S.me.profil === 'agence' ? `<div class="seg" data-titre="Statistiques">${[['activite', 'Activité'], ['etude', 'Étude de marché']].map(([k, l]) => `<button type="button" aria-pressed="${v === k}" data-a="svue" data-v="${k}">${l}</button>`).join('')}</div>` : '';
+function barreStats(d) {
+  const ans = [...new Set(d.mois_choix.map(m => m.slice(0, 4)))];
+  const lib = m => moisLong(m).replace(/^./, c => c.toUpperCase()) + (m === d.mois_courant ? ' (en cours)' : '');
+  return `<div class="stats-barre">${vueStats('activite')}<label class="f stats-mois">Mois affiché<select data-j="smois">${ans.map(a => `<optgroup label="${a}">${d.mois_choix.filter(m => m.startsWith(a)).map(m => `<option value="${m}" ${m === d.mois ? 'selected' : ''}>${lib(m)}</option>`).join('')}</optgroup>`).join('')}</select></label></div>`;
+}
+const urlStats = () => '/stats' + (S.p.smois ? '?mois=' + S.p.smois : '');
 const fmtH = n => num(n) + ' h', eur0 = n => (Number(n) || 0).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
 V.agence.stats = async () => {
-  const d = await GET('/stats'), k = d.cles;
+  if (S.p.svue === 'etude') return etudeStats();
+  const d = await GET(urlStats()), k = d.cles;
   return head('Statistiques', `Chiffres clés de ${moisLong(d.mois)} (heures validées par les deux parties), comparés au mois précédent, et évolution sur 6 mois.`) +
-    `<h2 class="stats-titre">${ic('dash')}Chiffres clés du mois</h2><div class="kpis">${tuile('Chiffre d\'affaires HT', 'receipt', k.ca_ht, eur0, k.ca_ht_prec)}${tuile('Marge brute estimée', 'chart', k.marge, eur0, undefined, k.marge_pc === null ? 'Aucune heure validée' : `${num(k.marge_pc)} % du chiffre d'affaires`)}
+    barreStats(d) + `<h2 class="stats-titre">${ic('dash')}Chiffres clés du mois</h2><div class="kpis">${tuile('Chiffre d\'affaires HT', 'receipt', k.ca_ht, eur0, k.ca_ht_prec)}${tuile('Marge brute estimée', 'chart', k.marge, eur0, undefined, k.marge_pc === null ? 'Aucune heure validée' : `${num(k.marge_pc)} % du chiffre d'affaires`)}
     ${tuile('Heures validées', 'clock', k.heures, fmtH, k.heures_prec)}${tuile('Missions du mois', 'briefcase', k.missions, num, k.missions_prec)}</div>
     <div class="kpis">${tuile('Taux de pourvoi', 'check', k.taux_pourvoi, pct, undefined, 'Missions pourvues sur missions diffusées')}${tuile('Délai moyen de pourvoi', 'clock', k.delai_pourvoi_h, v => v < 48 ? num(v) + ' h' : num(Math.round(v / 24)) + ' j', undefined, 'De la demande au dernier intérimaire retenu')}
     ${tuile('Annulations et désistements', 'ban', k.annulations + k.desistements, num, undefined, `${k.annulations} annulation(s) client · ${k.desistements} désistement(s)`)}${tuile('Contrats signés', 'edit', k.contrats_signes_pc, pct, undefined, `${k.contrats_a_signer} en attente de signature`)}</div>
@@ -1326,6 +1377,28 @@ V.agence.stats = async () => {
     <div class="grid2">${classement('Répartition des notes des intérimaires', d.notes.interimaires.repartition, num, 'Aucun avis.')}${classement('Répartition des notes des établissements', d.notes.clients.repartition, num, 'Aucun avis.')}</div>
     <div class="grid2">${classement('Intérimaires les moins bien notés', d.notes.interimaires_bas, v => num(v) + ' / 5', 'Aucun avis.')}${classement('Établissements les moins bien notés', d.notes.clients_bas, v => num(v) + ' / 5', 'Aucun avis.')}</div>` + visitesStats(d.visites);
 };
+/** Statistiques › Étude de marché : résultats compilés et anonymes par année (2026, 2027, 2028…), comparés à l'année précédente. */
+const UNITE_ETUDE = k => /^prix_/.test(k) ? ' € HT/h' : k === 'taux_souhaite' ? ' € brut/h' : '';
+async function etudeStats() {
+  const cible = S.p.ecible || 'etablissement', d = await GET(`/etude/resultats?cible=${cible}&annee=${S.p.eannee || ''}`), c = d.campagne;
+  const seg = (titre, act, L, cur) => `<div class="seg" data-titre="${titre}">${L.map(([k, l]) => `<button type="button" aria-pressed="${String(cur) === String(k)}" data-a="${act}" data-v="${k}">${l}</button>`).join('')}</div>`;
+  const barre = `<div class="stats-barre">${vueStats('etude')}${seg('Questionnaire', 'ecible', [['etablissement', 'Établissements'], ['interimaire', 'Intérimaires']], cible)}${seg('Année', 'eannee', d.annees.map(a => [a, String(a)]), d.annee)}</div>`;
+  const delta = o => o.pc_prec === null || o.pc_prec === undefined ? '' : (x => `<small class="etude-delta ${x > 0 ? 'up' : x < 0 ? 'down' : ''}" title="Évolution depuis ${d.annee - 1}">${x > 0 ? '+' : ''}${num(x)} pt</small>`)(Math.round(((o.pc || 0) - o.pc_prec) * 10) / 10);
+  const question = q => {
+    if (q.type === 'number') {
+      const u = UNITE_ETUDE(q.k), f = v => v === null || v === undefined ? '—' : num(v) + u;
+      return panel(esc(q.l), `<span class="small muted">${q.n} réponse${q.n > 1 ? 's' : ''}</span>`, `<div class="panel-b etude-num"><div><span class="small muted">Moyenne</span><b>${f(q.moyenne)}</b>${q.moyenne_prec ? `<small class="muted">${d.annee - 1} : ${f(q.moyenne_prec)}</small>` : ''}</div><div><span class="small muted">Médiane</span><b>${f(q.mediane)}</b></div><div><span class="small muted">De … à</span><b>${q.n ? `${f(q.min)} – ${f(q.max)}` : '—'}</b></div></div>`);
+    }
+    return panel(esc(q.l), `<span class="small muted">${q.n} réponse${q.n > 1 ? 's' : ''}</span>`, q.n ? `<div class="panel-b classement">${q.options.map(o => `<div class="cl-l" title="${esc(o.l)} : ${o.n} réponse(s)"><span class="cl-n">${esc(o.l)}</span><span class="cl-b"><span style="width:${o.pc || 0}%"></span></span><span class="cl-v num">${o.pc === null ? '—' : num(o.pc) + ' %'}${delta(o)}</span></div>`).join('')}</div>` : empty('Aucune réponse à cette question.'));
+  };
+  const lien = `${location.origin}/etude/${cible === 'etablissement' ? 'etablissements' : 'interimaires'}`;
+  return head('Statistiques', `Étude de marché ${d.annee} · ${d.nom} : résultats compilés et anonymes (aucune réponse n'est reliée à une personne), comparés à ${d.annee - 1} quand c'est possible.`, btn('Envoyer le questionnaire', 'send', `data-a="nav" data-v="${cible === 'etablissement' ? 'etude_c' : 'etude_i'}"`, 'sm')) + barre +
+    `<h2 class="stats-titre">${ic('send')}Participation</h2><div class="kpis">${kpi('Réponses complètes', 'check', num(d.reponses), d.reponses_prec ? `${num(d.reponses_prec)} en ${d.annee - 1}` : 'Questionnaires terminés')}${kpi('Invitations envoyées', 'send', num(c.invites), `${c.relances} relance${c.relances > 1 ? 's' : ''} automatique${c.relances > 1 ? 's' : ''}`)}
+      ${kpi('Taux de réponse', 'target', pct(c.taux), `${c.clics} personne${c.clics > 1 ? 's' : ''} ont cliqué dans l'e-mail`)}${kpi('Réponses partielles', 'mail', num(d.partielles), 'Case cochée dans l\'e-mail, questionnaire non terminé')}</div>
+      ${panel('Lien public du questionnaire', btn('Copier', 'link', `data-a="copy" data-t="${esc(lien)}"`, 'sm'), `<div class="panel-b small muted">À partager sur Facebook ou par SMS : <span class="mono">${esc(lien)}</span>. Les réponses arrivent ici, de façon anonyme.</div>`)}` +
+    (d.reponses < 3 ? panel(null, '', empty(`Les résultats détaillés s'affichent à partir de 3 réponses complètes, pour garantir l'anonymat (${d.reponses} pour l'instant).`))
+      : d.sections.map(sec => `<h2 class="stats-titre">${ic('chart')}${esc(sec.titre)}</h2><div class="grid2 etude-grille">${sec.questions.map(question).join('')}</div>`).join(''));
+}
 /** Section « Visites du site et origines » : clics sur les liens du site, par origine et par page, demandes envoyées, liens à partager. */
 function visitesStats(v) {
   const base = location.origin, pc1 = x => x.taux === null ? '—' : num(x.taux) + ' %';
@@ -1341,9 +1414,9 @@ function visitesStats(v) {
       <div class="scroll"><table class="liens-suivi"><thead><tr><th>Page</th>${ORIG.map(o => `<th>${o[1]}</th>`).join('')}</tr></thead><tbody>${LIENS.map(([p, n]) => `<tr><td><b>${n}</b><div class="small muted mono">${esc(base + p)}</div></td>${ORIG.map(([k, l]) => { const u = `${base}${p}?src=${k}`; return `<td>${btn('Copier', 'link', `data-a="copy" data-t="${esc(u)}" title="${esc(u)}" aria-label="Copier le lien ${esc(l)} de la ${esc(n.toLowerCase())}"`, 'sm')}</td>`; }).join('')}</tr>`).join('')}</tbody></table></div>`)}`;
 }
 V.client.stats = async () => {
-  const d = await GET('/stats'), k = d.cles;
+  const d = await GET(urlStats()), k = d.cles;
   return head('Statistiques', `Vos chiffres de ${moisLong(d.mois)} (heures validées), comparés au mois précédent, et votre activité sur l'année.`) +
-    `<h2 class="stats-titre">${ic('dash')}Chiffres clés</h2><div class="kpis">${tuile('Dépenses HT du mois', 'receipt', k.depenses_ht, eur0, k.depenses_ht_prec)}${tuile('Dépenses TTC de l\'année', 'wallet', k.depenses_an_ttc, eur0)}
+    barreStats(d) + `<h2 class="stats-titre">${ic('dash')}Chiffres clés</h2><div class="kpis">${tuile('Dépenses HT du mois', 'receipt', k.depenses_ht, eur0, k.depenses_ht_prec)}${tuile('Dépenses TTC de l\'année', 'wallet', k.depenses_an_ttc, eur0)}
     ${tuile('Heures du mois', 'clock', k.heures, fmtH, undefined, `${fmtH(k.heures_an)} sur l'année`)}${tuile('Coût horaire moyen HT', 'chart', k.cout_horaire_ht, eur, undefined, 'Majorations comprises')}</div>
     <div class="kpis">${tuile('Missions de l\'année', 'briefcase', k.missions_an, num, undefined, `${k.missions_mois} ce mois-ci · ${k.annulations_an} annulée(s)`)}${tuile('Taux de pourvoi', 'check', k.taux_pourvoi, pct, undefined, 'Missions pourvues sur missions diffusées')}
     ${tuile('Intérimaires venus', 'users', k.interimaires_differents, num, undefined, `${k.interimaires_fideles} revenu(s) au moins 2 fois`)}${tuile('Note moyenne donnée', 'star', k.note_donnee, v => num(v) + ' / 5', undefined, k.note_recue ? `Note reçue des intérimaires : ${num(k.note_recue)} / 5` : 'Aucune note reçue pour l\'instant')}</div>
@@ -1353,15 +1426,57 @@ V.client.stats = async () => {
     <div class="grid2">${classement(`Notes reçues des intérimaires${d.notes.recues.moyenne ? ` · moyenne ${num(d.notes.recues.moyenne)} / 5` : ''}`, d.notes.recues.repartition, num, 'Aucun avis reçu.')}${classement(`Notes que vous avez données${d.notes.donnees.moyenne ? ` · moyenne ${num(d.notes.donnees.moyenne)} / 5` : ''}`, d.notes.donnees.repartition, num, 'Aucune note donnée.')}</div>`;
 };
 V.interim.stats = async () => {
-  const d = await GET('/stats'), k = d.cles;
+  const d = await GET(urlStats()), k = d.cles;
   return head('Mes statistiques', `Vos chiffres de ${moisLong(d.mois)} (heures validées par vous et l'employeur), comparés au mois précédent. Gains en brut, fin de mission et congés payés compris.`) +
-    `<h2 class="stats-titre">${ic('dash')}Chiffres clés</h2><div class="kpis">${tuile('Gains bruts du mois', 'wallet', k.gains_brut, eur0, k.gains_brut_prec)}${tuile('Net estimé du mois', 'wallet', k.net_estime_mois, eur0, undefined, 'Estimation avant impôt')}
+    barreStats(d) + `<h2 class="stats-titre">${ic('dash')}Chiffres clés</h2><div class="kpis">${tuile('Gains bruts du mois', 'wallet', k.gains_brut, eur0, k.gains_brut_prec)}${tuile('Net estimé du mois', 'wallet', k.net_estime_mois, eur0, undefined, 'Estimation avant impôt')}
     ${tuile('Heures du mois', 'clock', k.heures, fmtH, undefined, `${fmtH(k.heures_an)} sur l'année`)}${tuile('Gains bruts de l\'année', 'chart', k.gains_an, eur0)}</div>
     <div class="kpis">${tuile('Missions réalisées', 'briefcase', k.missions_an, num, undefined, `${k.missions_mois} ce mois-ci · ${k.missions_a_venir} à venir`)}${tuile('Établissements', 'building', k.etablissements, num, undefined, 'Différents cette année')}
     ${tuile('Taux d\'acceptation', 'check', k.taux_acceptation, pct, undefined, `Missions acceptées sur missions proposées${k.desistements ? ` · ${k.desistements} désistement(s)` : ''}`)}${tuile('Note moyenne', 'star', k.note, v => num(v) + ' / 5', undefined, 'Avis des employeurs')}</div>
     <h2 class="stats-titre">${ic('chart')}Évolution, postes et notes</h2><div class="grid2">${histogramme('Gains bruts', d.series.gains_brut, eur0)}${histogramme('Heures validées', d.series.heures, fmtH)}</div>
     <div class="grid2">${classement('Mes postes (heures de l\'année)', d.tops.postes, fmtH, 'Aucune heure validée cette année.')}${classement(`Mes notes${d.notes.recues.moyenne ? ` · moyenne ${num(d.notes.recues.moyenne)} / 5` : ''}`, d.notes.recues.repartition, num, 'Aucun avis reçu.')}</div>`;
 };
+
+/* ---------------- Étude de marché : envoi du questionnaire (Intérimaires et Clients) ---------------- */
+const ETUDE_TYPES = { interim: 'Intérimaire', candidat: 'Candidat', client: 'Client', prospect: 'Prospect' };
+function suiviEtude(x) {
+  const e = x.envoi;
+  if (x.desinscrit) return badge('off', 'Désinscrit');
+  if (!e) return badge('off', 'Non invité');
+  if (e.repondu_le) return badge('libre', 'A répondu');
+  if (e.clique_le) return badge('pris', 'A cliqué · ' + fdate(e.clique_le, 'num'));
+  if (e.statut === 'echec') return badge('danger', 'Échec de l\'envoi');
+  if (e.statut === 'simule') return badge('attente', 'Simulé (messagerie non configurée)');
+  return badge('attente', (e.relance_le ? 'Relancé le ' + fdate(e.relance_le, 'num') : 'Invité le ' + fdate(e.envoye_le, 'num')));
+}
+async function etudePage(cible) {
+  const d = await GET('/etude/destinataires?cible=' + cible), L = d.destinataires, etab = cible === 'etablissement';
+  const inv = L.filter(x => x.envoi && x.envoi.envoye_le).length, cl = L.filter(x => x.envoi?.clique_le).length, rep = L.filter(x => x.envoi?.repondu_le).length;
+  const q = d.premiere;
+  return head(`Étude de marché ${d.annee} · ${etab ? 'établissements' : 'intérimaires'}`, etab
+      ? 'E-mail de démarchage avec le questionnaire de l\'étude de marché : la première question se coche dans l\'e-mail, la suite s\'ouvre sur le site (5 minutes). Réponses anonymes, compilées dans Statistiques › Étude de marché.'
+      : 'E-mail automatique avec le questionnaire de l\'étude : la première question se coche dans l\'e-mail, la suite s\'ouvre sur le site (5 minutes). Réponses anonymes, compilées dans Statistiques › Étude de marché.',
+    `<a class="btn sm" href="/api/etude/apercu?cible=${cible}" target="_blank" rel="noopener">${ic('mail')}Aperçu de l'e-mail</a>${btn('Voir les résultats', 'chart', `data-a="voiretude" data-c="${cible}"`, 'sm')}`) +
+    `<div class="kpis">${kpi('Destinataires possibles', 'users', L.length, etab ? 'Clients et prospects avec e-mail' : 'Intérimaires et candidats avec e-mail')}${kpi('Invités', 'send', inv, `cette année · relance ${d.relance ? `automatique après ${d.relance_jours} jours` : 'désactivée'}`)}
+      ${kpi('Ont cliqué', 'target', cl, 'Réponse cochée ou questionnaire ouvert')}${kpi('Ont répondu', 'check', rep, inv ? `${num(Math.round(rep / inv * 1000) / 10)} % des invités` : '—')}</div>` +
+    panel('Envoyer le questionnaire', '', `<form data-f="etudeenvoi" data-cible="${cible}">
+      <div class="panel-b etude-q small"><b>Question cochable dans l'e-mail :</b> ${esc(q.l)}<div class="etude-choix">${q.options.map(o => `<span>☐ ${esc(o)}</span>`).join('')}</div></div>
+      ${L.length ? `<div class="panel-b jr-barre"><label class="check"><input type="checkbox" data-j="etout"> Tout sélectionner</label><span class="small muted" id="et-compte">Aucun destinataire sélectionné</span></div>
+      <div class="scroll"><table><thead><tr><th class="jr-case"><span class="sr-only">Sélection</span></th><th>Nom</th><th>Type</th><th>E-mail</th><th>Suivi ${d.annee}</th></tr></thead><tbody>
+      ${L.map(x => { const off = x.desinscrit || x.envoi?.repondu_le; return `<tr><td class="jr-case"><input type="checkbox" data-j="ecase" value="${x.type}:${x.id}" ${off ? 'disabled' : ''} aria-label="Sélectionner ${esc(x.nom)}"></td><td><b>${esc(x.nom)}</b></td><td>${ETUDE_TYPES[x.type]}</td><td class="mono small">${esc(x.email)}</td><td>${suiviEtude(x)}</td></tr>`; }).join('')}</tbody></table></div>` : `<div class="panel-b">${empty(etab ? 'Aucun client ni prospect avec une adresse e-mail.' : 'Aucun intérimaire ni candidat avec une adresse e-mail.')}</div>`}
+      <div class="panel-b form" style="border-top:1px solid var(--line)"><label class="f full">${etab ? 'Autres établissements à démarcher' : 'Autres adresses'} (une par ligne : « Nom ; e-mail » ou « e-mail »)<textarea name="adresses" rows="4" placeholder="${etab ? 'Le Bistrot du Port ; contact@bistrot-du-port.fr' : 'Sarah ; sarah.martin@exemple.fr'}"></textarea><span class="hint">Une même adresse ne reçoit l'étude qu'une fois par an (plus une relance). Les personnes désinscrites sont toujours exclues.</span></label>
+        <label class="check full"><input type="checkbox" name="renvoyer" value="1"> Renvoyer aussi aux personnes déjà invitées cette année (sauf celles qui ont répondu)</label>
+        <div class="full row"><button class="btn primary" type="submit">${ic('send')}Envoyer le questionnaire</button></div></div></form>`) +
+    panel('Lien public', btn('Copier', 'link', `data-a="copy" data-t="${esc(d.lien_public)}"`, 'sm'), `<div class="panel-b small muted">Sans e-mail (Facebook, SMS, affiche) : <span class="mono">${esc(d.lien_public)}</span>. Envoi automatique aux nouveaux ${etab ? 'clients' : 'intérimaires'} : <b>${d.auto ? 'activé' : 'désactivé'}</b>, relance : <b>${d.relance ? 'activée' : 'désactivée'}</b> (Administration › Paramètres › Étude de marché).</div>`);
+}
+V.agence.etude_i = () => etudePage('interimaire');
+V.agence.etude_c = () => etudePage('etablissement');
+function etudeSelection() {
+  const cases = [...document.querySelectorAll('[data-j="ecase"]')], n = cases.filter(x => x.checked).length, actives = cases.filter(x => !x.disabled);
+  const tout = document.querySelector('[data-j="etout"]'), t = document.querySelector('#et-compte');
+  if (tout) { tout.checked = n > 0 && n === actives.length; tout.indeterminate = n > 0 && n < actives.length; }
+  if (t) t.textContent = n ? `${n} destinataire${n > 1 ? 's' : ''} sélectionné${n > 1 ? 's' : ''}` : 'Aucun destinataire sélectionné';
+  cases.forEach(x => x.closest('tr').classList.toggle('jr-coche', x.checked));
+}
 
 /* ---------------- Avis : note globale, dernier avis, alerte note basse ---------------- */
 const noteBasse = n => n !== null && n !== undefined && n < 3;
@@ -1756,6 +1871,15 @@ const A = {
     const r = await POST('/journal/supprimer', { ids });
     toast(`${r.supprimes} message${r.supprimes > 1 ? 's' : ''} supprimé${r.supprimes > 1 ? 's' : ''} du journal`); reload();
   }, el),
+  desinscrire: el => act(async () => {
+    const err = el.parentElement.querySelector('.err'); err.hidden = true;
+    try { await POST('/public/etude-desinscription', { j: el.dataset.j }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    el.closest('.contact-card').innerHTML = `<div class="merci-ic">${ic('check')}</div><h1>C'est noté</h1><p class="muted">Vous ne recevrez plus de messages au sujet de l'étude de marché.</p><a class="btn" href="/">Retour à l'accueil</a>`;
+  }, el),
+  svue: el => { S.p.svue = el.dataset.v; reload(); },
+  voiretude: el => { S.p.svue = 'etude'; S.p.ecible = el.dataset.c; go('stats'); },
+  ecible: el => { S.p.ecible = el.dataset.v; reload(); },
+  eannee: el => { S.p.eannee = el.dataset.v; reload(); },
   deldoc: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.lastChild.textContent = 'Confirmer'; return; } await DEL(`/documents/${el.dataset.id}`); toast('Document supprimé'); reload(); }, el),
   hconf: el => act(async () => { await POST(`/heures/${el.dataset.id}/confirmer`, {}); toast('Heures confirmées'); reload(); }, el),
   hval: el => act(async () => { const b = el.dataset.x === undefined ? {} : { extra_accepte: el.dataset.x === '1' }; await POST(`/heures/${el.dataset.id}/valider`, b); toast('Heures validées'); reload(); }, el),
@@ -1882,6 +2006,17 @@ const F = {
     f.closest('.contact-card').innerHTML = contactMerci();
     window.scrollTo(0, 0);
   }),
+  etude: (fd, f) => act(async () => {
+    const err = f.querySelector('.err'); err.hidden = true;
+    try { await POST('/public/etude/' + ETUDE.p, { ...lireQuestionnaire(fd), j: ETUDE.j, rid: ETUDE.rid }); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'center' }); return; }
+    f.closest('.contact-card').innerHTML = etudeMerci(); window.scrollTo(0, 0);
+  }),
+  etudeenvoi: (fd, f) => act(async () => {
+    const selection = [...document.querySelectorAll('[data-j="ecase"]:checked')].map(x => x.value);
+    const r = await POST('/etude/envoyer', { cible: f.dataset.cible, selection, adresses: fd.get('adresses') || '', renvoyer: fd.get('renvoyer') === '1' });
+    const parts = [r.envoyes && `${r.envoyes} envoyé(s)`, r.simules && `${r.simules} simulé(s) (messagerie non configurée)`, r.echecs && `${r.echecs} échec(s)`, r.ignores && `${r.ignores} ignoré(s) : déjà invité, désinscrit ou adresse invalide`].filter(Boolean);
+    toast('Étude de marché : ' + parts.join(' · ') + '. Détail dans le journal des envois.', !!r.echecs && !r.envoyes); reload();
+  }),
   ccnew: (fd, f) => act(async () => { await POST('/contrats-clients', { ...Object.fromEntries(fd), client_id: Number(f.dataset.id) }); closeModal(); toast('Contrat enregistré. L\'entreprise est invitée à le signer dans son espace.'); reload(); }),
   ccsign: (fd, f) => act(async () => { const k = await POST(`/contrats-clients/${f.dataset.id}/signer`, { nom: fd.get('nom'), accepte: fd.get('accepte') === '1' }); closeModal(); toast(`Contrat signé : coefficient ${num(k.coefficient)} appliqué.`); S.cfg = await GET('/config').catch(() => S.cfg); reload(); }),
   client: (fd, f) => act(async () => { const b = Object.fromEntries(fd); const r = f.dataset.id ? await PUT(`/clients/${f.dataset.id}`, b) : await POST('/clients', b); S.p.csel = r.id; closeModal(); toast('Fiche enregistrée'); go('clients'); }),
@@ -1921,6 +2056,9 @@ document.addEventListener('change', e => {
   if (el.dataset?.j === 'tout') { document.querySelectorAll('[data-j="case"]').forEach(x => { x.checked = el.checked; }); journalSelection(); }
   if (el.dataset?.j === 'case') journalSelection();
   if (el.dataset?.j === 'statut') { S.p.jstatut = el.value; reload(); }
+  if (el.dataset?.j === 'smois') { S.p.smois = el.value; reload(); }
+  if (el.dataset?.j === 'etout') { document.querySelectorAll('[data-j="ecase"]:not(:disabled)').forEach(x => { x.checked = el.checked; }); etudeSelection(); }
+  if (el.dataset?.j === 'ecase') etudeSelection();
   // Réglage d'un compte : comme l'espace, accessible ou verrouillé
   if (el.dataset?.a === 'droitcompte') act(async () => { await PUT('/droits', { cible: el.dataset.c, fonction: el.dataset.f, acces: el.value === '' ? null : el.value === 'true' }); toast('Réglage du compte enregistré'); reload(); });
 });

@@ -100,7 +100,7 @@ const escHtml = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<
  * E-mail HTML aux couleurs de l'agence (mise en page en tableaux, compatible avec les messageries courantes).
  * logoSrc : "cid:…" pour l'envoi, ou une URL pour l'aperçu dans le navigateur.
  */
-function gabaritEmail({ titre, texte, lien, bouton }, logoSrc = 'cid:' + CID_LOGO) {
+function gabaritEmail({ titre, texte, lien, bouton, choix, desinscription }, logoSrc = 'cid:' + CID_LOGO) {
   const g = k => P.get(k);
   const adresse = [g('adresse'), [g('code_postal'), g('ville')].filter(Boolean).join(' ')].filter(Boolean).join(', ');
   const legal = [g('raison_sociale'), g('forme_juridique'), g('siret') && 'SIRET ' + g('siret')].filter(Boolean).join(' · ');
@@ -112,12 +112,15 @@ function gabaritEmail({ titre, texte, lien, bouton }, logoSrc = 'cid:' + CID_LOG
 <tr><td style="background:#112233;padding:0">${logoSrc ? `<img src="${logoSrc}" width="600" alt="${escHtml(g('raison_sociale'))} — Spécialiste des métiers HCR" style="display:block;width:100%;max-width:600px;height:auto;border:0">` : `<div style="padding:22px 28px;color:#FFFFFF;font:600 22px Arial,sans-serif">${escHtml(g('raison_sociale'))}</div>`}</td></tr>
 <tr><td style="background:#C99948;height:4px;line-height:4px;font-size:0">&nbsp;</td></tr>
 <tr><td style="padding:28px 28px 12px"><h1 style="margin:0 0 16px;font-size:20px;line-height:1.3;color:#112233">${escHtml(titre)}</h1>${paras}
+${choix ? `<p style="margin:4px 0 10px;font-size:15px;font-weight:bold;color:#112233">${escHtml(choix.question)}</p>
+<table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 16px;width:100%">${choix.options.map(o => `<tr><td style="padding:0 0 8px"><a href="${escHtml(o.url)}" style="display:block;padding:11px 14px;border:1px solid #CBD3DE;border-radius:8px;color:#112233;font-size:14px;text-decoration:none"><span style="display:inline-block;width:14px;height:14px;border:2px solid #7E5F24;border-radius:3px;vertical-align:-3px;margin-right:10px"></span>${escHtml(o.l)}</a></td></tr>`).join('')}</table>
+<p style="margin:0 0 14px;font-size:13px;color:#6b7280">Cochez une réponse : elle est enregistrée et le questionnaire s'ouvre sur le site pour les questions suivantes.</p>` : ''}
 ${lien ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px 0 18px"><tr><td style="background:#112233;border-radius:8px;border-bottom:3px solid #C99948"><a href="${escHtml(lien)}" style="display:inline-block;padding:13px 22px;color:#FFFFFF;font-size:15px;font-weight:bold;text-decoration:none">${escHtml(bouton || 'Ouvrir mon espace')}</a></td></tr></table>
 <p style="margin:0 0 8px;font-size:12px;color:#6b7280">Si le bouton ne fonctionne pas : <a href="${escHtml(lien)}" style="color:#7E5F24">${escHtml(lien)}</a></p>` : ''}</td></tr>
 <tr><td style="padding:18px 28px 24px;border-top:1px solid #E5E7EB;font-size:12px;line-height:1.5;color:#6b7280">
 <b style="color:#112233">${escHtml(g('raison_sociale'))}</b> · spécialiste des métiers <b style="color:#7E5F24">HCR</b><br>
 ${adresse ? escHtml(adresse) + '<br>' : ''}${[g('telephone'), g('email')].filter(Boolean).map(escHtml).join(' · ')}${g('telephone') || g('email') ? '<br>' : ''}
-<span style="color:#9ca3af">${escHtml(legal)} — Message envoyé automatiquement par la plateforme ${escHtml(g('raison_sociale'))}.</span></td></tr>
+<span style="color:#9ca3af">${escHtml(legal)} — Message envoyé automatiquement par la plateforme ${escHtml(g('raison_sociale'))}.</span>${desinscription ? `<br><a href="${escHtml(desinscription)}" style="color:#9ca3af">Ne plus recevoir ces messages</a>` : ''}</td></tr>
 </table></td></tr></table></body></html>`;
 }
 
@@ -129,7 +132,9 @@ ${adresse ? escHtml(adresse) + '<br>' : ''}${[g('telephone'), g('email')].filter
 async function envoyer(canal, dest, sujet, texte, opts = {}) {
   const destinataire = canal === 'mail' ? String(dest.email || '').trim() : e164(dest.telephone);
   const lien = opts.lien === undefined ? siteUrl() : opts.lien;
-  const texteComplet = lien && !String(texte).includes(lien) ? `${texte}\n${lien}` : texte;
+  let texteComplet = lien && !String(texte).includes(lien) ? `${texte}\n${lien}` : texte;
+  if (opts.choix) texteComplet += `\n\n${opts.choix.question}\n` + opts.choix.options.map(o => `- ${o.l} : ${o.url}`).join('\n');
+  if (opts.desinscription) texteComplet += `\n\nNe plus recevoir ces messages : ${opts.desinscription}`;
   // Le journal ne conserve jamais les secrets (mot de passe provisoire) : ils sont masqués.
   const texteJournal = opts.masquer ? texteComplet.split(opts.masquer).join('••••••') : texteComplet;
   const log = (statut, detail) => { run('INSERT INTO envois_messages (canal, destinataire, contenu, statut, detail) VALUES (?,?,?,?,?)', canal, destinataire || '—', texteJournal, statut, detail || null); return { statut, detail }; };
@@ -144,14 +149,14 @@ async function envoyer(canal, dest, sujet, texte, opts = {}) {
         // Logo par son adresse publique (l'API ne gère pas les images intégrées).
         const logo = siteUrl().startsWith('https://') ? siteUrl() + '/img/bandeau-horizontal.png' : '';
         const id = await brevoSend({ to: destinataire, subject: sujet, text: `${texteComplet}\n\n— ${nom}, spécialiste des métiers HCR`,
-          html: gabaritEmail({ titre: opts.titre || sujet, texte, lien, bouton: opts.bouton }, logo) });
+          html: gabaritEmail({ titre: opts.titre || sujet, texte, lien, bouton: opts.bouton, choix: opts.choix, desinscription: opts.desinscription }, logo) });
         return log('envoye', id ? 'Brevo ' + id : 'Brevo');
       }
       const from = P.get('smtp_from') || (P.get('smtp_user') && `${nom} <${P.get('smtp_user')}>`);
       const info = await getMailer().sendMail({
         from, to: destinataire, subject: sujet, replyTo: P.get('email') || undefined,
         text: `${texteComplet}\n\n— ${nom}, spécialiste des métiers HCR`,
-        html: gabaritEmail({ titre: opts.titre || sujet, texte, lien, bouton: opts.bouton }),
+        html: gabaritEmail({ titre: opts.titre || sujet, texte, lien, bouton: opts.bouton, choix: opts.choix, desinscription: opts.desinscription }),
         attachments: [{ filename: 'chr-interim.png', path: LOGO_EMAIL, cid: CID_LOGO }],
       });
       return log('envoye', info.messageId ? 'ID ' + info.messageId : null);

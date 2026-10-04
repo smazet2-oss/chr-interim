@@ -170,12 +170,16 @@ const candidats = require('./candidats');
 candidats.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), HttpError });
 // Mesure d'audience des liens du site (origine des visites : Facebook, e-mail, adresse du site…).
 require('./visites').publiques(api);
+// Étude de marché annuelle : questionnaire anonyme ouvert depuis l'e-mail ou le lien public.
+const etude = require('./etude');
+etude.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 api.use(auth);
 // Droits d'accès par espace et par compte (contrôle de chaque requête).
 const droits = require('./droits');
 droits(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 prospects.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 candidats.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
+etude.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a) });
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
 const contratsClients = require('./contrats-clients')(api, { fail: (...a) => fail(...a), isDate: (...a) => isDate(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), str: (...a) => str(...a), today: () => today() });
 const relances = require('./relances')(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
@@ -988,4 +992,5 @@ if (require.main === module) {
   const port = Number(process.env.PORT || 3000);
   app.listen(port, () => console.log(`CHR Intérim démarré sur http://localhost:${port}`));
   relances.demarrer();
+  etude.demarrer();
 }

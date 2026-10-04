@@ -135,6 +135,8 @@ Une page « Statistiques » dans chaque espace : chiffres clés du mois comparé
 
 Les calculs reposent sur les heures validées par les deux parties (majorations comprises).
 
+**Mois affiché** : une liste déroulante en haut de chaque page Statistiques (agence, employeur, intérimaire) permet de choisir n'importe quel mois des 24 derniers ; chiffres clés, comparaison avec le mois précédent et histogrammes sur 6 mois se recalculent pour ce mois. Les états du jour (encours clients, contrats à signer, missions à venir) restent au jour.
+
 **Visites du site et origines** (agence) : nombre de clics sur les liens du site (page de connexion, `/contact`, `/candidature`), par mois et par origine : Facebook, Instagram, e-mail, SMS, QR code, moteur de recherche, adresse du site (saisie directe ou favori), autre site. Pour chaque origine : demandes envoyées depuis le site et taux de transformation.
 
 - L'origine vient d'abord du lien : ajoutez `?src=facebook`, `?src=mail`, `?src=sms` (ou `utm_source`) aux liens que vous partagez ; la page Statistiques propose ces liens prêts à copier. Les QR codes imprimés contiennent `?src=qr`. Sans marque, le site précédent est utilisé (facebook.com, messageries en ligne, Google…) ; sans site précédent, la visite est comptée dans « Adresse du site ».
@@ -148,6 +150,17 @@ Dans **Intérimaires › Candidatures intérimaires** et **Clients › Candidatu
 - **Accepter** : e-mail de demande de rendez-vous sous 48 h (créneau proposé facultatif, date de rappel fixée à 48 h), statut « Acceptée · RDV ».
 - **Refuser** : e-mail informant du refus, statut « Refusée ».
 - Le message proposé est modifiable avant l'envoi ; sans e-mail connu, un SMS est envoyé. Tout est tracé dans le journal des envois.
+
+### Étude de marché (2026, puis 2027, 2028…)
+
+Questionnaire annuel envoyé par e-mail, tiré des questionnaires du site (sans les coordonnées ni les champs libres) :
+
+- **Intérimaires › Étude de marché** : envoi aux intérimaires et aux candidats (types de missions, disponibilités, mobilité, rémunération souhaitée…).
+- **Clients › Étude de marché** : e-mail de démarchage aux clients, aux prospects et à toute adresse saisie à la main (« Nom ; e-mail », une par ligne) : fréquence des renforts, postes difficiles, solutions actuelles, attentes, tarifs et coefficient acceptables…
+- **Dans l'e-mail**, la première question se coche directement : chaque réponse est un lien qui l'enregistre et ouvre la suite du questionnaire sur le site (`/etude/etablissements` ou `/etude/interimaires`, environ 5 minutes). Un bouton « Répondre au questionnaire (5 min) » et un lien « Ne plus recevoir ces messages » complètent le message ; « Aperçu de l'e-mail » montre le rendu.
+- **Suivi** par destinataire : non invité, invité, relancé, a cliqué, a répondu, désinscrit. Une adresse ne reçoit l'étude qu'une fois par an, plus une **relance automatique** après 7 jours si elle n'a pas répondu (Paramètres › Étude de marché). Option : inviter automatiquement les nouveaux intérimaires et clients.
+- **Anonymat** : les réponses ne sont jamais reliées au destinataire (seuls « a cliqué » et « a répondu » sont suivis) ; les résultats détaillés s'affichent à partir de 3 réponses complètes.
+- **Statistiques › Étude de marché** : participation (invitations, clics, taux de réponse, réponses partielles), puis, question par question, la répartition des réponses en %, les moyennes et médianes des tarifs, et l'**évolution en points par rapport à l'année précédente** dès 2027. Choix de l'année et du questionnaire (établissements ou intérimaires). Un lien public permet aussi de diffuser le questionnaire sur Facebook ou par SMS.
 
 ### Notes et fiabilité
 
@@ -262,6 +275,7 @@ src/prospects.js  page publique « Besoin de renforts ? » et suivi des prospect
 src/candidats.js  page publique « Je cherche des missions » et suivi des candidatures
 src/simulation.js simulation de paie, de coût et de marge
 src/visites.js    visites du site et origine des clics (Facebook, e-mail, QR code…)
+src/etude.js      étude de marché annuelle : envoi, questionnaire anonyme, relances, résultats
 src/seed-demo.js  données de démonstration
 public/           interface (HTML, CSS, JavaScript sans framework)
 test/             tests automatiques de l'API

@@ -129,7 +129,15 @@ function agence(api, h) {
   api.get('/candidats/:id/cv', role('agence'), wrap((req, res) => {
     const c = one('SELECT cv_fichier, cv_nom FROM candidats WHERE id = ?', req.params.id);
     if (!c?.cv_fichier) fail(404, 'Aucun CV.');
-    res.download(path.join(CV_DIR, path.basename(c.cv_fichier)), c.cv_nom || 'cv' + path.extname(c.cv_fichier));
+    const f = path.join(CV_DIR, path.basename(c.cv_fichier)), nom = c.cv_nom || 'cv' + path.extname(c.cv_fichier);
+    if (!fs.existsSync(f)) fail(404, 'Fichier du CV introuvable.');
+    // ?vue=1 : affichage dans l'application (PDF et images), autorisé seulement depuis le site lui-même
+    if (req.query.vue === '1' && /\.(pdf|jpg|png)$/.test(c.cv_fichier)) {
+      res.set({ 'X-Frame-Options': 'SAMEORIGIN', 'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; frame-ancestors 'self'", 'Cache-Control': 'private, no-store' });
+      res.type(path.extname(c.cv_fichier)); res.set('Content-Disposition', `inline; filename*=UTF-8''${encodeURIComponent(nom)}`);
+      return res.sendFile(f);
+    }
+    res.download(f, nom);
   }));
   /** Inscription : crée la fiche intérimaire à partir de la candidature (l'accès se crée ensuite depuis la fiche). */
   api.post('/candidats/:id/interimaire', role('agence'), wrap((req, res) => {

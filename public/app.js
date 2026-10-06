@@ -736,8 +736,8 @@ V.agence.accueil = async () => {
     <div class="grid-main">${panel('Missions en cours', btn('Toutes les missions', 'chev', 'data-a="nav" data-v="missions"', 'sm'), enCours.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Client</th><th>Poste</th><th>Statut</th><th></th></tr></thead><tbody>
       ${enCours.map(m => `<tr><td>${fdate(m.date)}${iconeCeSoir(m)}</td><td>${esc(m.client_nom)}</td><td>${m.nb_postes} × ${esc(m.poste)}</td><td>${badge(...missionStatut(m))}</td><td class="r">${m.statut === 'nouvelle' ? btn('Diffuser', 'send', `data-a="diffuser" data-id="${m.id}"`, 'sm primary') : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune mission en cours.'))}
     ${panel('Candidatures à analyser', cNouv.length + pNouv.length ? badge('danger', cNouv.length + pNouv.length) : '', cNouv.length + pNouv.length ? `<div class="list">${[
-      ...cNouv.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:180px"><b>${esc(x.prenom)} ${esc(x.nom)}</b> ${badge('pris', 'Intérimaire')}<div class="small muted">${esc(x.poste || 'Poste non précisé')}${x.ville ? ' · ' + esc(x.ville) : ''} · reçue le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div><div class="row">${btn('Voir', '', `data-a="candidat" data-id="${x.id}"`, 'sm ghost')}${boutonsDecision('candidat', x)}</div></div>`),
-      ...pNouv.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:180px"><b>${esc(x.etablissement)}</b> ${badge('attente', 'Client')}<div class="small muted">${esc(x.repondant || '')}${x.type_etab ? ' · ' + esc(x.type_etab) : ''} · reçue le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div><div class="row">${btn('Voir', '', `data-a="prospect" data-id="${x.id}"`, 'sm ghost')}${boutonsDecision('prospect', x)}</div></div>`)].join('')}</div>` : empty('Aucune candidature en attente.'))}
+      ...cNouv.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:180px"><button type="button" class="lien-profil" data-a="candidat" data-id="${x.id}">${esc(x.prenom)} ${esc(x.nom)}</button> ${badge('pris', 'Intérimaire')}${x.cv_fichier ? ' ' + btn('CV', 'file', `data-a="cvvoir" data-id="${x.id}"`, 'sm ghost cv-lien') : ''}<div class="small muted">${esc(x.poste || 'Poste non précisé')}${x.ville ? ' · ' + esc(x.ville) : ''} · reçue le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div><div class="row">${btn('Voir', '', `data-a="candidat" data-id="${x.id}"`, 'sm ghost')}${boutonsDecision('candidat', x)}</div></div>`),
+      ...pNouv.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:180px"><button type="button" class="lien-profil" data-a="prospect" data-id="${x.id}">${esc(x.etablissement)}</button> ${badge('attente', 'Client')}<div class="small muted">${esc(x.repondant || '')}${x.type_etab ? ' · ' + esc(x.type_etab) : ''} · reçue le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div><div class="row">${btn('Voir', '', `data-a="prospect" data-id="${x.id}"`, 'sm ghost')}${boutonsDecision('prospect', x)}</div></div>`)].join('')}</div>` : empty('Aucune candidature en attente.'))}
     ${panel('À traiter', tasks.length ? badge('danger', tasks.length) : '', tasks.length ? tasks.map(([c, i, t, d, v]) => `<div class="task"><div class="ic ${c}">${ic(i)}</div><div><b>${esc(t)}</b><div class="small muted">${esc(d)}</div></div><button class="btn sm ghost" data-a="nav" data-v="${v}" aria-label="Ouvrir">${ic('chev')}</button></div>`).join('') : empty('Rien à traiter.'))}</div>`;
 };
 
@@ -763,7 +763,7 @@ V.agence.interimaires = async () => {
       <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
       <dt>Naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}${s.lieu_naissance ? ' à ' + esc(s.lieu_naissance) : ''}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
       <dt>Sécurité sociale</dt><dd class="mono">${esc(s.nir || '—')}</dd><dt>Domicile</dt><dd>${esc([s.adresse, [s.code_postal, s.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—')}</dd>
-      <dt>Taux horaire brut</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>
+      <dt>Taux horaire brut</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>${s.cv_candidat ? `<dt>CV de candidature</dt><dd>${btn('Voir le CV', 'file', `data-a="cvvoir" data-id="${s.cv_candidat}"`, 'sm')}</dd>` : ''}
       <dt>Dossier administratif</dt><dd>${s.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd><dt>Note moyenne</dt><dd>${stars(s.note)}</dd></dl>
       ${accessBox('interim', s.id, s.acces)}</div></section>
       ${avisPanel(av, 'interim')}${piecesPanel(s.id, dos, types)}${experiencesPanel(s.id, xp)}${panel('Contrats de mission', '', contratsPanel(ks))}</div></div>`);
@@ -1250,6 +1250,7 @@ async function prospectModal(id) {
       ${decisionInfo(x) ? `<div class="full">${decisionInfo(x)}</div>` : ''}
       <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('prospect', x)}${x.client_id ? badge('libre', 'Fiche client créée') : btn('Créer la fiche client', 'building', `data-a="pclient" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="pdel" data-id="${x.id}"`, 'sm danger')}</div>
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
+  if (x.cv_fichier) $('#modal .modal')?.classList.add('modal-large');
 }
 async function visiteModal() {
   const d = await GET('/public/questionnaire'), t = S.cfg?.aujourdhui || '';
@@ -1272,20 +1273,35 @@ V.agence.candidats = async () => {
     `<div class="kpis">${kpi('Candidatures actives', 'idcard', L.filter(x => !['inscrit', 'refuse'].includes(x.statut)).length)}${kpi('À rappeler aujourd\'hui', 'clock', dus, dus ? 'Rappels en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Nouvelles', 'send', L.filter(x => x.statut === 'nouveau').length)}${kpi('Inscrits', 'users', L.filter(x => x.statut === 'inscrit').length)}</div>` +
     panel(null, `<div class="seg" data-titre="Statut">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_rappeler', 'À rappeler'], ['entretien', 'Rendez-vous'], ['actifs', 'En cours'], ['inscrit', 'Inscrits'], ['refuse', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
       vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0"><td><b>${esc(x.prenom)} ${esc(x.nom)}</b>${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div></td>
+      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0" title="Voir le profil"><td><b class="lien-profil">${esc(x.prenom)} ${esc(x.nom)}</b>${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div></td>
         <td class="small"><b>${esc(x.poste || '—')}</b>${x.reponses.experience ? `<div class="muted">${esc(x.reponses.experience)}</div>` : ''}</td>
         <td class="small">${esc((x.reponses.creneaux || []).join(', ') || '—')}${x.reponses.type_mission ? `<div class="muted">${esc(x.reponses.type_mission)}</div>` : ''}</td>
-        <td>${fdate(x.created_at.slice(0, 10), 'num')}${x.cv_fichier ? `<div class="small muted">${ic('file', 'style="width:12px;height:12px;vertical-align:-2px"')} CV joint</div>` : ''}</td>
+        <td>${fdate(x.created_at.slice(0, 10), 'num')}${x.cv_fichier ? `<div>${btn('Voir le CV', 'file', `data-a="cvvoir" data-id="${x.id}" title="${esc(x.cv_nom || 'CV')}"`, 'sm ghost cv-lien')}</div>` : ''}</td>
         <td>${x.date_relance ? (x.date_relance <= t && !['inscrit', 'refuse'].includes(x.statut) ? badge('danger', fdate(x.date_relance, 'num')) : fdate(x.date_relance, 'num')) : '<span class="muted">—</span>'}</td>
         <td>${badge(...C_ST[x.statut])}${decisionInfo(x)}</td><td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${boutonsDecision('candidat', x)}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune candidature dans cette liste.'));
 };
+/** CV d'une candidature : aperçu (PDF, image), ouverture dans un nouvel onglet, téléchargement. Les fichiers Word se téléchargent. */
+const cvVisible = f => /\.(pdf|jpg|png)$/i.test(f || '');
+function cvBloc(id, fichier, nom, apercu = true) {
+  const u = `/api/candidats/${id}/cv`, img = /\.(jpg|png)$/i.test(fichier);
+  return `<div class="cv-bloc"><div class="row" style="flex-wrap:wrap;gap:8px"><span class="cv-nom">${ic('file')}<b>${esc(nom || 'CV')}</b></span>
+    ${cvVisible(fichier) ? `<a class="btn sm primary" href="${u}?vue=1" target="_blank" rel="noopener">${ic('eye')}Ouvrir le CV</a>` : ''}<a class="btn sm" href="${u}">${ic('download')}Télécharger</a></div>
+    ${apercu && cvVisible(fichier) ? (img ? `<img class="cv-apercu" src="${u}?vue=1" alt="CV de la candidature">` : `<iframe class="cv-apercu" src="${u}?vue=1" title="Aperçu du CV"></iframe>`) : ''}
+    ${cvVisible(fichier) ? '' : '<span class="small muted">Document Word : téléchargez-le pour l\'ouvrir.</span>'}</div>`;
+}
+async function cvModal(id) {
+  const x = (await GET('/candidats')).find(c => c.id === id); if (!x?.cv_fichier) return toast('Aucun CV joint à cette candidature.', true);
+  openModal(`${modalHead(ic('file') + `CV de ${esc(x.prenom)} ${esc(x.nom)}`, `${esc(x.poste || 'Poste non précisé')} · candidature du ${fdate(x.created_at.slice(0, 10), 'num')}`)}
+    <div class="panel-b">${cvBloc(x.id, x.cv_fichier, x.cv_nom)}</div><div class="panel-f" style="justify-content:flex-end">${btn('Voir la candidature', 'idcard', `data-a="candidat" data-id="${x.id}"`)}${btn('Fermer', '', 'data-a="close"')}</div>`);
+  $('#modal .modal')?.classList.add('modal-large');
+}
 async function candidatModal(id) {
   const [L, d] = await Promise.all([GET('/candidats'), GET('/public/candidature')]);
   const x = L.find(c => c.id === id); if (!x) return;
   const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : v === true ? 'Oui' : c.type === 'date' ? fdate(v, 'num') : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
   const secs = d.questionnaire.map(sec => { const L2 = sec.champs.map(c => [c.l, val(c)]).filter(([, v]) => v); return L2.length ? `<h3 class="q-titre">${esc(sec.titre)}</h3><dl class="kv">${L2.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''; }).join('');
   openModal(`${modalHead(ic('idcard') + `${esc(x.prenom)} ${esc(x.nom)}`, `Candidature reçue le ${fdate(x.created_at.slice(0, 10), 'num')} · ${esc(x.poste || 'poste non précisé')}`)}
-    <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${x.cv_fichier ? `<a class="btn sm" style="align-self:flex-start" href="/api/candidats/${x.id}/cv">${ic('download')}Télécharger le CV</a>` : ''}${secs}</div>
+    <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${x.cv_fichier ? `<h3 class="q-titre">CV joint</h3>${cvBloc(x.id, x.cv_fichier, x.cv_nom)}` : '<p class="small muted">Aucun CV joint à cette candidature.</p>'}${secs}</div>
     <form data-f="csuivi" data-id="${x.id}" class="panel-b form" style="border-top:1px solid var(--line)"><h3 class="q-titre full">Suivi du recrutement</h3>
       <label class="f">Statut<select name="statut">${Object.entries(C_ST).map(([k, [, l]]) => `<option value="${k}" ${k === x.statut ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="f">Date de rappel / d'entretien<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
@@ -1293,6 +1309,7 @@ async function candidatModal(id) {
       ${decisionInfo(x) ? `<div class="full">${decisionInfo(x)}</div>` : ''}
       <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('candidat', x)}${x.interim_id ? badge('libre', 'Fiche intérimaire créée') : btn('Créer la fiche intérimaire', 'users', `data-a="cinterim" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="cdel" data-id="${x.id}"`, 'sm danger')}</div>
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
+  if (x.cv_fichier) $('#modal .modal')?.classList.add('modal-large');
 }
 
 /* ---------------- Annulation, désistement, indisponibilité imprévue ---------------- */
@@ -1878,6 +1895,7 @@ const A = {
   cfiltre: el => go('candidats', { cf: el.dataset.f }),
   contactonglet: el => renderContact(el.dataset.o),
   candidat: el => act(() => candidatModal(Number(el.dataset.id)), el),
+  cvvoir: el => act(() => cvModal(Number(el.dataset.id)), el),
   cinterim: el => act(async () => { const r = await POST(`/candidats/${el.dataset.id}/interimaire`); closeModal(); S.p.isel = r.interim_id; toast('Fiche intérimaire créée. Complétez-la (n° de sécurité sociale, domicile) et créez son accès.'); go('interimaires'); }, el),
   cdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.innerHTML = 'Confirmer la suppression'; el.classList.add('primary'); return; } await DEL(`/candidats/${el.dataset.id}`); closeModal(); toast('Candidature et CV supprimés'); reload(); }, el),
   pclient: el => act(async () => { const r = await POST(`/prospects/${el.dataset.id}/client`); closeModal(); S.p.csel = r.client_id; toast('Fiche client créée, avec le coefficient par défaut. Établissez ensuite le contrat commercial.'); go('clients'); }, el),

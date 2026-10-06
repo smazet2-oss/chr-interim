@@ -119,6 +119,21 @@ tx(() => {
   // Candidatures reçues par la page publique.
   run('INSERT INTO candidats (prenom, nom, telephone, email, ville, poste, reponses, statut) VALUES (?,?,?,?,?,?,?,\'nouveau\')', 'Inès', 'Moreau', '06 22 33 44 55', 'ines.moreau@exemple.fr', 'Lyon 3e', 'Serveur',
     JSON.stringify({ postes: ['Serveur', 'Chef de rang'], poste_principal: 'Serveur', experience: '1 à 3 ans', formations: ['Formation hygiène HACCP'], creneaux: ['Le soir', 'Le week-end'], type_mission: 'Extras ponctuels', prevenance: 'Sous 24 à 48 h', transport: ['Transports en commun'], rayon: '10 à 25 km', tenue: 'Oui, complète', canal: 'WhatsApp', autorisation: 'Nationalité française ou européenne' }));
+  // CV de démonstration (PDF d'une page) joint à la candidature d'Inès
+  {
+    const lignes = ['Ines MOREAU - Serveuse / Chef de rang', 'Lyon 3e - 06 22 33 44 55 - ines.moreau@exemple.fr', '', 'EXPERIENCE', '2023-2026  Serveuse, Brasserie des Celestins, Lyon 2e', '2022-2023  Commis de salle, Hotel du Parc, Lyon 6e', '', 'FORMATION', 'Formation hygiene HACCP (2022)', 'Bac pro Commercialisation et services en restauration', '', 'DISPONIBILITES', 'Le soir et le week-end - vehiculee'];
+    const flux = 'BT /F1 13 Tf 60 780 Td 18 TL ' + lignes.map(l => `(${l.replace(/[()\\]/g, '')}) '`).join(' ') + ' ET';
+    const objs = ['<< /Type /Catalog /Pages 2 0 R >>', '<< /Type /Pages /Kids [3 0 R] /Count 1 >>', '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>',
+      `<< /Length ${flux.length} >>\nstream\n${flux}\nendstream`, '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'];
+    let pdf = '%PDF-1.4\n'; const pos = [];
+    objs.forEach((o, i) => { pos.push(pdf.length); pdf += `${i + 1} 0 obj\n${o}\nendobj\n`; });
+    const x = pdf.length;
+    pdf += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n${pos.map(p => String(p).padStart(10, '0') + ' 00000 n \n').join('')}trailer\n<< /Size ${objs.length + 1} /Root 1 0 R >>\nstartxref\n${x}\n%%EOF\n`;
+    const dir = require('path').join(require('./db').DATA_DIR, 'cv'); require('fs').mkdirSync(dir, { recursive: true });
+    const fichier = require('crypto').randomBytes(16).toString('hex') + '.pdf';
+    require('fs').writeFileSync(require('path').join(dir, fichier), pdf, 'latin1');
+    run('UPDATE candidats SET cv_fichier = ?, cv_nom = ? WHERE prenom = ? AND nom = ?', fichier, 'CV Ines Moreau.pdf', 'Inès', 'Moreau');
+  }
   run('INSERT INTO candidats (prenom, nom, telephone, ville, poste, reponses, statut, date_relance) VALUES (?,?,?,?,?,?,\'a_rappeler\',?)', 'Karim', 'Haddad', '06 33 44 55 66', 'Villeurbanne', 'Cuisinier',
     JSON.stringify({ postes: ['Cuisinier', 'Chef de partie'], poste_principal: 'Cuisinier', experience: 'Plus de 3 ans', formations: ['CAP / BEP cuisine ou service'], creneaux: ['En semaine', 'Le soir'], type_mission: 'Missions régulières', canal: 'SMS' }), jour(0));
 

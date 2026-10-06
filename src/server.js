@@ -257,6 +257,7 @@ function interimBody(b) {
 const INTERIM_SQL = `SELECT i.*,
   (SELECT ROUND(AVG(e.note),1) FROM evaluations e JOIN heures h ON h.id = e.heure_id WHERE h.interim_id = i.id AND e.sens = 'client_vers_interim') AS note,
   (SELECT COUNT(*) FROM reponses r WHERE r.interim_id = i.id AND r.etat = 'retenu') AS nb_missions,
+  (SELECT c.id FROM candidats c WHERE c.interim_id = i.id AND c.cv_fichier IS NOT NULL ORDER BY c.id DESC LIMIT 1) AS cv_candidat,
   (SELECT username FROM users u WHERE u.interim_id = i.id LIMIT 1) AS acces
   FROM interimaires i`;
 api.get('/interimaires', (req, res) => {

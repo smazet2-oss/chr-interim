@@ -897,3 +897,17 @@ section.acc:not(.ouvert)>.acc-h{border-bottom:0}
   .barres-jours .barre:nth-child(odd):not(.cur) .barre-m{visibility:hidden}
   table.jours-table tr.jour-vide,table.jours-table tfoot{display:none}
 }
+
+/* ---------- CV des candidatures ---------- */
+.modal.modal-large{width:min(860px,100%)}
+.cv-bloc{display:flex;flex-direction:column;gap:10px}
+.cv-nom{display:inline-flex;align-items:center;gap:6px;min-width:0;margin-right:auto;overflow-wrap:anywhere}
+.cv-nom svg{width:16px;height:16px;color:#7E5F24;flex:none}
+.cv-bloc a.btn{text-decoration:none}
+.cv-apercu{width:100%;height:min(65vh,560px);border:1px solid var(--line);border-radius:8px;background:var(--surface-2)}
+img.cv-apercu{height:auto;max-height:70vh;object-fit:contain}
+.cv-lien{margin-top:4px}
+.lien-profil{border:0;background:none;padding:0;font:inherit;font-weight:700;color:var(--ink);cursor:pointer;text-align:left}
+button.lien-profil:hover,tr.clickable:hover .lien-profil{color:#7E5F24;text-decoration:underline;text-underline-offset:2px}
+button.lien-profil:focus-visible{outline:2px solid #C99948;outline-offset:2px;border-radius:3px}
+@media (max-width:640px){.cv-apercu{display:none}}

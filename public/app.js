@@ -117,13 +117,14 @@ const NAV = {
       ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star'], ['etude_i', 'Étude de marché', 'chart']]],
     ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target'], ['etude_c', 'Étude de marché', 'chart']]],
     ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
-    ['+', 'Administration', 'gear', [['stats', 'Statistiques', 'chart'], ['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']]]],
+    ['+', 'Administration', 'gear', [['stats', 'Statistiques', 'chart'], ['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']]],
+    ['histoire', 'Notre histoire', 'star']],
   client: [['accueil', 'Tableau de bord', 'dash'], ['jour', 'Planning', 'cal'], ['demandes', 'Mes missions', 'briefcase'],
     ['+', 'Suivi', 'chart', [['heures', 'Heures et évaluations', 'clock'], ['stats', 'Statistiques', 'chart'], ['interimaires', 'Intérimaires', 'users']]],
-    ['+', 'Administratif et social', 'folder', [['documents', 'Documents', 'folder'], ['contrats', 'Contrats de mission', 'edit'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']]]],
+    ['+', 'Administratif et social', 'folder', [['documents', 'Documents', 'folder'], ['contrats', 'Contrats de mission', 'edit'], ['factures', 'Factures', 'receipt'], ['contrat', 'Mon contrat', 'file']]], ['histoire', 'Notre histoire', 'star']],
   interim: [['accueil', 'Accueil', 'dash'], ['dispo', 'Mon planning', 'cal'], ['missions', 'Missions proposées', 'send'],
     ['+', 'Suivi', 'chart', [['heures', 'Mes heures', 'clock'], ['stats', 'Mes statistiques', 'chart'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star']]],
-    ['+', 'Administratif et social', 'folder', [['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']]]],
+    ['+', 'Administratif et social', 'folder', [['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']]], ['histoire', 'Notre histoire', 'star']],
 };
 /** Menu à plat (listes déroulantes dépliées) et groupe d'une rubrique. */
 /** Menu du compte connecté : sans les rubriques verrouillées (Droits d'accès réservé à l'administrateur). */
@@ -179,6 +180,7 @@ async function boot() {
   if (location.pathname === '/candidature') { suivreVisite('candidature'); return renderContact('candidat'); }
   const pe = location.pathname.match(/^\/etude\/(etablissements|interimaires|desinscription)$/);
   if (pe) return pe[1] === 'desinscription' ? renderDesinscription() : renderEtude(pe[1]);
+  if (location.pathname === '/histoire') return renderHistoire();
   try { S.me = await GET('/me'); } catch { S.me = null; }
   // Page de connexion : visite comptée si personne n'est connecté (les utilisateurs quotidiens ne faussent pas les chiffres).
   if (!S.me) suivreVisite('connexion');
@@ -204,6 +206,7 @@ function renderAuth() {
       <label class="f">Mot de passe<input type="password" name="password" autocomplete="current-password" required></label>
       <div class="err" role="alert" hidden></div><button class="btn primary" type="submit">Se connecter</button>
       <p class="small muted">Mot de passe oublié ? Demandez à votre agence de le réinitialiser.</p></form></div>
+      <a class="auth-contact auth-histoire" href="/histoire">${ic('star')}<span><b>Notre histoire</b> Nés à la réception, rodés à l'exigence du terrain</span>${ic('chev')}</a>
       <a class="auth-contact" href="/contact">${ic('building')}<span><b>Vous êtes un hôtel, un café ou un restaurant ?</b> Besoin de renforts : parlez-nous de vos besoins</span>${ic('chev')}</a>
       <a class="auth-contact" href="/candidature">${ic('idcard')}<span><b>Vous cherchez des missions en hôtellerie-restauration ?</b> Rejoignez nos intérimaires : déposez votre candidature</span>${ic('chev')}</a></div>`;
     return;
@@ -1206,6 +1209,34 @@ async function renderDesinscription() {
     <h1>Ne plus recevoir l'étude de marché</h1><p class="muted">Vous ne recevrez plus nos invitations ni nos rappels pour l'étude de marché.</p>
     <div class="err" role="alert" hidden></div>${btn('Confirmer la désinscription', 'ban', `data-a="desinscrire" data-j="${esc(j)}"`, 'primary')}</div></div>`;
 }
+/** « Notre histoire » : page publique (/histoire) et rubrique du menu de chaque espace. */
+function histoireHtml(connecte) {
+  const carte = (i, t, x) => `<div class="hist-carte">${ic(i)}<div><b>${t}</b><p>${x}</p></div></div>`;
+  return `<article class="histoire">
+    <header class="hist-tete"><span class="hist-sur">Notre histoire</span><h1>Nés à la réception, rodés à l'exigence du terrain</h1>
+      <p class="hist-chapo">CHR-INTERIM n'est pas née dans un bureau, mais au plus près de l'accueil et du service.</p></header>
+    <section class="hist-recit"><p>Mon aventure dans l'hôtellerie-restauration a débuté dès l'âge de 16 ans. C'est au comptoir de la réception que j'ai forgé mon métier : la gestion du desk, l'art du premier accueil, le téléphone qui ne s'arrête jamais, les arrivées tardives et la rigueur du suivi client.</p>
+      <p>Mais l'hôtellerie-restauration forme une seule et même grande famille : très vite, le terrain m'a amenée à prêter main-forte en salle lors des coups de feu, à enchaîner le renfort au petit-déjeuner ou au service du soir pour épauler mes équipes.</p>
+      <blockquote>Ce double regard — la précision de la réception combinée à l'agilité de la salle — m'a appris la valeur de chaque poste et l'exigence absolue d'un service réussi.</blockquote></section>
+    <section class="hist-bloc"><h2>Le constat : un secteur qui manque d'air et de souplesse</h2>
+      <p>Très tôt, un constat s'est imposé à moi : le secteur manque d'air et de souplesse. Que l'on soit au desk ou au plateau, la précarité du rythme et l'imprévu pèsent lourdement :</p>
+      <div class="hist-cartes">${carte('users', 'Côté employés', 'La difficulté à dénicher des missions d\'appoint sur-mesure, les coupures usantes ou la crainte de s\'engager à long terme sans tester la culture de l\'établissement.')}
+        ${carte('building', 'Côté employeurs', 'Le téléphone qui sonne à 22 h 00 pour trouver en urgence le réceptionniste du lendemain matin, ou la journée de 06 h 00 à 18 h 00 improvisée pour pallier un arrêt maladie imprévu en salle.')}</div></section>
+    <section class="hist-bloc hist-reponse"><h2>Une réponse concrète pour Clermont-Ferrand et ses alentours</h2>
+      <p class="hist-fort">CHR-INTERIM est créée pour apporter une solution humaine, réactive et fluide.</p>
+      <p>Sur le bassin clermontois, le marché privilégie souvent les engagements longs. C'est un obstacle pour ceux qui cherchent de la flexibilité, un complément de revenus ou un pied d'étrier. Notre rôle est de faire la jonction :</p>
+      <div class="hist-cartes">${carte('idcard', 'Pour les candidats', 'Trouver les missions qui s\'adaptent à vos disponibilités (réception, renfort en salle, polyvalence HCR) en toute sérénité.')}
+        ${carte('briefcase', 'Pour les établissements', 'Vous apporter des renforts ciblés, qualifiés et rapidement opérationnels pour préserver le souffle de vos équipes.')}</div></section>
+    ${connecte ? '' : `<nav class="hist-actions" aria-label="Nous rejoindre"><a class="btn primary" href="/candidature">${ic('idcard')}Je cherche des missions</a><a class="btn" href="/contact">${ic('building')}J'ai besoin de renforts</a><a class="btn ghost" href="/">${ic('lock')}Accéder à mon espace</a></nav>`}
+  </article>`;
+}
+function renderHistoire() {
+  $('#app').hidden = true; $('#auth').hidden = false;
+  document.title = 'Notre histoire · CHR Intérim';
+  $('#auth').innerHTML = `<div class="auth contact">${bandeauPublic('CHR Intérim')}<div class="auth-card contact-card hist-carte-page">${histoireHtml(false)}</div></div>`;
+  window.scrollTo(0, 0);
+}
+for (const prof of ['agence', 'client', 'interim']) V[prof].histoire = async () => `<section class="panel hist-panel">${histoireHtml(true)}</section>`;
 function etudeMerci() {
   return `<div style="text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center"><div class="merci-ic">${ic('check')}</div><h1>Merci pour vos réponses !</h1>
     <p class="muted">Elles sont enregistrées de façon anonyme et nous aideront à améliorer nos services en hôtellerie-restauration.</p><a class="btn" href="/">Retour à l'accueil</a></div>`;

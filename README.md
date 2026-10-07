@@ -27,6 +27,10 @@ Ouvrez ensuite http://localhost:3000.
 
 ## Fonctionnement
 
+### Notre histoire
+
+Page « Notre histoire » (« Nés à la réception, rodés à l'exigence du terrain ») : accessible sans compte depuis l'écran de connexion (`/histoire`, avec les liens vers la candidature, la demande de renforts et l'espace personnel) et, une fois connecté, depuis le menu de chaque espace (dernière rubrique). Le texte se modifie dans `public/app.js`, fonction `histoireHtml`.
+
 ### Menu de chaque espace
 
 Le tableau de bord, le planning et les missions en accès direct, puis les autres rubriques en listes déroulantes. **Une seule liste est ouverte à la fois** : en ouvrir une ferme la précédente. La liste de la page affichée s'ouvre seule, la dernière ouverte est mémorisée sur l'appareil, et un badge résume les éléments à traiter quand une liste est fermée. Le logo ramène au tableau de bord.

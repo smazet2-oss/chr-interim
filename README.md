@@ -118,6 +118,8 @@ Le contrat reprend le modèle HCR (IDCC 1979) en 9 articles : parties, motif de 
 - **Page publique** `/candidature`, deuxième onglet de la page de contact (« Je cherche des missions ») et lien depuis la page de connexion : identité, autorisation de travail, postes recherchés, expérience et formations, disponibilités, mobilité et tenue, attentes (taux souhaité, canal préféré), CV facultatif (PDF, Word ou photo, 5 Mo, contenu vérifié) et accord de conservation. L'agence reçoit un e-mail d'alerte.
 - **Espace agence › Candidatures** : réponses complètes, CV, statut (nouvelle, à rappeler, entretien, inscrit, sans suite), date de rappel, notes, création de la fiche intérimaire en un clic et suppression (CV compris) à la demande de la personne. Les candidatures nouvelles ou à rappeler apparaissent dans le tableau de bord.
 
+**Champs obligatoires** de la page `/candidature` : nom, prénom, téléphone, ville, **situation actuelle** (étudiant(e), salarié(e), sans emploi / demandeur d'emploi, retraité(e) ou autre, à préciser) et **CV** (PDF, Word ou photo, 5 Mo maximum, contenu vérifié). La situation figure dans la liste des candidatures, dans le profil et dans l'étude de marché des intérimaires.
+
 **Profils et CV** : un clic sur un candidat (liste des candidatures ou tableau de bord) ouvre son profil complet. Le CV joint s'affiche directement dans la fenêtre (PDF et photos), avec « Ouvrir le CV » dans un nouvel onglet et « Télécharger » (les fichiers Word se téléchargent). Un bouton « Voir le CV » figure aussi dans la liste, au tableau de bord et, après l'inscription, sur la fiche de l'intérimaire. Le CV n'est accessible qu'à l'agence.
 
 ### Annulations, désistements et indisponibilités

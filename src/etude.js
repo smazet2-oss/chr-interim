@@ -43,7 +43,7 @@ const CIBLES = {
   },
   interimaire: {
     nom: 'Intérimaires', public: 'interimaires', premiere: 'type_mission',
-    questionnaire: extraire(candidats.QUESTIONNAIRE, ['postes', 'poste_principal', 'experience', 'formations', 'creneaux', 'type_mission', 'prevenance', 'vehicule', 'transport',
+    questionnaire: extraire(candidats.QUESTIONNAIRE, ['situation', 'postes', 'poste_principal', 'experience', 'formations', 'creneaux', 'type_mission', 'prevenance', 'vehicule', 'transport',
       'rayon', 'tenue', 'taux_souhaite', 'priorites', 'canal']),
     sujet: a => `Étude ${a} : vos attentes pour vos missions (5 minutes)`,
     texte: (a, nom) => `Bonjour${nom ? ' ' + nom : ''},\n\n${P.get('raison_sociale')} réalise son étude ${a} auprès des professionnels de l'hôtellerie-restauration pour mieux connaître vos attentes : type de missions, disponibilités, déplacements, rémunération.\n\nLe questionnaire est anonyme et prend environ 5 minutes. Commencez par cocher la réponse qui vous correspond ci-dessous.\n\nMerci pour votre participation !`,

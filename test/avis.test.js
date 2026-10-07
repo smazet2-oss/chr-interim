@@ -35,8 +35,8 @@ const agence = async () => AG || (AG = await connecte('admin', 'Admin-Temp1', 'A
 
 test('candidatures : accepter (rendez-vous sous 48 h) ou refuser, par e-mail', async () => {
   const ag = await agence(), pub = agent();
-  const fd = champs => { const f = new FormData(); for (const [k, v] of Object.entries(champs)) f.append(k, v); return f; };
-  const postuler = async c => (await fetch(base + '/public/candidature', { method: 'POST', headers: { 'X-CHR': '1' }, body: fd({ consentement: '1', ville: 'Lyon', ...c }) })).status;
+  const fd = champs => { const f = new FormData(); for (const [k, v] of Object.entries(champs)) f.append(k, v); f.append('cv', new Blob(['%PDF-1.4 cv'], { type: 'application/pdf' }), 'cv.pdf'); return f; };
+  const postuler = async c => (await fetch(base + '/public/candidature', { method: 'POST', headers: { 'X-CHR': '1' }, body: fd({ consentement: '1', ville: 'Lyon', situation: 'Étudiant(e)', ...c }) })).status;
   assert.equal(await postuler({ prenom: 'Nora', nom: 'Bel', telephone: '0600000001', email: 'nora@exemple.fr', poste_principal: 'Serveur', postes: 'Serveur', vehicule: 'oui' }), 201);
   assert.equal(await postuler({ prenom: 'Paul', nom: 'Roy', telephone: '0600000002' }), 201);
   void pub;

@@ -36,6 +36,9 @@ const QUESTIONNAIRE = [
     { k: 'date_naissance', l: 'Date de naissance', type: 'date' },
     { k: 'autorisation', l: 'Autorisation de travailler en France', type: 'radio', options: ['Nationalité française ou européenne', 'Titre de séjour autorisant à travailler', 'Démarches en cours'] },
   ] },
+  { titre: 'Votre situation actuelle', champs: [
+    { k: 'situation', l: 'Quelle est votre situation actuelle ?', type: 'radio', req: true, autre: true, options: ['Étudiant(e)', 'Salarié(e)', 'Sans emploi / demandeur d\'emploi', 'Retraité(e)'] },
+  ] },
   { titre: 'Les postes que vous recherchez', champs: [
     { k: 'postes', l: 'Postes recherchés', type: 'checks', autre: true, options: Object.keys(POSTES) },
     { k: 'poste_principal', l: 'Votre poste principal', type: 'select', from: 'postes' },
@@ -82,6 +85,7 @@ function publiques(api, h) {
     if (!b.consentement) fail(400, 'Merci d\'accepter la conservation de vos informations pour que l\'agence vous recontacte.');
     const r = nettoyer(b, fail, CHAMPS);
     for (const k of ['date_naissance', 'disponible_le']) if (r[k] && !isDate(r[k])) fail(400, 'Date invalide.');
+    if (!req.file) fail(400, 'Joignez votre CV (PDF, Word ou photo, 5 Mo maximum) : il est obligatoire pour étudier votre candidature.');
     let fichier = null;
     if (req.file) {
       const f = FORMATS[req.file.mimetype];

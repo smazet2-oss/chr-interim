@@ -118,7 +118,7 @@ tx(() => {
 
   // Candidatures reçues par la page publique.
   run('INSERT INTO candidats (prenom, nom, telephone, email, ville, poste, reponses, statut) VALUES (?,?,?,?,?,?,?,\'nouveau\')', 'Inès', 'Moreau', '06 22 33 44 55', 'ines.moreau@exemple.fr', 'Lyon 3e', 'Serveur',
-    JSON.stringify({ postes: ['Serveur', 'Chef de rang'], poste_principal: 'Serveur', experience: '1 à 3 ans', formations: ['Formation hygiène HACCP'], creneaux: ['Le soir', 'Le week-end'], type_mission: 'Extras ponctuels', prevenance: 'Sous 24 à 48 h', transport: ['Transports en commun'], rayon: '10 à 25 km', tenue: 'Oui, complète', canal: 'WhatsApp', autorisation: 'Nationalité française ou européenne' }));
+    JSON.stringify({ situation: 'Étudiant(e)', postes: ['Serveur', 'Chef de rang'], poste_principal: 'Serveur', experience: '1 à 3 ans', formations: ['Formation hygiène HACCP'], creneaux: ['Le soir', 'Le week-end'], type_mission: 'Extras ponctuels', prevenance: 'Sous 24 à 48 h', transport: ['Transports en commun'], rayon: '10 à 25 km', tenue: 'Oui, complète', canal: 'WhatsApp', autorisation: 'Nationalité française ou européenne' }));
   // CV de démonstration (PDF d'une page) joint à la candidature d'Inès
   {
     const lignes = ['Ines MOREAU - Serveuse / Chef de rang', 'Lyon 3e - 06 22 33 44 55 - ines.moreau@exemple.fr', '', 'EXPERIENCE', '2023-2026  Serveuse, Brasserie des Celestins, Lyon 2e', '2022-2023  Commis de salle, Hotel du Parc, Lyon 6e', '', 'FORMATION', 'Formation hygiene HACCP (2022)', 'Bac pro Commercialisation et services en restauration', '', 'DISPONIBILITES', 'Le soir et le week-end - vehiculee'];
@@ -135,7 +135,7 @@ tx(() => {
     run('UPDATE candidats SET cv_fichier = ?, cv_nom = ? WHERE prenom = ? AND nom = ?', fichier, 'CV Ines Moreau.pdf', 'Inès', 'Moreau');
   }
   run('INSERT INTO candidats (prenom, nom, telephone, ville, poste, reponses, statut, date_relance) VALUES (?,?,?,?,?,?,\'a_rappeler\',?)', 'Karim', 'Haddad', '06 33 44 55 66', 'Villeurbanne', 'Cuisinier',
-    JSON.stringify({ postes: ['Cuisinier', 'Chef de partie'], poste_principal: 'Cuisinier', experience: 'Plus de 3 ans', formations: ['CAP / BEP cuisine ou service'], creneaux: ['En semaine', 'Le soir'], type_mission: 'Missions régulières', canal: 'SMS' }), jour(0));
+    JSON.stringify({ situation: 'Sans emploi / demandeur d\'emploi', postes: ['Cuisinier', 'Chef de partie'], poste_principal: 'Cuisinier', experience: 'Plus de 3 ans', formations: ['CAP / BEP cuisine ou service'], creneaux: ['En semaine', 'Le soir'], type_mission: 'Missions régulières', canal: 'SMS' }), jour(0));
 
   // Prospects : une demande reçue par le site, une visite terrain à relancer aujourd'hui.
   run(`INSERT INTO prospects (source, etablissement, adresse, repondant, telephone, email, type_etab, reponses, accord, statut) VALUES ('site',?,?,?,?,?,?,?, 'en_ligne', 'nouveau')`,
@@ -176,7 +176,7 @@ tx(() => {
       services: [pick(['Garantie de remplacement sous 2 heures', 'Profils évalués et équipés (tenue HCR)', 'Gestion 100 % dématérialisée (smartphone)'], k)],
       prix_serveur: 22 + (k % 5), prix_cuisinier: 25 + (k % 6), coefficient: pick(['Entre 1,95 et 2,10', 'Moins de 1,95', 'Entre 2,10 et 2,25'], k), vehicule: k % 4 === 0 || undefined }));
     for (let k = 0; k < 11; k++) run('INSERT INTO etude_reponses (annee, cible, rid, source, reponses, complet) VALUES (?,?,?,?,?,1)', an, 'interimaire', rid(), k % 2 ? 'mail' : 'site', JSON.stringify({
-      postes: [pick(['Serveur', 'Commis de cuisine', 'Plongeur', 'Barman', 'Cuisinier'], k)], experience: pick(['1 à 3 ans', 'Plus de 3 ans', 'Moins d\'un an', 'Débutant(e)'], k),
+      situation: pick(['Étudiant(e)', 'Salarié(e)', 'Sans emploi / demandeur d\'emploi', 'Étudiant(e)', 'Retraité(e)'], k), postes: [pick(['Serveur', 'Commis de cuisine', 'Plongeur', 'Barman', 'Cuisinier'], k)], experience: pick(['1 à 3 ans', 'Plus de 3 ans', 'Moins d\'un an', 'Débutant(e)'], k),
       creneaux: ['Le soir', pick(['Le week-end', 'En semaine', 'La nuit'], k)], type_mission: pick(['Extras ponctuels', 'Missions régulières', 'Tout type de mission', 'Saison complète'], k),
       prevenance: pick(['Sous 24 à 48 h', 'Le jour même', 'Avec une semaine de prévenance'], k), rayon: pick(['10 à 25 km', 'Moins de 10 km', 'Plus de 25 km'], k),
       taux_souhaite: 12 + (k % 4) * 0.5, priorites: [pick(['Paiement rapide', 'Planning flexible', 'Missions proches de chez moi', 'Évoluer vers un CDI'], k)], canal: pick(['WhatsApp', 'SMS', 'E-mail'], k), vehicule: k % 3 === 0 || undefined }));

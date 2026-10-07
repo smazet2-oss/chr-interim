@@ -121,16 +121,22 @@ test('candidatures : page publique avec CV, suivi et inscription', async () => {
   };
   const pub = agent();
   assert.ok((await pub.get('/public/candidature')).data.questionnaire.length >= 4);
-  const c = { prenom: 'Sarah', nom: 'Lopez', telephone: '0655443322', ville: 'Lyon 7e', postes: ['Serveur', 'Barman'], poste_principal: 'Barman', experience: 'Moins d\'un an', creneaux: ['Le soir', 'Le week-end'] };
+  const c = { prenom: 'Sarah', nom: 'Lopez', telephone: '0655443322', ville: 'Lyon 7e', postes: ['Serveur', 'Barman'], poste_principal: 'Barman', experience: 'Moins d\'un an', creneaux: ['Le soir', 'Le week-end'], situation: 'Autre', situation_autre: 'Intermittente du spectacle' };
   assert.equal((await envoi(c)).status, 400, 'consentement obligatoire');
   assert.equal((await envoi({ ...c, consentement: '1' }, { contenu: 'MZ exécutable', type: 'application/pdf', nom: 'cv.pdf' })).status, 400, 'faux PDF refusé');
-  assert.equal((await envoi({ ...c, consentement: '1', ville: '' })).status, 400, 'ville obligatoire');
+  const pdf = { contenu: '%PDF-1.4 cv', type: 'application/pdf', nom: 'CV Sarah.pdf' };
+  assert.equal((await envoi({ ...c, consentement: '1', ville: '' }, pdf)).status, 400, 'ville obligatoire');
+  const sansCv = await envoi({ ...c, consentement: '1' });
+  assert.equal(sansCv.status, 400, 'CV obligatoire'); assert.match(sansCv.data.error, /CV/);
+  const { situation, situation_autre, ...sansSituation } = c; void situation; void situation_autre;
+  assert.equal((await envoi({ ...sansSituation, consentement: '1' }, pdf)).status, 400, 'situation obligatoire');
+  assert.equal((await envoi({ ...c, consentement: '1', situation: 'Rentier' }, pdf)).status, 400, 'situation inconnue refusée');
   assert.equal((await envoi({ ...c, consentement: '1' }, { contenu: '%PDF-1.4 cv', type: 'application/pdf', nom: 'CV Sarah.pdf' })).status, 201);
   assert.equal((await pub.get('/candidats')).status, 401);
 
   const ag = await agence();
   const L = (await ag.get('/candidats')).data;
-  assert.equal(L.length, 1); assert.equal(L[0].poste, 'Barman'); assert.deepEqual(L[0].reponses.creneaux, ['Le soir', 'Le week-end']);
+  assert.equal(L.length, 1); assert.equal(L[0].poste, 'Barman'); assert.equal(L[0].reponses.situation, 'Autre'); assert.equal(L[0].reponses.situation_autre, 'Intermittente du spectacle'); assert.deepEqual(L[0].reponses.creneaux, ['Le soir', 'Le week-end']);
   const cv = await fetch(`${base}/candidats/${L[0].id}/cv`, { headers: { Cookie: '' } });
   assert.equal(cv.status, 401, 'CV réservé à l\'agence');
   assert.equal((await ag.put(`/candidats/${L[0].id}`, { statut: 'entretien', date_relance: plusJours(1) })).data.statut, 'entretien');

@@ -1123,7 +1123,7 @@ function questionnaireHtml(Q) {
     const skip = c.skip ? ' data-skip' : '', id = 'q-' + c.k;
     if (c.type === 'radio' || c.type === 'checks') {
       const t = c.type === 'radio' ? 'radio' : 'checkbox', opts = [...c.options, ...(c.autre ? ['Autre'] : [])];
-      return `<fieldset class="q full"${skip}><legend>${esc(c.l)}${c.type === 'checks' ? ' <span class="small muted">(plusieurs choix possibles)</span>' : ''}</legend>
+      return `<fieldset class="q full"${skip}><legend>${esc(c.l)}${c.req ? ' <span class="req">*</span>' : ''}${c.type === 'checks' ? ' <span class="small muted">(plusieurs choix possibles)</span>' : ''}</legend>
         <div class="choix">${opts.map(o => `<label><input type="${t}" name="${c.k}" value="${esc(o)}"><span>${esc(o)}</span></label>`).join('')}</div>
         ${c.autre ? `<input type="text" name="${c.k}_autre" maxlength="200" placeholder="Précisez" hidden>` : ''}</fieldset>`;
     }
@@ -1155,7 +1155,7 @@ async function renderContact(onglet) {
   const a = d.agence, joindre = [a.telephone && `<a class="link" href="tel:${esc(a.telephone.replace(/\s/g, ''))}">${esc(a.telephone)}</a>`, a.email && `<a class="link" href="mailto:${esc(a.email)}">${esc(a.email)}</a>`].filter(Boolean).join(' · ');
   const onglets = `<div class="contact-tabs" role="tablist"><button type="button" role="tab" aria-selected="${!cand}" data-a="contactonglet" data-o="etablissement">${ic('building')}Je suis un établissement</button><button type="button" role="tab" aria-selected="${cand}" data-a="contactonglet" data-o="candidat">${ic('idcard')}Je cherche des missions</button></div>`;
   const intro = cand
-    ? `<h1>Rejoignez nos intérimaires</h1><p class="muted" style="margin-top:6px">Serveur, cuisinier, plongeur, barman, réceptionniste, femme de chambre… Trouvez des missions dans les hôtels, cafés et restaurants près de chez vous, au taux horaire de la convention HCR. <b>5 minutes</b> : seuls votre nom, votre téléphone et votre ville sont obligatoires.</p>`
+    ? `<h1>Rejoignez nos intérimaires</h1><p class="muted" style="margin-top:6px">Serveur, cuisinier, plongeur, barman, réceptionniste, femme de chambre… Trouvez des missions dans les hôtels, cafés et restaurants près de chez vous, au taux horaire de la convention HCR. <b>5 minutes</b> : votre nom, votre téléphone, votre ville, votre situation actuelle et votre CV sont obligatoires.</p>`
     : `<h1>Besoin de renforts ?</h1><p class="muted" style="margin-top:6px">Hôtels, cafés, restaurants, traiteurs : parlez-nous de votre établissement et de vos besoins en extras. Nous vous recontactons rapidement avec des profils qualifiés. <b>5 minutes</b>, seul le nom de l'établissement, le vôtre et un moyen de vous joindre sont obligatoires.</p>`;
   const consent = cand
     ? `J'accepte que mes informations et mon CV soient conservés par ${esc(a.nom)} pour me proposer des missions. Je peux à tout moment demander leur modification ou leur suppression${a.email ? ` à ${esc(a.email)}` : ''}.`
@@ -1164,7 +1164,7 @@ async function renderContact(onglet) {
     <div class="auth-card contact-card">${onglets}
       <div>${intro}${joindre ? `<p class="small" style="margin-top:8px">${cand ? 'Une question ? Appelez-nous' : 'Une urgence ? Appelez-nous'} : ${joindre}</p>` : ''}</div>
       <form data-f="${cand ? 'candidature' : 'contact'}" novalidate>${questionnaireHtml(cand ? q.questionnaire : d.questionnaire)}
-        ${cand ? `<section class="q-sec"><h2>Votre CV</h2><label class="f">CV (facultatif : PDF, Word ou photo, 5 Mo maximum)<input type="file" name="cv" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"></label></section>` : ''}
+        ${cand ? `<section class="q-sec"><h2>Votre CV</h2><label class="f"><span>Votre CV <span class="req">*</span> <span class="small muted">(obligatoire : PDF, Word ou photo, 5 Mo maximum)</span></span><input type="file" name="cv" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png" required></label></section>` : ''}
         <input type="text" name="site_web" tabindex="-1" autocomplete="off" class="piege" aria-hidden="true">
         <label class="check consent"><input type="checkbox" name="consentement" value="1" required> ${consent}</label>
         <div class="err" role="alert" hidden></div>
@@ -1273,7 +1273,7 @@ V.agence.candidats = async () => {
     `<div class="kpis">${kpi('Candidatures actives', 'idcard', L.filter(x => !['inscrit', 'refuse'].includes(x.statut)).length)}${kpi('À rappeler aujourd\'hui', 'clock', dus, dus ? 'Rappels en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Nouvelles', 'send', L.filter(x => x.statut === 'nouveau').length)}${kpi('Inscrits', 'users', L.filter(x => x.statut === 'inscrit').length)}</div>` +
     panel(null, `<div class="seg" data-titre="Statut">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_rappeler', 'À rappeler'], ['entretien', 'Rendez-vous'], ['actifs', 'En cours'], ['inscrit', 'Inscrits'], ['refuse', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
       vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0" title="Voir le profil"><td><b class="lien-profil">${esc(x.prenom)} ${esc(x.nom)}</b>${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div></td>
+      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0" title="Voir le profil"><td><b class="lien-profil">${esc(x.prenom)} ${esc(x.nom)}</b>${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div>${x.reponses.situation ? `<div class="small">${esc(x.reponses.situation === 'Autre' && x.reponses.situation_autre ? x.reponses.situation_autre : x.reponses.situation)}</div>` : ''}</td>
         <td class="small"><b>${esc(x.poste || '—')}</b>${x.reponses.experience ? `<div class="muted">${esc(x.reponses.experience)}</div>` : ''}</td>
         <td class="small">${esc((x.reponses.creneaux || []).join(', ') || '—')}${x.reponses.type_mission ? `<div class="muted">${esc(x.reponses.type_mission)}</div>` : ''}</td>
         <td>${fdate(x.created_at.slice(0, 10), 'num')}${x.cv_fichier ? `<div>${btn('Voir le CV', 'file', `data-a="cvvoir" data-id="${x.id}" title="${esc(x.cv_nom || 'CV')}"`, 'sm ghost cv-lien')}</div>` : ''}</td>
@@ -2037,6 +2037,7 @@ const F = {
   candidature: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;
     for (const [k, v] of [...fd]) if (v === '' || (v instanceof File && !v.size)) fd.delete(k);
+    if (!fd.get('cv')) { err.textContent = 'Joignez votre CV (PDF, Word ou photo, 5 Mo maximum) : il est obligatoire.'; err.hidden = false; f.querySelector('input[name="cv"]').scrollIntoView({ block: 'center' }); return; }
     if (jetonVisite('candidature')) fd.set('visite', jetonVisite('candidature'));
     try { await POST('/public/candidature', fd); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'center' }); return; }
     f.closest('.contact-card').innerHTML = contactMerci();

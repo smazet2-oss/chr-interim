@@ -36,7 +36,7 @@ const agence = async () => AG || (AG = await connecte('admin', 'Admin-Temp1', 'A
 test('CV de candidature : aperçu dans l\'application, téléchargement, accès depuis la fiche intérimaire', async () => {
   const ag = await agence();
   const f = new FormData();
-  for (const [k, v] of Object.entries({ consentement: '1', prenom: 'Lina', nom: 'Faure', telephone: '0600000077', ville: 'Lyon', poste_principal: 'Serveur', postes: 'Serveur' })) f.append(k, v);
+  for (const [k, v] of Object.entries({ consentement: '1', prenom: 'Lina', nom: 'Faure', telephone: '0600000077', ville: 'Lyon', situation: 'Salarié(e)', poste_principal: 'Serveur', postes: 'Serveur' })) f.append(k, v);
   f.append('cv', new Blob(['%PDF-1.4\n%test\n'], { type: 'application/pdf' }), 'CV Lina.pdf');
   assert.equal((await fetch(base + '/public/candidature', { method: 'POST', headers: { 'X-CHR': '1' }, body: f })).status, 201);
   const c = (await ag.get('/candidats')).data.find(x => x.nom === 'Faure');

@@ -62,7 +62,7 @@ const GROUPES = [
   { id: 'facturation', titre: 'Facturation', aide: 'Utilisé pour générer et imprimer les factures clients.', champs: [
     { k: 'facture_prefixe', l: 'Préfixe des numéros de facture', def: 'F', motif: '^[A-Z0-9-]{1,8}$', aide: 'Exemple : F donne F-2026-0001' },
     { k: 'tva_taux', l: 'Taux de TVA (%)', type: 'number', def: '20', min: 0, max: 30 },
-    { k: 'coefficient_minimum', l: 'Coefficient de facturation par défaut et minimum', type: 'number', def: '1.45', min: 1, max: 5, aide: 'Appliqué à chaque entreprise tant qu\'aucun contrat n\'est signé. Un contrat ne peut fixer qu\'un coefficient égal ou supérieur.' },
+    { k: 'coefficient_minimum', l: 'Coefficient de facturation par défaut et minimum', type: 'number', def: '1.90', min: 1, max: 5, aide: 'Appliqué à chaque entreprise tant qu\'aucun contrat n\'est signé. Un contrat ne peut fixer qu\'un coefficient égal ou supérieur.' },
     { k: 'delai_paiement_defaut', l: 'Délai de paiement par défaut (jours)', type: 'number', def: '15', min: 0, max: 60, aide: 'Appliqué aux nouveaux clients. Maximum légal : 60 jours.' },
     { k: 'penalites', l: 'Pénalités de retard', def: 'taux d\'intérêt appliqué par la BCE majoré de 10 points', aide: 'Au moins trois fois le taux d\'intérêt légal (article L441-10 du Code de commerce).' },
     { k: 'iban', l: 'IBAN', motif: '^[A-Z]{2}\\d{2}[ A-Z0-9]{10,32}$' },

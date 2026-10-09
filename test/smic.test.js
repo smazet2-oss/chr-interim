@@ -57,3 +57,21 @@ test('SMIC 12,31 € au 1er juin 2026 : paramètres, intérimaires, missions à 
   const cfg = (await ag.get('/config')).data;
   assert.equal(cfg.smic, 12.31); assert.equal(cfg.taux_postes['Plongeur'], 12.31); assert.equal(cfg.taux_postes['Serveur'], 12.31);
 });
+
+test('coefficient par défaut 1,90 : paramètre, entreprises sans contrat relevées, contrats signés conservés', async () => {
+  run('DELETE FROM parametres WHERE cle = \'migration_coefficient_190\'');
+  run('INSERT INTO parametres (cle, valeur) VALUES (\'coefficient_minimum\', \'1.45\') ON CONFLICT(cle) DO UPDATE SET valeur = excluded.valeur');
+  const sans = run('INSERT INTO clients (nom, coefficient) VALUES (\'Sans contrat\', 1.45)').lastInsertRowid;
+  const haut = run('INSERT INTO clients (nom, coefficient) VALUES (\'Déjà haut\', 2.2)').lastInsertRowid;
+  const avec = run('INSERT INTO clients (nom, coefficient) VALUES (\'Avec contrat\', 1.6)').lastInsertRowid;
+  run('INSERT INTO contrats_clients (numero, client_id, coefficient, delai_paiement, date_effet, statut) VALUES (\'CC-T1\', ?, 1.6, 30, \'2026-01-01\', \'signe\')', avec);
+  const M = require('../src/migrations'), b = M.coefficient190();
+  assert.equal(M.coefficient190(), null, 'une seule fois');
+  assert.equal(require('../src/parametres').get('coefficient_minimum'), '1.90');
+  assert.equal(one('SELECT coefficient c FROM clients WHERE id = ?', sans).c, 1.9);
+  assert.equal(one('SELECT coefficient c FROM clients WHERE id = ?', haut).c, 2.2);
+  assert.equal(one('SELECT coefficient c FROM clients WHERE id = ?', avec).c, 1.6, 'contrat signé conservé');
+  assert.equal(b.contrats, 1);
+  assert.match(one('SELECT message FROM notifications WHERE message LIKE \'%gardent le coefficient%\'').message, /Avec contrat 1,60/);
+  assert.equal((await (await agence()).get('/config')).data.coefficient_minimum, 1.9);
+});

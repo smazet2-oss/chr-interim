@@ -172,7 +172,7 @@ function agence(api, h) {
     const t = String(p.type_etab || ''), secteur = /h[ôo]tel/i.test(t) ? 'Hôtellerie' : /bar|pub/i.test(t) ? 'Bar' : 'Restauration';
     const [ville] = String(p.adresse || '').split(',').reverse().map(x => x.trim());
     const r = run('INSERT INTO clients (nom, adresse, ville, contact, email, telephone, secteur, coefficient, delai_paiement) VALUES (?,?,?,?,?,?,?,?,?)',
-      p.etablissement, p.adresse, ville || null, p.repondant, p.email, p.telephone, secteur, P.num('coefficient_minimum', 1.45), P.num('delai_paiement_defaut', 15));
+      p.etablissement, p.adresse, ville || null, p.repondant, p.email, p.telephone, secteur, P.num('coefficient_minimum', 1.9), P.num('delai_paiement_defaut', 15));
     run('UPDATE prospects SET statut = \'client\', client_id = ?, updated_at = datetime(\'now\') WHERE id = ?', r.lastInsertRowid, p.id);
     res.status(201).json({ client_id: Number(r.lastInsertRowid) });
   }));

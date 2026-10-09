@@ -103,16 +103,16 @@ test('convention HCR : jours fériés, majorations et taux par poste', async () 
 test('contrat commercial : coefficient par défaut, signature, calcul automatique', async () => {
   const ag = await agence();
   const c = (await ag.post('/clients', { nom: 'Hôtel Contrat' })).data;
-  assert.equal(c.coefficient, 1.45);
-  assert.equal((await ag.post('/clients', { nom: 'Trop bas', coefficient: 1.3 })).status, 400);
-  assert.equal((await ag.put(`/clients/${c.id}`, { coefficient: 1.6 })).status, 200, 'à la hausse sans contrat');
+  assert.equal(c.coefficient, 1.9);
+  assert.equal((await ag.post('/clients', { nom: 'Trop bas', coefficient: 1.6 })).status, 400, 'sous le minimum de 1,90');
+  assert.equal((await ag.put(`/clients/${c.id}`, { coefficient: 2 })).status, 200, 'à la hausse sans contrat');
   const ca = (await ag.post('/acces', { type: 'client', id: c.id })).data;
   const CL = await connecte(ca.username, ca.password, 'Hotel2026X');
 
   assert.equal((await ag.post('/contrats-clients', { client_id: c.id, coefficient: 1.2, delai_paiement: 30 })).status, 400);
   const k = (await ag.post('/contrats-clients', { client_id: c.id, coefficient: '1,9', delai_paiement: 30, conditions: 'Tenue fournie par le client.' })).data;
   assert.equal(k.statut, 'a_signer'); assert.equal(k.coefficient, 1.9);
-  assert.equal((await CL.get('/clients')).data[0].coefficient, 1.6, 'pas encore signé');
+  assert.equal((await CL.get('/clients')).data[0].coefficient, 2, 'pas encore signé');
   const vu = (await CL.get('/contrats-clients')).data;
   assert.equal(vu.contrats.length, 1);
   assert.equal((await CL.get(`/contrats-clients/${k.id}/document`)).status, 200);

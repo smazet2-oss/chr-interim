@@ -103,7 +103,7 @@ test('prospects : page publique et visite terrain', async () => {
   // Conversion en client : coefficient par défaut
   const cid = (await ag.post(`/prospects/${v.id}/client`)).data.client_id;
   const cli = (await ag.get('/clients')).data.find(x => x.id === cid);
-  assert.equal(cli.nom, 'Hôtel du Parc'); assert.equal(cli.coefficient, 1.45); assert.equal(cli.secteur, 'Hôtellerie');
+  assert.equal(cli.nom, 'Hôtel du Parc'); assert.equal(cli.coefficient, 1.9); assert.equal(cli.secteur, 'Hôtellerie');
   assert.equal((await ag.post(`/prospects/${v.id}/client`)).status, 409);
   // Suppression (RGPD)
   assert.equal((await ag.del(`/prospects/${L[0].id}`)).status, 200);

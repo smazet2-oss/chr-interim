@@ -995,6 +995,8 @@ if (require.main === module) {
   // Mise à jour unique : SMIC au 1er juin 2026 et grille HCR (avenant n° 33)
   const smic = require('./migrations').smicJuin2026(today());
   if (smic) console.log('Mise à jour SMIC 2026 :', JSON.stringify(smic));
+  const coef = require('./migrations').coefficient190();
+  if (coef) console.log('Coefficient par défaut 1,90 :', JSON.stringify(coef));
   relances.demarrer();
   etude.demarrer();
 }

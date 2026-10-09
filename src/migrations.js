@@ -34,4 +34,22 @@ function smicJuin2026(aujourdhui) {
   return bilan;
 }
 
-module.exports = { smicJuin2026 };
+/** Coefficient de facturation par défaut et minimum porté à 1,90 : paramètre et entreprises sans contrat signé.
+ *  Les contrats commerciaux déjà signés sous 1,90 restent valables : l'agence est prévenue pour les renégocier. */
+function coefficient190() {
+  if (fait('migration_coefficient_190')) return null;
+  const MIN = 1.9, bilan = { clients: 0, contrats: 0 };
+  tx(() => {
+    const p = one('SELECT valeur FROM parametres WHERE cle = \'coefficient_minimum\'');
+    if (p && Number(p.valeur) < MIN) run('UPDATE parametres SET valeur = \'1.90\', updated_at = datetime(\'now\') WHERE cle = \'coefficient_minimum\'');
+    bilan.clients = Number(run(`UPDATE clients SET coefficient = ? WHERE coefficient < ? AND id NOT IN (SELECT client_id FROM contrats_clients WHERE statut = 'signe')`, MIN, MIN).changes);
+    const L = all(`SELECT c.nom, c.coefficient FROM clients c WHERE c.coefficient < ? AND c.id IN (SELECT client_id FROM contrats_clients WHERE statut = 'signe') ORDER BY c.nom`, MIN);
+    bilan.contrats = L.length;
+    if (bilan.clients) run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', `Coefficient par défaut porté à 1,90 : ${bilan.clients} entreprise(s) sans contrat signé passent à 1,90.`);
+    if (L.length) run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', `Coefficient par défaut 1,90 : ${L.length} entreprise(s) gardent le coefficient de leur contrat signé (${L.slice(0, 5).map(x => `${x.nom} ${fr(x.coefficient)}`).join(', ')}). Établissez un nouveau contrat pour le relever.`);
+    marquer('migration_coefficient_190');
+  });
+  return bilan;
+}
+
+module.exports = { smicJuin2026, coefficient190 };

@@ -1,6 +1,6 @@
 'use strict';
 // Contrat commercial entre l'agence et une entreprise cliente : coefficient de facturation et délai de paiement.
-// Sans contrat signé, l'entreprise a le coefficient par défaut (Paramètres › Facturation, 1,45).
+// Sans contrat signé, l'entreprise a le coefficient par défaut (Paramètres › Facturation, 1,90).
 // Dès la signature, le coefficient et le délai du contrat deviennent ceux de l'entreprise et servent à tous les calculs.
 const { db, one, all, run, tx } = require('./db');
 const P = require('./parametres');
@@ -18,7 +18,7 @@ db.exec(`CREATE TABLE IF NOT EXISTS contrats_clients (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 )`);
 
-const coefMin = () => P.num('coefficient_minimum', 1.45);
+const coefMin = () => P.num('coefficient_minimum', 1.9);
 const contratSigne = cid => one('SELECT * FROM contrats_clients WHERE client_id = ? AND statut = \'signe\' ORDER BY id DESC LIMIT 1', cid);
 
 /** Une fois : les entreprises sans contrat signé restées sur l'ancien coefficient par défaut (2) passent au coefficient par défaut. */

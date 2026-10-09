@@ -67,7 +67,7 @@ test('paramètres de l\'agence', async () => {
 
   // Réservé à l'agence
   const c = (await ag.post('/clients', { nom: 'Brasserie Param', ville: 'Lyon' })).data;
-  assert.equal(c.coefficient, 1.45, 'coefficient par défaut');
+  assert.equal(c.coefficient, 1.9, 'coefficient par défaut');
   assert.equal(c.delai_paiement, 15);
   const acc = (await ag.post('/acces', { type: 'client', id: c.id })).data;
   const cl = await connecte(acc.username, acc.password, 'Client2026');
@@ -100,8 +100,8 @@ test('paramètres de l\'agence', async () => {
   const g = (await ag.post('/factures/generer', { debut: plusJours(-10), fin: plusJours(0) })).data;
   assert.match(g.creees[0], /^CHR-\d{4}-0001$/);
   const f = (await cl.get('/factures')).data[0];
-  assert.equal(f.montant_ht, 72.5); // 4 h × 12,50 € × coefficient par défaut 1,45
-  assert.equal(f.montant_ttc, 87);
+  assert.equal(f.montant_ht, 95); // 4 h × 12,50 € × coefficient par défaut 1,90
+  assert.equal(f.montant_ttc, 114);
   const fd = await cl.get(`/factures/${f.id}/document`);
   assert.equal(fd.status, 200);
   assert.match(fd.data, /FR76 3000 6000 0112 3456 7890 189/);

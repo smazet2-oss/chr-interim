@@ -788,7 +788,7 @@ V.agence.clients = async () => {
 const CC_ETAT = { a_signer: ['attente', 'En attente de signature'], signe: ['libre', 'Signé · en vigueur'], remplace: ['off', 'Remplacé'], annule: ['off', 'Annulé'] };
 function origineCoef(cc) {
   const k = cc?.contrats.find(x => x.statut === 'signe');
-  return k ? `contrat ${esc(k.numero)} signé le ${fdate(k.signe_le, 'num')}` : `par défaut, aucun contrat signé (minimum ${num(cc?.coefficient_minimum ?? 1.45)})`;
+  return k ? `contrat ${esc(k.numero)} signé le ${fdate(k.signe_le, 'num')}` : `par défaut, aucun contrat signé (minimum ${num(cc?.coefficient_minimum ?? 1.9)})`;
 }
 function contratsClientPanel(c, cc, profil) {
   const L = cc?.contrats || [], agence = profil === 'agence';
@@ -798,11 +798,11 @@ function contratsClientPanel(c, cc, profil) {
     <div class="row">${badge(...CC_ETAT[k.statut])}<a class="btn sm" href="/api/contrats-clients/${k.id}/document" target="_blank" rel="noopener">${ic('file')}Voir</a>
       ${k.statut === 'a_signer' ? (agence ? btn('Signé sur papier', 'check', `data-a="ccsign" data-id="${k.id}"`, 'sm') + btn('Annuler', '', `data-a="ccannul" data-id="${k.id}"`, 'sm ghost') : btn('Signer le contrat', 'edit', `data-a="ccsign" data-id="${k.id}"`, 'sm primary')) : ''}</div></div>`;
   return panel('Contrat commercial', agence ? btn('Nouveau contrat', 'plus', `data-a="ccnew" data-id="${c.id}" data-coef="${c.coefficient}" data-delai="${c.delai_paiement}"`, 'sm primary') : '',
-    `<div class="panel-b small muted" style="padding-bottom:0">${agence ? `Sans contrat signé, le coefficient par défaut (${num(cc?.coefficient_minimum ?? 1.45)}) s'applique. Dès la signature, le coefficient et le délai du contrat s'appliquent automatiquement aux simulations et aux factures.` : 'Le coefficient et le délai de paiement du contrat signé s\'appliquent à vos missions et factures.'}</div>
+    `<div class="panel-b small muted" style="padding-bottom:0">${agence ? `Sans contrat signé, le coefficient par défaut (${num(cc?.coefficient_minimum ?? 1.9)}) s'applique. Dès la signature, le coefficient et le délai du contrat s'appliquent automatiquement aux simulations et aux factures.` : 'Le coefficient et le délai de paiement du contrat signé s\'appliquent à vos missions et factures.'}</div>
     ${L.length ? `<div class="list">${L.map(ligne).join('')}</div>` : empty('Aucun contrat enregistré.')}`);
 }
 function ccModal(el) {
-  const min = S.cfg?.coefficient_minimum || 1.45, t = S.cfg?.aujourdhui || '';
+  const min = S.cfg?.coefficient_minimum || 1.9, t = S.cfg?.aujourdhui || '';
   openModal(`${modalHead(ic('file') + 'Nouveau contrat commercial', 'À faire signer par l\'entreprise dans son espace, ou à marquer « signé sur papier ».')}<form data-f="ccnew" data-id="${el.dataset.id}"><div class="panel-b form">
     <label class="f">Coefficient de facturation<input type="number" name="coefficient" step="0.01" min="${min}" max="5" value="${Math.max(min, Number(el.dataset.coef) || min)}" required data-coef-saisie><span class="hint">Minimum ${num(min)}, redéfinissable à la hausse.</span></label>
     <label class="f">Délai de paiement (jours)<input type="number" name="delai_paiement" min="0" max="60" value="${el.dataset.delai || 15}" required></label>
@@ -881,7 +881,7 @@ V.agence.relances = async () => {
     panel('Historique des relances', '', R.length ? `<div class="scroll"><table><thead><tr><th>Date</th><th>Objet</th><th>Destinataire</th><th>Canaux</th><th>Type</th></tr></thead><tbody>${R.map(r => `<tr><td>${fdate(r.created_at, 'num')}</td><td>${r.objet === 'contrat' ? 'Contrat' : 'Facture'} <span class="mono">${esc(r.numero || '')}</span></td><td>${esc(r.destinataire)}</td><td>${r.canaux.split(',').map(c => CANAUX[c]?.[1] || esc(c)).join(', ')}</td><td>${r.auto ? badge('off', 'Automatique') : badge('pris', 'Manuelle')}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune relance envoyée.'));
 };
 V.agence.tarifs = async () => {
-  const L = await GET('/clients'), min = S.cfg?.coefficient_minimum || 1.45, k = S.cfg?.facteur_cout || 1.452;
+  const L = await GET('/clients'), min = S.cfg?.coefficient_minimum || 1.9, k = S.cfg?.facteur_cout || 1.452;
   const marge = c => Math.round((1 - k / c) * 1000) / 10;
   return head('Coefficients et contrats', `Coefficient de facturation de chaque entreprise : ${num(min)} par défaut, celui du contrat commercial dès sa signature. Marge brute estimée sur une heure de mission classique.`) +
     panel(null, '', L.length ? `<div class="scroll"><table><thead><tr><th>Client</th><th class="r">Coefficient</th><th>Origine</th><th class="r">Marge estimée</th><th class="r">Paiement</th><th class="r">Encours TTC</th><th></th></tr></thead><tbody>
@@ -1798,7 +1798,7 @@ async function interimForm(id) {
     ${modalFoot(id ? 'Enregistrer' : 'Créer la fiche', 'type="submit"')}</form>`);
 }
 async function clientForm(id) {
-  const min = S.cfg?.coefficient_minimum || 1.45;
+  const min = S.cfg?.coefficient_minimum || 1.9;
   const c = id ? (await GET('/clients')).find(x => x.id === id) : { coefficient: min, delai_paiement: 15, convention: 'HCR (IDCC 1979)' };
   const signe = id ? (await GET('/contrats-clients?client_id=' + id)).contrats.find(k => k.statut === 'signe') : null;
   const f = (n, l, t = 'text', extra = '') => `<label class="f">${l}<input type="${t}" name="${n}" value="${esc(c[n] ?? '')}" ${extra}></label>`;

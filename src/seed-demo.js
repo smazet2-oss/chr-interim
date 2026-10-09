@@ -35,8 +35,8 @@ tx(() => {
     ['Yanis', 'Benali', 'Commis de cuisine', 'Cuisine', 'Lyon 7e', 'HACCP, mise en place, garde-manger', '3 ans en brasserie', 12.5],
     ['Camille', 'Roux', 'Chef de rang', 'Restauration', 'Villeurbanne', 'Anglais courant, service à l\'assiette, vins', '6 ans', 13.2],
     ['Mehdi', 'Ouali', 'Barman', 'Bar', 'Lyon 1er', 'Cocktails, caisse', '2 ans', 12.9],
-    ['Lucas', 'Martin', 'Plongeur', 'Cuisine', 'Vénissieux', 'Plonge batterie, entretien', '1 an', 12.1],
-    ['Thomas', 'Petit', 'Serveur', 'Restauration', 'Lyon 8e', 'Plateau, terrasse', '1 an', 12.2],
+    ['Lucas', 'Martin', 'Plongeur', 'Cuisine', 'Vénissieux', 'Plonge batterie, entretien', '1 an', 12.31],
+    ['Thomas', 'Petit', 'Serveur', 'Restauration', 'Lyon 8e', 'Plateau, terrasse', '1 an', 12.31],
     ['Aïcha', 'Diallo', 'Cheffe de partie', 'Cuisine', 'Lyon 9e', 'Poisson, pâtisserie', '8 ans', 14.1],
   ].map(([prenom, nom, poste, secteur, ville, competences, experience, taux], k) =>
     Number(run('INSERT INTO interimaires (prenom, nom, poste, secteur, ville, competences, experience, taux_horaire, telephone, email, dossier_complet) VALUES (?,?,?,?,?,?,?,?,?,?,1)',
@@ -58,13 +58,13 @@ tx(() => {
   const p2 = mission(C[0], 'Chef de rang', jour(-1), '18:00', '23:30', 1, 13.2, 'verrouillee');
   envoi(p2, I[1], 'whatsapp'); rep(p2, I[1], 'retenu');
   run('INSERT INTO heures (mission_id, interim_id, heures_prevues, extra, justification, extra_statut, valide_interim) VALUES (?,?,5.5,1,?,\'attente\',1)', p2, I[1], 'Groupe de 24 couverts arrivé à 22 h');
-  const p3 = mission(C[0], 'Plongeur', jour(-3), '18:00', '00:00', 1, 12.1, 'verrouillee');
+  const p3 = mission(C[0], 'Plongeur', jour(-3), '18:00', '00:00', 1, 12.31, 'verrouillee');
   envoi(p3, I[3], 'sms'); rep(p3, I[3], 'retenu');
   const h3 = run('INSERT INTO heures (mission_id, interim_id, heures_prevues, valide_interim, valide_client) VALUES (?,?,6,1,1)', p3, I[3]).lastInsertRowid;
   run('INSERT INTO evaluations (heure_id, sens, note, commentaire, axe) VALUES (?,?,?,?,?)', h3, 'client_vers_interim', 3, 'Travail correct, 20 minutes de retard.', 'Ponctualité');
 
   // Missions à venir, à différents stades.
-  mission(C[0], 'Serveur', jour(7), '18:00', '23:30', 2, 12.2, 'nouvelle');
+  mission(C[0], 'Serveur', jour(7), '18:00', '23:30', 2, 12.31, 'nouvelle');
   const f1 = mission(C[0], 'Commis de cuisine', jour(14), '18:00', '00:00', 1, 12.5, 'diffusee');
   envoi(f1, I[0], 'whatsapp,sms'); envoi(f1, I[3], 'sms'); envoi(f1, I[5], 'mail');
   const f2 = mission(C[1], 'Commis petit-déjeuner', jour(9), '06:30', '12:30', 1, 12.8, 'diffusee');
@@ -73,12 +73,12 @@ tx(() => {
   envoi(f3, I[1], 'whatsapp'); envoi(f3, I[4], 'sms,mail'); rep(f3, I[1], 'accepte'); rep(f3, I[4], 'accepte');
   mission(C[2], 'Barman', jour(10), '19:00', '02:00', 1, 12.9, 'nouvelle');
   // Mission du soir même, non pourvue : signalée « importance haute ».
-  const f4 = mission(C[0], 'Serveur', jour(0), '19:00', '23:30', 1, 12.2, 'diffusee');
+  const f4 = mission(C[0], 'Serveur', jour(0), '19:00', '23:30', 1, 12.31, 'diffusee');
   envoi(f4, I[0], 'sms,whatsapp'); envoi(f4, I[3], 'sms');
 
   // Historique des 5 derniers mois (statistiques) : missions réalisées, heures validées des deux côtés.
-  const HIST = [[C[0], 'Serveur', I[4], '18:00', '23:30', 12.2], [C[0], 'Commis de cuisine', I[0], '10:00', '15:00', 12.5], [C[1], 'Femme de chambre', I[1], '08:00', '13:00', 12.1],
-    [C[2], 'Barman', I[2], '19:00', '02:00', 12.9], [C[0], 'Plongeur', I[3], '18:00', '00:00', 12.1], [C[1], 'Réceptionniste', I[5], '07:00', '15:00', 12.4]];
+  const HIST = [[C[0], 'Serveur', I[4], '18:00', '23:30', 12.31], [C[0], 'Commis de cuisine', I[0], '10:00', '15:00', 12.5], [C[1], 'Femme de chambre', I[1], '08:00', '13:00', 12.31],
+    [C[2], 'Barman', I[2], '19:00', '02:00', 12.9], [C[0], 'Plongeur', I[3], '18:00', '00:00', 12.31], [C[1], 'Réceptionniste', I[5], '07:00', '15:00', 12.4]];
   for (let k = 150; k >= 8; k -= 4) {
     const [c, poste, i, debut, fin, taux] = HIST[((150 - k) / 4) % HIST.length];
     const mh = mission(c, poste, jour(-k), debut, fin, 1, taux, 'verrouillee');

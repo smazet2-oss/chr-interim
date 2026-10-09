@@ -128,7 +128,7 @@ test('expériences, dossier légal, contrat et paie', async () => {
   assert.equal((await ag.post('/bulletins/generer', { debut, fin })).data.crees, 1);
   const b = (await ines.get('/bulletins')).data[0];
   assert.equal(b.heures, 4);
-  assert.equal(b.brut, 48.08, 'taux par défaut du poste : SMIC 12,02 € × 4 h');
+  assert.equal(b.brut, 49.24, 'taux par défaut du poste : SMIC 12,31 € × 4 h');
   assert.equal(b.statut, 'en_attente');
   assert.equal(b.bloquees.length, 0);
   assert.equal((await ines.get('/paie/en-cours')).data.length, 0, 'heures désormais sur une fiche');

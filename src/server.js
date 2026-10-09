@@ -879,7 +879,7 @@ api.post('/parametres/test', role('agence'), wrap(async (req, res) => {
 /** Aperçu de l'e-mail type dans le navigateur. */
 api.get('/parametres/apercu-email', role('agence'), (req, res) => {
   res.set('Content-Type', 'text/html; charset=utf-8');
-  res.send(gabaritEmail({ titre: 'Nouvelle mission disponible', texte: `${P.get('raison_sociale')} : nouvelle mission Serveur chez Brasserie Le Comptoir, samedi 3 octobre, 18:00–23:30, taux horaire brut 12,20 €/h. Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`, lien: siteUrl(), bouton: 'Voir la mission' }, '/img/bandeau-horizontal.png'));
+  res.send(gabaritEmail({ titre: 'Nouvelle mission disponible', texte: `${P.get('raison_sociale')} : nouvelle mission Serveur chez Brasserie Le Comptoir, samedi 3 octobre, 18:00–23:30, taux horaire brut 12,31 €/h. Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`, lien: siteUrl(), bouton: 'Voir la mission' }, '/img/bandeau-horizontal.png'));
 });
 
 /** Facture lisible et imprimable (agence, ou client destinataire). */
@@ -992,6 +992,9 @@ if (require.main === module) {
   initAdmin();
   const port = Number(process.env.PORT || 3000);
   app.listen(port, () => console.log(`CHR Intérim démarré sur http://localhost:${port}`));
+  // Mise à jour unique : SMIC au 1er juin 2026 et grille HCR (avenant n° 33)
+  const smic = require('./migrations').smicJuin2026(today());
+  if (smic) console.log('Mise à jour SMIC 2026 :', JSON.stringify(smic));
   relances.demarrer();
   etude.demarrer();
 }

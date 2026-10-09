@@ -79,7 +79,7 @@ const GROUPES = [
     { k: 'paie_jour', l: 'Versement du salaire', def: 'Dans les 5 jours suivant la fin de chaque quinzaine' },
   ] },
   { id: 'hcr', titre: 'Convention HCR : taux horaires et majorations', aide: 'Valeurs par défaut de la convention collective des hôtels, cafés, restaurants (IDCC 1979). Le taux horaire brut proposé pour une mission est celui du niveau du poste, jamais sous le SMIC. À mettre à jour à chaque avenant « salaires » et revalorisation du SMIC.', champs: [
-    { k: 'smic_horaire', l: 'SMIC horaire brut (€)', type: 'number', def: HCR.SMIC_DEFAUT, min: 5, max: 50, aide: 'Plancher légal : aucun taux horaire brut ne peut être inférieur.' },
+    { k: 'smic_horaire', l: 'SMIC horaire brut (€)', type: 'number', def: HCR.SMIC_DEFAUT, min: 5, max: 50, aide: 'Plancher légal : aucun taux horaire brut ne peut être inférieur. 12,31 € depuis le 1er juin 2026.' },
     { k: 'maj_nuit_pc', l: 'Majoration des heures de nuit, 22 h – 7 h (%)', type: 'number', def: '0', min: 0, max: 100, aide: 'HCR : pas de majoration de salaire obligatoire, la contrepartie du travail de nuit est un repos compensateur. Indiquez un taux si vous majorez la nuit.' },
     { k: 'maj_dimanche_pc', l: 'Majoration du dimanche (%)', type: 'number', def: '0', min: 0, max: 100, aide: 'HCR : le dimanche est un jour de travail habituel, sans majoration obligatoire.' },
     { k: 'maj_ferie_pc', l: 'Majoration des jours fériés (hors 1er mai) (%)', type: 'number', def: '0', min: 0, max: 200, aide: 'HCR : jour férié travaillé compensé en repos ou en indemnité pour les salariés ayant un an d\'ancienneté. Indiquez 100 pour le payer double.' },

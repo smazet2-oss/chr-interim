@@ -53,10 +53,9 @@ test('chaque profil ne voit que sa simulation', async () => {
   const ia = (await ag.post('/acces', { type: 'interim', id: i.id })).data;
   const IN = await connecte(ia.username, ia.password, 'Interim2026X');
 
-  // Simulation en direct : l'employeur a le taux par défaut, sans marge
-  // Simulation en direct : l'employeur a le taux minimum HCR du poste (Serveur : niveau I-3, 12,10 €), sans marge
+  // Simulation en direct : l'employeur a le taux minimum du poste (Serveur : niveau I-3 à 12,18 €, sous le SMIC : 12,31 €), sans marge
   const live = (await CL.post('/simulation', { poste: 'Serveur', debut: '18:00', fin: '23:00', nb_postes: 1, taux_horaire: 50 })).data;
-  assert.equal(live.taux_facture, 24.2); assert.equal(live.ht, 121); assert.equal(live.marge, undefined); assert.equal(live.brut, undefined);
+  assert.equal(live.taux_facture, 24.62); assert.equal(live.ht, 123.1); assert.equal(live.marge, undefined); assert.equal(live.brut, undefined);
   const la = (await ag.post('/simulation', { client_id: c.id, debut: '18:00', fin: '23:00', nb_postes: 1, taux_horaire: 13 })).data;
   assert.equal(la.taux_horaire, 13); assert.ok(la.marge > 0);
   assert.equal((await IN.post('/simulation', { debut: '18:00', fin: '23:00' })).status, 403);
@@ -65,9 +64,9 @@ test('chaque profil ne voit que sa simulation', async () => {
   const jour = plusJours(3);
   const m = (await CL.post('/missions', { poste: 'Serveur', date: jour, debut: '18:00', fin: '23:00', nb_postes: 1 })).data;
   await ag.post(`/missions/${m.id}/diffuser`, { interims: [i.id], canaux: ['sms'] });
-  assert.equal(m.taux_horaire, 12.1);
+  assert.equal(m.taux_horaire, 12.31, 'SMIC au 1er juin 2026');
   const sa = (await ag.get('/missions')).data[0].simulation;
-  const attendu = S.calculer({ date: jour, debut: '18:00', fin: '23:00', nb_postes: 1, taux_horaire: 12.1, coefficient: 2, motif: m.motif });
+  const attendu = S.calculer({ date: jour, debut: '18:00', fin: '23:00', nb_postes: 1, taux_horaire: 12.31, coefficient: 2, motif: m.motif });
   assert.equal(sa.ht, attendu.ht); assert.ok('marge' in sa);
   const sc = (await CL.get('/missions')).data[0].simulation;
   assert.deepEqual(Object.keys(sc).sort(), ['heures', 'ht', 'majorations', 'nb_postes', 'taux_facture', 'ttc', 'tva']);
@@ -91,8 +90,8 @@ test('convention HCR : jours fériés, majorations et taux par poste', async () 
   assert.equal(H.facteur('2026-05-01', '10:00', '14:00'), 2);
   const s = S.calculer({ date: '2026-05-01', debut: '10:00', fin: '14:00', taux_horaire: 12.5, coefficient: 1.45 });
   assert.equal(s.brut, 100); assert.equal(s.ht, 145); assert.equal(s.majorations[0].cle, 'mai1');
-  assert.equal(H.tauxPoste('Plongeur'), 12.02, 'grille sous le SMIC : le SMIC s\'applique');
-  assert.equal(H.tauxPoste('Maître d\'hôtel'), 13.1);
+  assert.equal(H.tauxPoste('Plongeur'), 12.31, 'grille sous le SMIC : le SMIC s\'applique');
+  assert.equal(H.tauxPoste('Maître d\'hôtel'), 13.54, 'avenant n° 33, niveau III-2');
   // Paramètres modifiables : nuit majorée à 20 %
   const ag = await agence();
   assert.equal((await ag.put('/parametres', { valeurs: { maj_nuit_pc: '20' } })).status, 200);
@@ -123,7 +122,7 @@ test('contrat commercial : coefficient par défaut, signature, calcul automatiqu
   const apres = (await CL.get('/clients')).data[0];
   assert.equal(apres.coefficient, 1.9); assert.equal(apres.delai_paiement, 30);
   // Le coefficient du contrat sert aux calculs
-  assert.equal((await CL.post('/simulation', { poste: 'Serveur', debut: '10:00', fin: '14:00' })).data.taux_facture, 22.99);
+  assert.equal((await CL.post('/simulation', { poste: 'Serveur', debut: '10:00', fin: '14:00' })).data.taux_facture, 23.39, '12,31 × 1,9');
   // Modifier le coefficient hors contrat est refusé
   assert.equal((await ag.put(`/clients/${c.id}`, { coefficient: 2.5 })).status, 409);
   // Nouveau contrat signé sur papier par l'agence : remplace le précédent

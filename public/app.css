@@ -941,3 +941,17 @@ button.lien-profil:focus-visible{outline:2px solid #C99948;outline-offset:2px;bo
   .hist-panel{padding:22px 16px}
   .hist-actions .btn{flex:1 1 100%;justify-content:center}
 }
+
+/* ---------- Fiche client : profil et étude de marché ---------- */
+.kpis-fiche{grid-template-columns:repeat(3,minmax(0,1fr))}
+.etude-points{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:10px}
+.etude-point{display:flex;gap:10px;align-items:flex-start;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface-2)}
+.etude-point svg{width:18px;height:18px;flex:none;color:#C99948;margin-top:2px}
+.etude-point>div{display:flex;flex-direction:column;gap:2px;min-width:0}
+.etude-point b{font-size:13.5px;line-height:1.35}
+.etude-detail>summary{cursor:pointer;font-weight:600;color:#7E5F24;padding:4px 0}
+@media (max-width:640px){.kpis-fiche{grid-template-columns:repeat(3,minmax(0,1fr))}}
+/* Réponses longues : deux colonnes équilibrées (question, réponse) */
+.etude-detail .kv,.modal .kv{grid-template-columns:minmax(0,1fr) minmax(0,1fr)!important}
+.etude-detail .kv dd{font-weight:500}
+@media (max-width:640px){.etude-detail .kv{grid-template-columns:minmax(0,1fr)!important}.etude-detail .kv dd{margin-bottom:6px}}

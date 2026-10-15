@@ -134,3 +134,18 @@ test('contrat commercial : coefficient par défaut, signature, calcul automatiqu
   // Un client avec contrat signé ne peut plus être supprimé
   assert.equal((await ag.del(`/clients/${c.id}`)).status, 409);
 });
+
+test('fiche client : étude de marché saisie depuis la fiche et questionnaires rattachés', async () => {
+  const ag = await agence();
+  const c = (await ag.post('/clients', { nom: 'Café des Arts', email: 'contact@cafe-arts.example', telephone: '0473000000', contact: 'Inès Lopez' })).data;
+  assert.deepEqual((await ag.get(`/clients/${c.id}/etude`)).data.fiches, []);
+  // Saisie depuis la fiche : pas d'accord à cocher, rattachée au client
+  const r = await ag.post('/prospects', { client_id: c.id, etablissement: 'Café des Arts', repondant: 'Inès Lopez', telephone: '0473000000', frequence: 'Saisonnier / événementiel', coefficient: 'Entre 1,95 et 2,10' });
+  assert.equal(r.status, 201, JSON.stringify(r.data)); assert.equal(r.data.client_id, c.id); assert.equal(r.data.statut, 'client');
+  // Demande reçue par le site avec la même adresse e-mail : rattachée aussi
+  await agent().post('/public/contact', { etablissement: 'Café des Arts', repondant: 'Inès', email: 'Contact@Cafe-Arts.example', consentement: true, type_etab: 'Bar / pub / discothèque' });
+  const e = (await ag.get(`/clients/${c.id}/etude`)).data;
+  assert.equal(e.fiches.length, 2); assert.ok(e.fiches.some(f => f.reponses.frequence === 'Saisonnier / événementiel'));
+  assert.equal((await ag.post('/prospects', { client_id: 99999, etablissement: 'X', repondant: 'Y', telephone: '0600000000' })).status, 400);
+  assert.equal((await agent().get(`/clients/${c.id}/etude`)).status, 401);
+});

@@ -140,10 +140,21 @@ function agence(api, h) {
     const b = req.body || {}, r = nettoyer(b, fail);
     if (b.date_visite && !isDate(b.date_visite)) fail(400, 'Date de visite invalide.');
     if (b.date_relance && !isDate(b.date_relance)) fail(400, 'Date de relance invalide.');
-    if (!['ecrit', 'oral'].includes(b.accord)) fail(400, 'Indiquez si l\'accord pour conserver les coordonnées est écrit ou oral.');
-    const id = enregistrer(r, { source: 'visite', date_visite: b.date_visite || today(), enqueteur: String(b.enqueteur || '').slice(0, 120), accord: b.accord,
-      date_relance: b.date_relance || null, statut: b.date_relance ? 'a_relancer' : 'nouveau', notes_agence: String(b.notes_agence || '').slice(0, 3000) });
+    // Questionnaire saisi depuis la fiche d'un client existant : rattaché au client (relation commerciale en cours)
+    const client = b.client_id ? one('SELECT id FROM clients WHERE id = ?', Number(b.client_id)) : null;
+    if (b.client_id && !client) fail(400, 'Client introuvable.');
+    if (!client && !['ecrit', 'oral'].includes(b.accord)) fail(400, 'Indiquez si l\'accord pour conserver les coordonnées est écrit ou oral.');
+    const id = enregistrer(r, { source: 'visite', date_visite: b.date_visite || today(), enqueteur: String(b.enqueteur || '').slice(0, 120), accord: client ? (b.accord || 'client') : b.accord,
+      date_relance: b.date_relance || null, statut: client ? 'client' : b.date_relance ? 'a_relancer' : 'nouveau', notes_agence: String(b.notes_agence || '').slice(0, 3000), client_id: client ? client.id : null });
     res.status(201).json(lire(one('SELECT * FROM prospects WHERE id = ?', id)));
+  }));
+  /** Fiche client : questionnaires (demande du site, visites terrain) rattachés au client ou à son adresse e-mail, et invitations à l'étude annuelle (réponses anonymes : seul le suivi est visible). */
+  api.get('/clients/:id/etude', role('agence'), wrap((req, res) => {
+    const c = one('SELECT id, email FROM clients WHERE id = ?', req.params.id); if (!c) fail(404, 'Client introuvable.');
+    const email = String(c.email || '').trim().toLowerCase();
+    const fiches = all(`SELECT * FROM prospects WHERE client_id = ? OR (? != '' AND lower(trim(email)) = ?) ORDER BY COALESCE(date_visite, created_at) DESC, id DESC`, c.id, email, email).map(lire);
+    const invitations = email ? all('SELECT annee, envoye_le, relance_le, clique_le, repondu_le, statut FROM etude_envois WHERE cible = \'etablissement\' AND email = ? ORDER BY annee DESC', email) : [];
+    res.json({ fiches, invitations });
   }));
   /** Texte proposé avant l'envoi, puis décision (acceptée : rendez-vous sous 48 h ; refusée). */
   api.get('/prospects/:id/modele', role('agence'), wrap((req, res) => {

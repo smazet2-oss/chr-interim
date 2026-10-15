@@ -145,6 +145,16 @@ tx(() => {
     'Hôtel des Célestins', 'Lyon 2e', 'Paul Martin, directeur', '04 78 11 22 33', 'Hôtel / hôtel-restaurant',
     JSON.stringify({ frequence: 'Saisonnier / événementiel', postes: ['Employé d\'étage / gouvernante', 'Réceptionniste / veilleur de nuit'], satisfaction: 'Moyennement satisfait', reglement: 'Virement à 30 jours' }),
     jour(-7), jour(0), 'Intéressé pour la saison des salons. Envoyer une proposition tarifaire.');
+  // Étude de marché saisie avec le gérant de la Brasserie Le Comptoir, rattachée à sa fiche client
+  run(`INSERT INTO prospects (source, etablissement, adresse, repondant, telephone, email, type_etab, reponses, date_visite, enqueteur, accord, statut, client_id, notes_agence) VALUES ('visite',?,?,?,?,?,?,?,?, 'Claire Morel', 'client', 'client', ?, ?)`,
+    'Brasserie Le Comptoir', '12 rue Mercière, Lyon 2e', 'Marc Dupuis, gérant', '04 78 00 00 01', 'contact@lecomptoir.example', 'Brasserie / restauration rapide',
+    JSON.stringify({ etablissement: 'Brasserie Le Comptoir', type_etab: 'Brasserie / restauration rapide', effectif: '5 à 15 personnes', frequence: 'Régulièrement (plusieurs fois par semaine)',
+      postes: ['Serveur / chef de rang', 'Commis / plongeur'], extras_mois: 12, heures_mois: 70, pics: 'Fêtes des Lumières, terrasse de mai à septembre', vehicule: true, delai: 'Court terme (24 à 48 h)',
+      canaux: ['Réseau personnel / bouche-à-oreille', 'Agences d\'intérim traditionnelles'], agences: 'Une agence généraliste', satisfaction: 'Moyennement satisfait',
+      problemes: ['Manque de réactivité (délais trop longs)', 'Retards, absences ou abandons de poste'], probleme_principal: 'Retards, absences ou abandons de poste',
+      services: ['Garantie de remplacement sous 2 heures', 'Gestion 100 % dématérialisée (smartphone)'], prix_serveur: 23, prix_cuisinier: 26, coefficient: 'Entre 1,95 et 2,10',
+      reglement: 'Virement à 30 jours', releve: 'Oui, par WhatsApp', message: 'Besoin surtout le vendredi et le samedi soir.' }),
+    jour(-20), C[0], 'Très satisfait des premiers extras. Souhaite un interlocuteur joignable le soir.');
   run('INSERT INTO experiences (interim_id, debut, fin, employeur, poste, description) VALUES (?,?,?,?,?,?)', I[0], '2021-09-01', '2024-06-30', 'Restaurant L\'Ardoise, Lyon', 'Commis de cuisine', 'Brasserie de 80 couverts, poste garde-manger puis chaud.');
   run('INSERT INTO experiences (interim_id, debut, fin, employeur, poste) VALUES (?,?,?,?,?)', I[0], '2019-09-01', '2021-06-30', 'Lycée hôtelier François Rabelais', 'CAP Cuisine (formation)');
   // Fiche de paie de Lucas (heures validées des deux côtés).

@@ -774,16 +774,37 @@ V.agence.interimaires = async () => {
 V.agence.clients = async () => {
   const L = await GET('/clients');
   const s = L.find(c => c.id === S.p.csel) || L[0];
-  const [docs, cc, av] = s ? await Promise.all([GET('/documents?client_id=' + s.id), GET('/contrats-clients?client_id=' + s.id), GET('/avis?client_id=' + s.id)]) : [[], null, null];
-  return head('Clients', 'Fiches entreprises, conditions, documents et accès à l\'espace employeur.', btn('Nouveau client', 'plus', 'data-a="clientform"', 'primary')) +
+  const [docs, cc, av, et] = s ? await Promise.all([GET('/documents?client_id=' + s.id), GET('/contrats-clients?client_id=' + s.id), GET('/avis?client_id=' + s.id), GET(`/clients/${s.id}/etude`), GET('/public/questionnaire').then(q => { ETUDE_Q = q.questionnaire; })]) : [[], null, null, null];
+  return head('Clients', 'Fiches entreprises : profil, étude de marché, conditions, contrats, documents et accès à l\'espace employeur.', btn('Nouveau client', 'plus', 'data-a="clientform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun client. Créez la première fiche.')) :
-      panel(`${L.length} client${L.length > 1 ? 's' : ''}`, '', `<div class="scroll"><table><thead><tr><th>Client</th><th>Secteur</th><th class="r">Missions</th><th class="r">Pourvues</th><th>Note des intérimaires</th><th>Accès</th></tr></thead><tbody>
-      ${L.map(c => `<tr class="clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0"><td><b>${esc(c.nom)}</b> ${c.suspendu ? badge('off', 'Suspendu') : ''}<div class="small muted">${esc(c.ville || '')}</div></td><td>${esc(c.secteur)}</td><td class="r num">${c.nb_missions}</td><td class="r num">${c.nb_pourvues}</td><td>${stars(c.note)}${alerteNote(c.note)}</td><td>${c.acces ? `<span class="mono">${esc(c.acces)}</span>` : '<span class="muted">—</span>'}</td></tr>`).join('')}</tbody></table></div>`) +
-      `<div class="grid2"><section class="panel"><div class="panel-h"><h2>${esc(s.nom)}</h2><div class="row">${btn('Modifier', 'edit', `data-a="clientform" data-id="${s.id}"`, 'sm')}${gestionProfil('clients', s)}</div></div><div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}
-      <dl class="kv"><dt>SIRET</dt><dd>${esc(s.siret || '—')}</dd><dt>Adresse</dt><dd>${esc([s.adresse, s.ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc(s.contact || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd>
-      <dt>Coefficient</dt><dd><b>${num(s.coefficient)}</b> <span class="small muted">${origineCoef(cc)}</span></dd><dt>Paiement</dt><dd>${s.delai_paiement} jours</dd><dt>Convention</dt><dd>${esc(s.convention)}</dd></dl>${accessBox('client', s.id, s.acces)}</div></section>
-      <div style="display:flex;flex-direction:column;gap:18px;min-width:0">${avisPanel(av, 'client')}${contratsClientPanel(s, cc, 'agence')}${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div></div>`);
+      `<div class="grid-main side">
+      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(c => `<div class="li clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(c.nom)}</div><div><b>${esc(c.nom)}</b><span>${esc([c.secteur, c.ville].filter(Boolean).join(' · '))}${c.suspendu ? ' · suspendu' : ''}</span></div></div><div style="text-align:right">${stars(c.note)}${alerteNote(c.note)}<div class="small muted">${c.nb_missions} mission${c.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
+      <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.nom)}</div><div><h2>${esc(s.nom)}</h2><span>${esc([s.secteur, s.ville].filter(Boolean).join(' · '))}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="clientform" data-id="${s.id}"`, 'sm')}${gestionProfil('clients', s)}</div></div>
+      <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>SIRET</dt><dd>${esc(s.siret || '—')}</dd><dt>Adresse</dt><dd>${esc([s.adresse, s.ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc(s.contact || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd>
+      <dt>Coefficient</dt><dd><b>${num(s.coefficient)}</b> <span class="small muted">${origineCoef(cc)}</span></dd><dt>Paiement</dt><dd>${s.delai_paiement} jours</dd><dt>Convention</dt><dd>${esc(s.convention)}</dd></dl>
+      <div class="kpis kpis-fiche">${kpi('Missions', 'briefcase', num(s.nb_missions))}${kpi('Pourvues', 'check', num(s.nb_pourvues))}${kpi('Note des intérimaires', 'star', s.note ? num(s.note) + ' / 5' : '—')}</div>
+      ${accessBox('client', s.id, s.acces)}</div></section>
+      ${etudeClientPanel(s, et)}${avisPanel(av, 'client')}${contratsClientPanel(s, cc, 'agence')}${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div></div>`);
 };
+/** Fiche client › Profil et étude de marché : réponses complètes au questionnaire (site ou visite terrain), points clés et invitations à l'étude annuelle. */
+let ETUDE_Q = [];
+function etudeClientPanel(c, et) {
+  const F = et?.fiches || [], x = F[0], inv = et?.invitations || [];
+  const suivi = inv.length ? `<div class="small muted">${inv.map(e => `Étude ${e.annee} : ${e.repondu_le ? 'a répondu (réponses anonymes, dans Statistiques › Étude de marché)' : e.clique_le ? 'a ouvert le questionnaire' : e.envoye_le ? 'invité le ' + fdate(e.envoye_le, 'num') + (e.relance_le ? ', relancé' : '') : 'invitation non envoyée'}`).join(' · ')}</div>` : '';
+  const actions = `<div class="row" style="flex-wrap:wrap;gap:8px">${btn(x ? 'Compléter (nouvelle saisie)' : 'Saisir l\'étude de marché', 'edit', `data-a="etudeclient" data-id="${c.id}"`, 'sm')}${btn('Envoyer le questionnaire annuel', 'send', 'data-a="nav" data-v="etude_c"', 'sm ghost')}</div>`;
+  if (!x) return panel('Profil et étude de marché', '', `<div class="panel-b" style="display:flex;flex-direction:column;gap:10px">${empty('Aucun questionnaire pour cet établissement : saisissez-le avec le responsable (5 à 7 minutes) ou invitez-le à l\'étude de marché annuelle.')}${suivi}${actions}</div>`);
+  const r = x.reponses, val = q => { const v = r[q.k]; if (v === undefined || v === '' || v === null) return null; const t = Array.isArray(v) ? v.join(', ') : v === true ? 'Oui' : String(v); return r[q.k + '_autre'] ? `${t} (${r[q.k + '_autre']})` : t; };
+  const CLES = [['type_etab', 'building'], ['effectif', 'users'], ['frequence', 'clock'], ['delai', 'alert'], ['coefficient', 'receipt'], ['reglement', 'wallet']];
+  const champs = Object.fromEntries(ETUDE_Q.flatMap(sec => sec.champs).map(q => [q.k, q]));
+  const points = CLES.filter(([k]) => val(champs[k] || { k })).map(([k, i]) => `<div class="etude-point">${ic(i)}<div><span class="small muted">${esc((champs[k]?.l || k).replace(/\s*\?$/, ''))}</span><b>${esc(val(champs[k] || { k }))}</b></div></div>`).join('');
+  const secs = ETUDE_Q.map(sec => { const L2 = sec.champs.map(q => [q.l, val(q)]).filter(([, v]) => v); return L2.length ? `<h3 class="q-titre">${esc(sec.titre)}</h3><dl class="kv">${L2.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''; }).join('');
+  const source = x.source === 'site' ? 'Demande reçue par le site' : `Visite terrain${x.enqueteur ? ' par ' + esc(x.enqueteur) : ''}`;
+  return panel('Profil et étude de marché', `<span class="small muted">${source} · ${fdate((x.date_visite || x.created_at).slice(0, 10), 'num')}</span>`, `<div class="panel-b" style="display:flex;flex-direction:column;gap:10px">
+    ${r.vehicule ? `<div>${badge('attente', 'Besoin d\'intérimaires véhiculés')}</div>` : ''}${points ? `<div class="etude-points">${points}</div>` : ''}
+    <details class="etude-detail" open><summary>Toutes les réponses au questionnaire</summary>${secs}${x.notes_agence ? `<h3 class="q-titre">Notes de l'agence</h3><p class="small">${esc(x.notes_agence)}</p>` : ''}</details>
+    ${F.length > 1 ? `<div class="small muted">Autres questionnaires : ${F.slice(1).map(f => `${btn(fdate((f.date_visite || f.created_at).slice(0, 10), 'num'), 'file', `data-a="prospect" data-id="${f.id}"`, 'sm ghost')}`).join(' ')}</div>` : ''}
+    ${suivi}${actions}</div>`);
+}
 /* ----- Contrat commercial de l'entreprise : coefficient et délai de paiement ----- */
 const CC_ETAT = { a_signer: ['attente', 'En attente de signature'], signe: ['libre', 'Signé · en vigueur'], remplace: ['off', 'Remplacé'], annule: ['off', 'Annulé'] };
 function origineCoef(cc) {
@@ -1283,16 +1304,18 @@ async function prospectModal(id) {
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
   if (x.cv_fichier) $('#modal .modal')?.classList.add('modal-large');
 }
-async function visiteModal() {
+async function visiteModal(client = null) {
   const d = await GET('/public/questionnaire'), t = S.cfg?.aujourdhui || '';
-  openModal(`${modalHead(ic('target') + 'Visite terrain', 'Questionnaire étude de marché · intérim et extras HCR · 5 à 7 minutes')}<form data-f="visite" novalidate><div class="panel-b">
+  openModal(`${modalHead(ic('target') + (client ? 'Étude de marché · ' + esc(client.nom) : 'Visite terrain'), 'Questionnaire étude de marché · intérim et extras HCR · 5 à 7 minutes')}<form data-f="visite" novalidate>${client ? `<input type="hidden" name="client_id" value="${client.id}">` : ''}<div class="panel-b">
     <div class="form"><label class="f">Date de la visite<input type="date" name="date_visite" value="${t}" required></label><label class="f">Enquêteur<input type="text" name="enqueteur" value="${esc(S.me.nom)}"></label></div>
     ${questionnaireHtml(d.questionnaire)}
     <section class="q-sec"><h2>Suivi</h2><div class="form">
-      <fieldset class="q full"><legend>Accord pour conserver les coordonnées et recontacter</legend><div class="choix"><label><input type="radio" name="accord" value="ecrit" required><span>Écrit (signature)</span></label><label><input type="radio" name="accord" value="oral"><span>Oral</span></label></div></fieldset>
+      ${client ? '' : `<fieldset class="q full"><legend>Accord pour conserver les coordonnées et recontacter</legend><div class="choix"><label><input type="radio" name="accord" value="ecrit" required><span>Écrit (signature)</span></label><label><input type="radio" name="accord" value="oral"><span>Oral</span></label></div></fieldset>`}
       <label class="f">Date de relance / prochain contact convenu<input type="date" name="date_relance" min="${t}"></label>
       <label class="f full">Notes et observations<textarea name="notes_agence" maxlength="3000"></textarea></label></div></section>
-    <div class="err" hidden></div></div>${modalFoot('Enregistrer la visite', 'type="submit"')}</form>`);
+    <div class="err" hidden></div></div>${modalFoot(client ? 'Enregistrer l\'étude de marché' : 'Enregistrer la visite', 'type="submit"')}</form>`);
+  // Fiche client : coordonnées déjà connues
+  if (client) for (const [k, v] of [['etablissement', client.nom], ['adresse', [client.adresse, client.ville].filter(Boolean).join(', ')], ['repondant', client.contact], ['telephone', client.telephone], ['email', client.email]]) { const i = $(`#modal [name="${k}"]`); if (i && v) i.value = v; }
 }
 
 const C_ST = { nouveau: ['danger', 'À analyser'], a_rappeler: ['attente', 'À rappeler'], entretien: ['libre', 'Acceptée · RDV'], inscrit: ['libre', 'Inscrit(e)'], refuse: ['off', 'Sans suite'] };
@@ -1926,6 +1949,7 @@ const A = {
   cfiltre: el => go('candidats', { cf: el.dataset.f }),
   contactonglet: el => renderContact(el.dataset.o),
   candidat: el => act(() => candidatModal(Number(el.dataset.id)), el),
+  etudeclient: el => act(async () => { const c = (await GET('/clients')).find(x => x.id === Number(el.dataset.id)); if (c) await visiteModal(c); }, el),
   cvvoir: el => act(() => cvModal(Number(el.dataset.id)), el),
   cinterim: el => act(async () => { const r = await POST(`/candidats/${el.dataset.id}/interimaire`); closeModal(); S.p.isel = r.interim_id; toast('Fiche intérimaire créée. Complétez-la (n° de sécurité sociale, domicile) et créez son accès.'); go('interimaires'); }, el),
   cdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.innerHTML = 'Confirmer la suppression'; el.classList.add('primary'); return; } await DEL(`/candidats/${el.dataset.id}`); closeModal(); toast('Candidature et CV supprimés'); reload(); }, el),
@@ -2034,8 +2058,10 @@ const F = {
   psuivi: (fd, f) => act(async () => { await PUT(`/prospects/${f.dataset.id}`, Object.fromEntries(fd)); closeModal(); toast('Suivi enregistré'); reload(); }),
   visite: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;
-    try { await POST('/prospects', lireQuestionnaire(fd)); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'nearest' }); return; }
-    closeModal(); toast('Visite enregistrée'); go('prospects');
+    const b = lireQuestionnaire(fd);
+    try { await POST('/prospects', b); } catch (e) { err.textContent = e.message; err.hidden = false; err.scrollIntoView({ block: 'nearest' }); return; }
+    closeModal();
+    if (b.client_id) { toast('Étude de marché enregistrée sur la fiche client'); go('clients', { csel: Number(b.client_id) }); } else { toast('Visite enregistrée'); go('prospects'); }
   }),
   annul: (fd, f) => act(async () => {
     const err = f.querySelector('.err'); err.hidden = true;

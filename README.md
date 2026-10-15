@@ -113,6 +113,10 @@ Le contrat reprend le modèle HCR (IDCC 1979) en 9 articles : parties, motif de 
   Valeurs en vigueur : **SMIC 12,31 € brut de l'heure depuis le 1er juin 2026** (12,02 € au 1er janvier 2026) et grille de l'**avenant n° 33** (I-1 12,00 € … V-3 28,12 €) ; les niveaux I-1 à II-1, inférieurs au SMIC, sont payés au SMIC. La mise à jour en ligne (une seule fois au démarrage) relève les intérimaires et les missions à venir sous le SMIC et signale à l'agence les missions réalisées depuis le 1er juin à régulariser.
 - **Majorations selon les horaires** : nuit (22 h – 7 h), dimanche, jours fériés (calculés automatiquement, Pâques comprise) et 1er mai. Valeurs HCR par défaut : seul le 1er mai est majoré (100 %, obligation légale) ; la nuit est compensée en repos dans la convention. Les majorations s'appliquent à la paie, aux factures, au contrat et aux simulations.
 
+### Fiche client
+
+Clients › Fiches clients, sur le modèle de la fiche intérimaire : liste à gauche (note, nombre de missions), fiche à droite avec identité, coefficient, chiffres (missions, pourvues, note), accès à l'espace employeur, puis **Profil et étude de marché** : points clés (type d'établissement, effectif, fréquence des renforts, délai, coefficient jugé acceptable, règlement, besoin d'intérimaires véhiculés) et toutes les réponses au questionnaire, section par section. Le questionnaire vient de la demande faite sur le site (même adresse e-mail) ou d'une visite terrain ; « Saisir l'étude de marché » ouvre le questionnaire pré-rempli avec les coordonnées du client et l'enregistre sur sa fiche. Le suivi de l'étude annuelle (invité, a répondu) est indiqué, sans les réponses, qui restent anonymes. Viennent ensuite les avis, les contrats commerciaux et les documents.
+
 ### Prospects et page « Besoin de renforts ? »
 
 - **Page publique** `/contact` (lien depuis la page de connexion) : les hôtels, cafés et restaurants remplissent le questionnaire de l'étude de marché (établissement, besoins, solutions actuelles, attentes, budget, suivi) avec leur accord pour être recontactés. L'agence reçoit un e-mail d'alerte.

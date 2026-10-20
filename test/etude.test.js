@@ -91,3 +91,20 @@ test('statistiques : choix du mois affiché', async () => {
   assert.equal(d.mois, m); assert.equal(d.mois6[5], m);
   assert.equal((await ag.get('/stats?mois=2999-01')).data.mois, d0.mois_courant, 'mois futur ignoré');
 });
+
+test('étude de marché : candidatures (CV) et demandes clients comptées avec l\'étude anonyme', async () => {
+  const ag = await agence(), etude = require('../src/etude'), a = etude.annee();
+  run('INSERT INTO candidats (prenom, nom, reponses) VALUES (?,?,?)', 'Zoé', 'Durand', JSON.stringify({ prenom: 'Zoé', telephone: '0600000000', situation: 'Étudiant(e)', type_mission: 'Saison complète', creneaux: ['Le week-end'] }));
+  run('INSERT INTO prospects (source, etablissement, reponses) VALUES (?,?,?)', 'site', 'Le Petit Zinc', JSON.stringify({ etablissement: 'Le Petit Zinc', email: 'zinc@exemple.fr', frequence: 'Saisonnier / événementiel' }));
+  const tout = (await ag.get(`/etude/resultats?cible=interimaire&annee=${a}`)).data;
+  const seule = (await ag.get(`/etude/resultats?cible=interimaire&annee=${a}&source=etude`)).data;
+  const dos = (await ag.get(`/etude/resultats?cible=interimaire&annee=${a}&source=dossiers`)).data;
+  assert.equal(tout.reponses, seule.reponses + dos.reponses);
+  assert.ok(dos.reponses >= 1); assert.equal(dos.par_source.etude, 0);
+  const q = k => dos.sections.flatMap(x => x.questions).find(x => x.k === k);
+  assert.ok(q('situation').options.find(o => o.l === 'Étudiant(e)').n >= 1);
+  assert.ok(!JSON.stringify(dos).includes('Zoé') && !JSON.stringify(dos).includes('0600000000'), 'aucune donnée d\'identité');
+  const et = (await ag.get(`/etude/resultats?cible=etablissement&annee=${a}&source=dossiers`)).data;
+  assert.ok(et.sections.flatMap(x => x.questions).find(x => x.k === 'frequence').options.find(o => o.l === 'Saisonnier / événementiel').n >= 1);
+  assert.ok(!JSON.stringify(et).includes('Petit Zinc'));
+});

@@ -118,9 +118,23 @@ async function tourner() {
 }
 
 /** Résultats compilés et anonymes d'une année, comparés à l'année précédente. */
-function resultats(cible, a) {
+/** Sources compilées : l'étude anonyme, et les dossiers reçus par le site (candidatures avec CV, demandes et visites des établissements),
+ *  mêmes questions, comptés sans aucune donnée d'identité (seules les réponses aux questions de l'étude sont lues). */
+const SOURCES_ETUDE = ['tout', 'etude', 'dossiers'];
+const TABLE_DOSSIERS = { interimaire: 'candidats', etablissement: 'prospects' };
+function dossiers(cible, an) {
+  const cles = Object.keys(CIBLES[cible].champs);
+  return all(`SELECT reponses FROM ${TABLE_DOSSIERS[cible]} WHERE substr(created_at, 1, 4) = ?`, String(an)).map(x => {
+    const r = JSON.parse(x.reponses || '{}'), o = { _complet: 1, _source: 'dossier' };
+    for (const k of cles) { if (r[k] !== undefined) o[k] = r[k]; if (r[k + '_autre'] !== undefined) o[k + '_autre'] = r[k + '_autre']; }
+    return o;
+  });
+}
+function resultats(cible, a, source = 'tout') {
   const c = CIBLES[cible];
-  const lire = an => all('SELECT reponses, complet FROM etude_reponses WHERE annee = ? AND cible = ?', an, cible).map(x => ({ ...JSON.parse(x.reponses), _complet: x.complet }));
+  if (!SOURCES_ETUDE.includes(source)) source = 'tout';
+  const etude = an => all('SELECT reponses, complet FROM etude_reponses WHERE annee = ? AND cible = ?', an, cible).map(x => ({ ...JSON.parse(x.reponses), _complet: x.complet, _source: 'etude' }));
+  const lire = an => [...(source !== 'dossiers' ? etude(an) : []), ...(source !== 'etude' ? dossiers(cible, an) : [])];
   const R = lire(a), Rp = lire(a - 1);
   const pc = (n, d) => d ? Math.round(n / d * 1000) / 10 : null;
   const question = (q, L) => {
@@ -134,10 +148,12 @@ function resultats(cible, a) {
     return { n: rep.length, options: opts.map(o => { const k = rep.filter(r => [].concat(r[q.k]).includes(o)).length; return { l: o, n: k, pc: pc(k, rep.length) }; }).sort((x, y) => y.n - x.n) };
   };
   const envois = one(`SELECT COUNT(*) n, SUM(statut = 'envoye') ok, SUM(relance_le IS NOT NULL) rel, SUM(clique_le IS NOT NULL) cl, SUM(repondu_le IS NOT NULL) rep FROM etude_envois WHERE annee = ? AND cible = ?`, a, cible);
-  const annees = all('SELECT DISTINCT annee FROM etude_reponses WHERE cible = ? UNION SELECT DISTINCT annee FROM etude_envois WHERE cible = ?', cible, cible).map(x => x.annee);
+  const annees = [...all('SELECT DISTINCT annee FROM etude_reponses WHERE cible = ? UNION SELECT DISTINCT annee FROM etude_envois WHERE cible = ?', cible, cible).map(x => x.annee),
+    ...all(`SELECT DISTINCT CAST(substr(created_at, 1, 4) AS INTEGER) annee FROM ${TABLE_DOSSIERS[cible]}`).map(x => x.annee)].filter(x => x >= 2020);
   return {
     cible, nom: c.nom, annee: a, annees: [...new Set([...annees, annee()])].sort(),
-    reponses: R.filter(r => r._complet).length, partielles: R.filter(r => !r._complet).length, reponses_prec: Rp.filter(r => r._complet).length,
+    source, reponses: R.filter(r => r._complet).length, partielles: R.filter(r => !r._complet).length, reponses_prec: Rp.filter(r => r._complet).length,
+    par_source: { etude: R.filter(r => r._source === 'etude' && r._complet).length, dossiers: R.filter(r => r._source === 'dossier').length },
     campagne: { invites: envois.ok || 0, relances: envois.rel || 0, clics: envois.cl || 0, reponses: envois.rep || 0, taux: pc(envois.rep || 0, envois.ok || 0) },
     sections: c.questionnaire.map(s => ({ titre: s.titre, questions: s.champs.map(q => {
       const r = question(q, R), p = question(q, Rp);
@@ -224,7 +240,7 @@ function agence(api, h) {
   api.get('/etude/resultats', role('agence'), (req, res) => {
     const a = Number(req.query.annee) || annee();
     if (a < 2020 || a > 2100) fail(400, 'Année invalide.');
-    res.json(resultats(cibleOk(req.query.cible || 'etablissement'), a));
+    res.json(resultats(cibleOk(req.query.cible || 'etablissement'), a, String(req.query.source || 'tout')));
   });
 }
 

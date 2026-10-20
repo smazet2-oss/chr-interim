@@ -1475,9 +1475,10 @@ async function joursStats() {
 /** Statistiques › Étude de marché : résultats compilés et anonymes par année (2026, 2027, 2028…), comparés à l'année précédente. */
 const UNITE_ETUDE = k => /^prix_/.test(k) ? ' € HT/h' : k === 'taux_souhaite' ? ' € brut/h' : '';
 async function etudeStats() {
-  const cible = S.p.ecible || 'etablissement', d = await GET(`/etude/resultats?cible=${cible}&annee=${S.p.eannee || ''}`), c = d.campagne;
+  const cible = S.p.ecible || 'etablissement', d = await GET(`/etude/resultats?cible=${cible}&annee=${S.p.eannee || ''}&source=${S.p.esource || 'tout'}`), c = d.campagne;
+  const nomDossiers = cible === 'etablissement' ? 'Demandes des établissements' : 'Candidatures (CV)';
   const seg = (titre, act, L, cur) => `<div class="seg" data-titre="${titre}">${L.map(([k, l]) => `<button type="button" aria-pressed="${String(cur) === String(k)}" data-a="${act}" data-v="${k}">${l}</button>`).join('')}</div>`;
-  const barre = `<div class="stats-barre">${vueStats('etude')}${seg('Questionnaire', 'ecible', [['etablissement', 'Établissements'], ['interimaire', 'Intérimaires']], cible)}${seg('Année', 'eannee', d.annees.map(a => [a, String(a)]), d.annee)}</div>`;
+  const barre = `<div class="stats-barre">${vueStats('etude')}${seg('Questionnaire', 'ecible', [['etablissement', 'Établissements'], ['interimaire', 'Intérimaires']], cible)}${seg('Année', 'eannee', d.annees.map(a => [a, String(a)]), d.annee)}${seg('Source', 'esource', [['tout', 'Toutes les sources'], ['etude', 'Étude anonyme'], ['dossiers', nomDossiers]], d.source)}</div>`;
   const delta = o => o.pc_prec === null || o.pc_prec === undefined ? '' : (x => `<small class="etude-delta ${x > 0 ? 'up' : x < 0 ? 'down' : ''}" title="Évolution depuis ${d.annee - 1}">${x > 0 ? '+' : ''}${num(x)} pt</small>`)(Math.round(((o.pc || 0) - o.pc_prec) * 10) / 10);
   const question = q => {
     if (q.type === 'number') {
@@ -1487,8 +1488,8 @@ async function etudeStats() {
     return panel(esc(q.l), `<span class="small muted">${q.n} réponse${q.n > 1 ? 's' : ''}</span>`, q.n ? `<div class="panel-b classement">${q.options.map(o => `<div class="cl-l" title="${esc(o.l)} : ${o.n} réponse(s)"><span class="cl-n">${esc(o.l)}</span><span class="cl-b"><span style="width:${o.pc || 0}%"></span></span><span class="cl-v num">${o.pc === null ? '—' : num(o.pc) + ' %'}${delta(o)}</span></div>`).join('')}</div>` : empty('Aucune réponse à cette question.'));
   };
   const lien = `${location.origin}/etude/${cible === 'etablissement' ? 'etablissements' : 'interimaires'}`;
-  return head('Statistiques', `Étude de marché ${d.annee} · ${d.nom} : résultats compilés et anonymes (aucune réponse n'est reliée à une personne), comparés à ${d.annee - 1} quand c'est possible.`, btn('Envoyer le questionnaire', 'send', `data-a="nav" data-v="${cible === 'etablissement' ? 'etude_c' : 'etude_i'}"`, 'sm')) + barre +
-    `<h2 class="stats-titre">${ic('send')}Participation</h2><div class="kpis">${kpi('Réponses complètes', 'check', num(d.reponses), d.reponses_prec ? `${num(d.reponses_prec)} en ${d.annee - 1}` : 'Questionnaires terminés')}${kpi('Invitations envoyées', 'send', num(c.invites), `${c.relances} relance${c.relances > 1 ? 's' : ''} automatique${c.relances > 1 ? 's' : ''}`)}
+  return head('Statistiques', `Étude de marché ${d.annee} · ${d.nom} : résultats compilés de l'étude anonyme et des ${cible === 'etablissement' ? 'demandes reçues des établissements (site et visites terrain)' : 'candidatures reçues avec CV'}, sans aucune donnée personnelle, comparés à ${d.annee - 1} quand c'est possible.`, btn('Envoyer le questionnaire', 'send', `data-a="nav" data-v="${cible === 'etablissement' ? 'etude_c' : 'etude_i'}"`, 'sm')) + barre +
+    `<h2 class="stats-titre">${ic('send')}Participation</h2><div class="kpis">${kpi('Réponses compilées', 'check', num(d.reponses), `${num(d.par_source.etude)} à l'étude anonyme · ${num(d.par_source.dossiers)} ${cible === 'etablissement' ? 'demande(s) d\'établissement' : 'candidature(s) avec CV'}${d.reponses_prec ? ` · ${num(d.reponses_prec)} en ${d.annee - 1}` : ''}`)}${kpi('Invitations envoyées', 'send', num(c.invites), `${c.relances} relance${c.relances > 1 ? 's' : ''} automatique${c.relances > 1 ? 's' : ''}`)}
       ${kpi('Taux de réponse', 'target', pct(c.taux), `${c.clics} personne${c.clics > 1 ? 's' : ''} ont cliqué dans l'e-mail`)}${kpi('Réponses partielles', 'mail', num(d.partielles), 'Case cochée dans l\'e-mail, questionnaire non terminé')}</div>
       ${panel('Lien public du questionnaire', btn('Copier', 'link', `data-a="copy" data-t="${esc(lien)}"`, 'sm'), `<div class="panel-b small muted">À partager sur Facebook ou par SMS : <span class="mono">${esc(lien)}</span>. Les réponses arrivent ici, de façon anonyme.</div>`)}` +
     (d.reponses < 3 ? panel(null, '', empty(`Les résultats détaillés s'affichent à partir de 3 réponses complètes, pour garantir l'anonymat (${d.reponses} pour l'instant).`))
@@ -1977,6 +1978,7 @@ const A = {
   voiretude: el => { S.p.svue = 'etude'; S.p.ecible = el.dataset.c; go('stats'); },
   ecible: el => { S.p.ecible = el.dataset.v; reload(); },
   eannee: el => { S.p.eannee = el.dataset.v; reload(); },
+  esource: el => { S.p.esource = el.dataset.v; reload(); },
   deldoc: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.lastChild.textContent = 'Confirmer'; return; } await DEL(`/documents/${el.dataset.id}`); toast('Document supprimé'); reload(); }, el),
   hconf: el => act(async () => { await POST(`/heures/${el.dataset.id}/confirmer`, {}); toast('Heures confirmées'); reload(); }, el),
   hval: el => act(async () => { const b = el.dataset.x === undefined ? {} : { extra_accepte: el.dataset.x === '1' }; await POST(`/heures/${el.dataset.id}/valider`, b); toast('Heures validées'); reload(); }, el),

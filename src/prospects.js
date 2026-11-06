@@ -131,6 +131,17 @@ function publiques(api, h) {
   }));
 }
 
+/** Crée la fiche client à partir d'un prospect (conversion manuelle ou acceptation) et la rattache. Coefficient par défaut ; le contrat commercial viendra ensuite. */
+function creerClient(p) {
+  if (p.client_id) return p.client_id;
+  const t = String(p.type_etab || ''), secteur = /h[ôo]tel/i.test(t) ? 'Hôtellerie' : /bar|pub/i.test(t) ? 'Bar' : 'Restauration';
+  const [ville] = String(p.adresse || '').split(',').reverse().map(x => x.trim());
+  const id = Number(run('INSERT INTO clients (nom, adresse, ville, contact, email, telephone, secteur, coefficient, delai_paiement) VALUES (?,?,?,?,?,?,?,?,?)',
+    p.etablissement, p.adresse, ville || null, p.repondant, p.email, p.telephone, secteur, P.num('coefficient_minimum', 1.9), P.num('delai_paiement_defaut', 15)).lastInsertRowid);
+  run('UPDATE prospects SET client_id = ?, updated_at = datetime(\'now\') WHERE id = ?', id, p.id);
+  return id;
+}
+
 /** Routes de l'agence. */
 function agence(api, h) {
   const { fail, wrap, role, today } = h;
@@ -164,7 +175,9 @@ function agence(api, h) {
   api.post('/prospects/:id/decision', role('agence'), wrap(async (req, res) => {
     const p = one('SELECT * FROM prospects WHERE id = ?', req.params.id); if (!p) fail(404, 'Prospect introuvable.');
     if (p.client_id) fail(409, 'Ce prospect est déjà client.');
-    res.json(await require('./decisions').decider('prospects', 'prospect', p, req.body || {}, today()));
+    const r = await require('./decisions').decider('prospects', 'prospect', p, req.body || {}, today());
+    if (r.decision === 'acceptee') r.client_id = creerClient(p); // fiche client créée dès l'acceptation
+    res.json(r);
   }));
   /** Suivi : statut, date de relance, notes. */
   api.put('/prospects/:id', role('agence'), wrap((req, res) => {
@@ -180,12 +193,9 @@ function agence(api, h) {
   api.post('/prospects/:id/client', role('agence'), wrap((req, res) => {
     const p = lire(one('SELECT * FROM prospects WHERE id = ?', req.params.id)); if (!p) fail(404, 'Prospect introuvable.');
     if (p.client_id) fail(409, 'Ce prospect est déjà client.');
-    const t = String(p.type_etab || ''), secteur = /h[ôo]tel/i.test(t) ? 'Hôtellerie' : /bar|pub/i.test(t) ? 'Bar' : 'Restauration';
-    const [ville] = String(p.adresse || '').split(',').reverse().map(x => x.trim());
-    const r = run('INSERT INTO clients (nom, adresse, ville, contact, email, telephone, secteur, coefficient, delai_paiement) VALUES (?,?,?,?,?,?,?,?,?)',
-      p.etablissement, p.adresse, ville || null, p.repondant, p.email, p.telephone, secteur, P.num('coefficient_minimum', 1.9), P.num('delai_paiement_defaut', 15));
-    run('UPDATE prospects SET statut = \'client\', client_id = ?, updated_at = datetime(\'now\') WHERE id = ?', r.lastInsertRowid, p.id);
-    res.status(201).json({ client_id: Number(r.lastInsertRowid) });
+    const id = creerClient(p);
+    run('UPDATE prospects SET statut = \'client\', updated_at = datetime(\'now\') WHERE id = ?', p.id);
+    res.status(201).json({ client_id: id });
   }));
   /** Suppression à la demande de la personne (RGPD). */
   api.delete('/prospects/:id', role('agence'), wrap((req, res) => {
@@ -194,4 +204,4 @@ function agence(api, h) {
   }));
 }
 
-module.exports = { publiques, agence, QUESTIONNAIRE, nettoyer, limite };
+module.exports = { publiques, agence, QUESTIONNAIRE, nettoyer, limite, creerClient };

@@ -63,7 +63,10 @@ test('candidatures : accepter (rendez-vous sous 48 h) ou refuser, par e-mail', a
   assert.match(JSON.stringify((await ag.get('/journal')).data), /Message personnalisé/);
   const p2 = (await ag.get('/prospects')).data[0];
   assert.equal(p2.decision, 'acceptee');
-  assert.equal((await ag.post(`/prospects/${p.id}/decision`, { decision: 'refusee' })).data.statut, 'perdu');
+  // Fiche client créée dès l'acceptation
+  assert.ok(p2.client_id); const cli = (await ag.get('/clients')).data.find(x => x.id === p2.client_id);
+  assert.equal(cli.nom, 'Bistrot Test'); assert.equal(cli.email, 'bistrot@exemple.fr'); assert.equal(cli.coefficient, 1.9);
+  assert.equal((await ag.post(`/prospects/${p.id}/decision`, { decision: 'refusee' })).status, 409, 'déjà client');
 });
 
 test('note de l\'établissement à la confirmation des heures, avis et alerte note basse', async () => {
@@ -101,8 +104,12 @@ test('candidatures : accepter ou refuser sans envoyer de message', async () => {
   const avant = nb();
   const r = (await ag.post(`/candidats/${c}/decision`, { decision: 'acceptee', sans_envoi: true })).data;
   assert.equal(r.statut, 'entretien'); assert.equal(r.sans_envoi, true); assert.deepEqual(r.envois, []);
+  const fiche = (await ag.get('/interimaires')).data.find(x => x.id === r.interim_id);
+  assert.equal(fiche.prenom, 'Léo'); assert.equal(fiche.email, 'leo@exemple.fr', 'fiche intérimaire créée dès l\'acceptation');
+  assert.equal(one('SELECT interim_id FROM candidats WHERE id = ?', c).interim_id, r.interim_id);
+  assert.equal((await ag.post(`/candidats/${c}/decision`, { decision: 'refusee' })).status, 409, 'déjà inscrit');
   const r2 = (await ag.post(`/prospects/${p}/decision`, { decision: 'refusee', sans_envoi: true })).data;
-  assert.equal(r2.statut, 'perdu'); assert.deepEqual(r2.envois, []);
+  assert.equal(r2.statut, 'perdu'); assert.deepEqual(r2.envois, []); assert.equal(r2.client_id, undefined, 'pas de fiche après un refus');
   assert.equal(nb(), avant, 'aucun e-mail ni SMS');
   assert.equal(one('SELECT decision_sans_envoi s FROM candidats WHERE id = ?', c).s, 1);
   assert.equal(one('SELECT decision, decision_sans_envoi s FROM prospects WHERE id = ?', p).s, 1);

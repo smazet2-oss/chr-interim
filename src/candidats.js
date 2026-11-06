@@ -108,6 +108,19 @@ function publiques(api, h) {
   }));
 }
 
+/** Crée la fiche intérimaire à partir d'une candidature (inscription manuelle ou acceptation) et la rattache. Renvoie son id. */
+function creerFiche(c) {
+  if (c.interim_id) return c.interim_id;
+  const r = c.reponses, poste = c.poste || 'Serveur';
+  const secteur = /cuisin|chef de partie|plong|commis de cuisine/i.test(poste) ? 'Cuisine' : /barman|bar\b/i.test(poste) ? 'Bar' : /chambre|gouvernante|r[ée]ception|veilleur|petit-d/i.test(poste) ? 'Hôtellerie' : 'Restauration';
+  const competences = [r.vehicule && 'Véhiculé(e)', ...(r.formations || []).filter(x => x !== 'Autre'), r.formations_autre, r.langues && 'Langues : ' + r.langues].filter(Boolean).join(', ');
+  const nationalite = r.autorisation === 'Nationalité française ou européenne' ? 'Française' : 'Autre';
+  const id = Number(run('INSERT INTO interimaires (prenom, nom, poste, secteur, telephone, email, ville, competences, experience, date_naissance, nationalite) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    c.prenom, c.nom, poste, secteur, c.telephone, c.email, c.ville, competences.slice(0, 1000), String(r.experience || '').slice(0, 1000), r.date_naissance || null, nationalite).lastInsertRowid);
+  run('UPDATE candidats SET interim_id = ?, updated_at = datetime(\'now\') WHERE id = ?', id, c.id);
+  return id;
+}
+
 function agence(api, h) {
   const { fail, wrap, role } = h;
   api.get('/candidats', role('agence'), (req, res) => res.json(all('SELECT * FROM candidats ORDER BY CASE WHEN statut IN (\'inscrit\', \'refuse\') THEN 1 ELSE 0 END, COALESCE(date_relance, \'9999\'), id DESC').map(lire)));
@@ -119,7 +132,9 @@ function agence(api, h) {
   api.post('/candidats/:id/decision', role('agence'), wrap(async (req, res) => {
     const c = one('SELECT * FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');
     if (c.interim_id) fail(409, 'Cette personne est déjà inscrite.');
-    res.json(await decisions.decider('candidats', 'candidat', c, req.body || {}, h.today()));
+    const r = await decisions.decider('candidats', 'candidat', c, req.body || {}, h.today());
+    if (r.decision === 'acceptee') r.interim_id = creerFiche(lire(c)); // fiche intérimaire créée dès l'acceptation
+    res.json(r);
   }));
   api.put('/candidats/:id', role('agence'), wrap((req, res) => {
     const c = one('SELECT * FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');
@@ -147,14 +162,9 @@ function agence(api, h) {
   api.post('/candidats/:id/interimaire', role('agence'), wrap((req, res) => {
     const c = lire(one('SELECT * FROM candidats WHERE id = ?', req.params.id)); if (!c) fail(404, 'Candidature introuvable.');
     if (c.interim_id) fail(409, 'Cette personne a déjà une fiche intérimaire.');
-    const r = c.reponses, poste = c.poste || 'Serveur';
-    const secteur = /cuisin|chef de partie|plong|commis de cuisine/i.test(poste) ? 'Cuisine' : /barman|bar\b/i.test(poste) ? 'Bar' : /chambre|gouvernante|r[ée]ception|veilleur|petit-d/i.test(poste) ? 'Hôtellerie' : 'Restauration';
-    const competences = [r.vehicule && 'Véhiculé(e)', ...(r.formations || []).filter(x => x !== 'Autre'), r.formations_autre, r.langues && 'Langues : ' + r.langues].filter(Boolean).join(', ');
-    const nationalite = r.autorisation === 'Nationalité française ou européenne' ? 'Française' : 'Autre';
-    const id = run('INSERT INTO interimaires (prenom, nom, poste, secteur, telephone, email, ville, competences, experience, date_naissance, nationalite) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-      c.prenom, c.nom, poste, secteur, c.telephone, c.email, c.ville, competences.slice(0, 1000), String(r.experience || '').slice(0, 1000), r.date_naissance || null, nationalite).lastInsertRowid;
-    run('UPDATE candidats SET statut = \'inscrit\', interim_id = ?, updated_at = datetime(\'now\') WHERE id = ?', id, c.id);
-    res.status(201).json({ interim_id: Number(id) });
+    const id = creerFiche(c);
+    run('UPDATE candidats SET statut = \'inscrit\', updated_at = datetime(\'now\') WHERE id = ?', c.id);
+    res.status(201).json({ interim_id: id });
   }));
   api.delete('/candidats/:id', role('agence'), wrap((req, res) => {
     const c = one('SELECT cv_fichier FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');
@@ -164,4 +174,4 @@ function agence(api, h) {
   }));
 }
 
-module.exports = { publiques, agence, QUESTIONNAIRE };
+module.exports = { publiques, agence, QUESTIONNAIRE, creerFiche };

@@ -1300,7 +1300,7 @@ async function prospectModal(id) {
       <label class="f">Date de relance / prochain contact<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
       <label class="f full">Notes de l'agence<textarea name="notes_agence" maxlength="3000">${esc(x.notes_agence || '')}</textarea></label>
       ${decisionInfo(x) ? `<div class="full">${decisionInfo(x)}</div>` : ''}
-      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('prospect', x)}${x.client_id ? badge('libre', 'Fiche client créée') : btn('Créer la fiche client', 'building', `data-a="pclient" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="pdel" data-id="${x.id}"`, 'sm danger')}</div>
+      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('prospect', x)}${x.client_id ? btn('Ouvrir la fiche client', 'building', `data-a="ouvrirfiche" data-t="client" data-id="${x.client_id}"`, 'sm') : btn('Créer la fiche client', 'building', `data-a="pclient" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="pdel" data-id="${x.id}"`, 'sm danger')}</div>
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
   if (x.cv_fichier) $('#modal .modal')?.classList.add('modal-large');
 }
@@ -1361,7 +1361,7 @@ async function candidatModal(id) {
       <label class="f">Date de rappel / d'entretien<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
       <label class="f full">Notes de l'agence<textarea name="notes_agence" maxlength="3000">${esc(x.notes_agence || '')}</textarea></label>
       ${decisionInfo(x) ? `<div class="full">${decisionInfo(x)}</div>` : ''}
-      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('candidat', x)}${x.interim_id ? badge('libre', 'Fiche intérimaire créée') : btn('Créer la fiche intérimaire', 'users', `data-a="cinterim" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="cdel" data-id="${x.id}"`, 'sm danger')}</div>
+      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('candidat', x)}${x.interim_id ? btn('Ouvrir la fiche intérimaire', 'users', `data-a="ouvrirfiche" data-t="interim" data-id="${x.interim_id}"`, 'sm') : btn('Créer la fiche intérimaire', 'users', `data-a="cinterim" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="cdel" data-id="${x.id}"`, 'sm danger')}</div>
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
   if (x.cv_fichier) $('#modal .modal')?.classList.add('modal-large');
 }
@@ -1603,6 +1603,8 @@ async function decisionModal(type, id, decision) {
     <div class="err" hidden></div></div>
     <div class="panel-f" style="justify-content:flex-end;flex-wrap:wrap">${btn('Retour', '', 'data-a="close"')}${btn(ok ? 'Accepter sans envoyer de message' : 'Refuser sans envoyer de message', ok ? 'check' : 'ban', `data-a="decidersans" title="La décision est enregistrée, ${type === 'candidat' ? 'l\'intérimaire' : 'l\'établissement'} ne reçoit ni e-mail ni SMS"`)}<button class="btn primary" type="submit"${ok ? '' : ' style="background:var(--danger-dot);border-color:var(--danger-dot)"'}>${ic('send')}${ok ? 'Accepter et envoyer' : 'Refuser et envoyer'}</button></div></form>`);
 }
+/** Message après une acceptation : la fiche intérimaire ou client est créée automatiquement. */
+const ficheCreee = r => r.interim_id ? ' Fiche intérimaire créée (Intérimaires › Fiches intérimaires).' : r.client_id ? ' Fiche client créée (Clients › Fiches clients).' : '';
 const boutonsDecision = (type, x) => ['nouveau', 'a_rappeler', 'a_relancer'].includes(x.statut)
   ? btn('Accepter', 'check', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="acceptee"`, 'sm primary') + btn('Refuser', 'ban', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="refusee"`, 'sm danger') : '';
 const decisionInfo = x => x.decision ? `<div class="small ${x.decision === 'refusee' ? 'muted' : ''}" style="margin-top:2px">${x.decision === 'acceptee' ? `${ic('check', 'style="width:12px;height:12px;vertical-align:-2px"')} Acceptée le ${fdate(x.decision_le.slice(0, 10), 'num')}${x.rdv_propose ? ` · RDV ${new Date(x.rdv_propose).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : x.decision_sans_envoi ? '' : ' · RDV sous 48 h demandé'}` : `Refusée le ${fdate(x.decision_le.slice(0, 10), 'num')}`}${x.decision_sans_envoi ? ' · sans message' : ''}</div>` : '';
@@ -1980,10 +1982,11 @@ const A = {
   eannee: el => { S.p.eannee = el.dataset.v; reload(); },
   esource: el => { S.p.esource = el.dataset.v; reload(); },
   // Décision sans e-mail ni SMS
+  ouvrirfiche: el => { closeModal(); el.dataset.t === 'client' ? go('clients', { csel: Number(el.dataset.id) }) : go('interimaires', { isel: Number(el.dataset.id) }); },
   decidersans: el => act(async () => {
     const f = el.closest('form'), err = f.querySelector('.err'); err.hidden = true;
     let r; try { r = await POST(`${f.dataset.url}/decision`, { decision: f.dataset.d, rdv: f.elements.rdv?.value || null, sans_envoi: true }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
-    closeModal(); toast(`${r.decision === 'acceptee' ? 'Candidature acceptée' : 'Candidature refusée'}, sans envoi de message.`); reload();
+    closeModal(); toast(`${r.decision === 'acceptee' ? 'Candidature acceptée' : 'Candidature refusée'}, sans envoi de message.${ficheCreee(r)}`); reload();
   }, el),
   deldoc: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.lastChild.textContent = 'Confirmer'; return; } await DEL(`/documents/${el.dataset.id}`); toast('Document supprimé'); reload(); }, el),
   hconf: el => act(async () => { await POST(`/heures/${el.dataset.id}/confirmer`, {}); toast('Heures confirmées'); reload(); }, el),
@@ -2095,7 +2098,7 @@ const F = {
     let r; try { r = await POST(`${f.dataset.url}/decision`, { decision: f.dataset.d, rdv: fd.get('rdv') || null, sujet: fd.get('sujet'), texte: fd.get('texte') }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
     closeModal();
     const e = r.envois[0], canal = e ? (e.canal === 'mail' ? 'E-mail' : 'SMS') : '';
-    toast(`${r.decision === 'acceptee' ? 'Candidature acceptée' : 'Candidature refusée'}. ${e ? (e.statut === 'envoye' ? `${canal} envoyé.` : e.statut === 'simule' ? `${canal} simulé (messagerie non configurée, voir le journal).` : `${canal} non envoyé : ${e.detail}`) : 'Aucun moyen de contact : décision enregistrée.'}`, e && e.statut === 'echec');
+    toast(`${r.decision === 'acceptee' ? 'Candidature acceptée' : 'Candidature refusée'}.${ficheCreee(r)} ${e ? (e.statut === 'envoye' ? `${canal} envoyé.` : e.statut === 'simule' ? `${canal} simulé (messagerie non configurée, voir le journal).` : `${canal} non envoyé : ${e.detail}`) : 'Aucun moyen de contact : décision enregistrée.'}`, e && e.statut === 'echec');
     reload();
   }),
   csuivi: (fd, f) => act(async () => { await PUT(`/candidats/${f.dataset.id}`, Object.fromEntries(fd)); closeModal(); toast('Suivi enregistré'); reload(); }),

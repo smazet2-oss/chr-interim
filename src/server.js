@@ -1020,6 +1020,8 @@ if (require.main === module) {
   if (fiches) console.log('Fiches des candidatures déjà acceptées :', JSON.stringify(fiches));
   const clients = require('./migrations').clientsAcceptes();
   if (clients) console.log('Fiches des établissements déjà acceptés :', JSON.stringify(clients));
+  const postes = require('./migrations').postesResponsabilite();
+  if (postes) console.log('Postes à responsabilité retirés des réponses :', JSON.stringify(postes));
   relances.demarrer();
   etude.demarrer();
 }

@@ -31,7 +31,7 @@ const QUESTIONNAIRE = [
   ] },
   { titre: 'Vos besoins en renforts', champs: [
     { k: 'frequence', l: 'À quelle fréquence faites-vous appel à du personnel en renfort ou à des extras ?', type: 'radio', options: ['Régulièrement (plusieurs fois par semaine)', 'Ponctuellement (1 à 3 fois par mois)', 'Saisonnier / événementiel', 'Rarement / jamais'] },
-    { k: 'postes', l: 'Quels postes sont les plus difficiles à pourvoir ?', type: 'checks', autre: true, skip: true, options: ['Cuisinier / chef de partie', 'Commis / plongeur', 'Serveur / chef de rang', 'Barman / limonadier', 'Réceptionniste / veilleur de nuit', 'Employé d\'étage / gouvernante'] },
+    { k: 'postes', l: 'Quels postes sont les plus difficiles à pourvoir ?', type: 'checks', autre: true, skip: true, options: ['Cuisinier', 'Commis / plongeur', 'Serveur / chef de rang', 'Barman / limonadier', 'Réceptionniste / veilleur de nuit', 'Employé d\'étage / femme de chambre'] },
     { k: 'extras_mois', l: 'Nombre d\'extras par mois', type: 'number', skip: true },
     { k: 'heures_mois', l: 'ou heures par mois', type: 'number', skip: true },
     { k: 'pics', l: 'Périodes de pic (mois, saisons, événements)', type: 'text', skip: true },

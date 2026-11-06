@@ -8,7 +8,7 @@ const multer = require('multer');
 const { db, one, all, run, DATA_DIR } = require('./db');
 const P = require('./parametres');
 const { envoyer } = require('./notify');
-const { POSTES } = require('./hcr-grille');
+const { POSTES_PROPOSES } = require('./hcr-grille');
 const { nettoyer, limite } = require('./prospects');
 
 db.exec(`CREATE TABLE IF NOT EXISTS candidats (
@@ -40,7 +40,7 @@ const QUESTIONNAIRE = [
     { k: 'situation', l: 'Quelle est votre situation actuelle ?', type: 'radio', req: true, autre: true, options: ['Étudiant(e)', 'Salarié(e)', 'Sans emploi / demandeur d\'emploi', 'Retraité(e)'] },
   ] },
   { titre: 'Les postes que vous recherchez', champs: [
-    { k: 'postes', l: 'Postes recherchés', type: 'checks', autre: true, options: Object.keys(POSTES) },
+    { k: 'postes', l: 'Postes recherchés', type: 'checks', autre: true, options: POSTES_PROPOSES },
     { k: 'poste_principal', l: 'Votre poste principal', type: 'select', from: 'postes' },
     { k: 'experience', l: 'Votre expérience en hôtellerie-restauration', type: 'radio', options: ['Débutant(e)', 'Moins d\'un an', '1 à 3 ans', 'Plus de 3 ans'] },
     { k: 'formations', l: 'Diplômes et formations', type: 'checks', autre: true, options: ['CAP / BEP cuisine ou service', 'Bac pro ou BTS hôtellerie-restauration', 'Formation hygiène HACCP', 'Permis B'] },

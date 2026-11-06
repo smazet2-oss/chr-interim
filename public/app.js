@@ -61,8 +61,9 @@ const empty = t => `<div class="empty">${t}</div>`;
 const CANAUX = { whatsapp: ['msg', 'WhatsApp'], sms: ['phone', 'SMS'], mail: ['mail', 'E-mail'] };
 const SECTEURS = ['Restauration', 'Cuisine', 'Bar', 'Hôtellerie'];
 /* Postes proposés dans les formulaires (saisie libre toujours possible). */
-const POSTES = ['Serveur', 'Chef de rang', 'Maître d\'hôtel', 'Commis de salle', 'Barman', 'Commis de cuisine', 'Cuisinier', 'Chef de partie', 'Plongeur',
-  'Extra petit-déjeuner', 'Réceptionniste', 'Veilleur de nuit', 'Femme de chambre', 'Valet de chambre', 'Gouvernante'];
+// Postes proposés à pourvoir (sans les postes à responsabilité : chef de partie, gouvernante, maître d'hôtel)
+const POSTES = ['Serveur', 'Chef de rang', 'Commis de salle', 'Barman', 'Commis de cuisine', 'Cuisinier', 'Plongeur',
+  'Extra petit-déjeuner', 'Réceptionniste', 'Veilleur de nuit', 'Femme de chambre', 'Valet de chambre'];
 /** Secteur habituel d'un poste, pour suggérer les profils correspondants. */
 function secteurDuPoste(p) {
   const x = p.toLowerCase();

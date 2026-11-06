@@ -91,6 +91,8 @@ Sur la fiche d'un intérimaire ou d'un client, l'agence dispose de deux boutons 
 6. **Après la mission** : l'intérimaire confirme ses heures ou déclare des heures en plus avec une justification. L'employeur valide et accepte ou refuse les heures en plus. Chacun note l'autre en fin de service ; les avis reçus par les intérimaires sont anonymes.
 7. **Facturation et paie** : l'agence génère les factures de la période (heures validées × taux horaire brut, majorations horaires comprises, × coefficient du client) et consulte la paie calculée, avec IFM et ICCP de 10 % chacune. Ce calcul est indicatif et doit être contrôlé par votre gestionnaire de paie.
 
+**Postes proposés** : les postes à responsabilité (chef de partie, gouvernante, maître d'hôtel) sont retirés des listes de postes à pourvoir (demande de mission, candidature, questionnaires). Leur niveau reste dans la grille HCR : un taux juste est calculé si l'un d'eux est saisi à la main.
+
 **Demande de mission (agence et employeur)** : jour de début et jour de fin ; le nombre de jours, la durée du poste (fin le lendemain signalée) et le total d'heures s'affichent pendant la saisie. Une mission est créée pour chaque jour, aux mêmes horaires (31 jours au plus par demande) ; la simulation donne aussi le coût de toute la période. Les horaires se choisissent au format horloge 24 h (heure et minutes), quelle que soit la langue du navigateur.
 
 ### Contrat de mission et signature

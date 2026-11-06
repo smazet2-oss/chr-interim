@@ -140,10 +140,10 @@ tx(() => {
   // Prospects : une demande reçue par le site, une visite terrain à relancer aujourd'hui.
   run(`INSERT INTO prospects (source, etablissement, adresse, repondant, telephone, email, type_etab, reponses, accord, statut) VALUES ('site',?,?,?,?,?,?,?, 'en_ligne', 'nouveau')`,
     'La Table du Marché', 'Lyon 6e', 'Sophie Garnier, gérante', '06 11 22 33 44', 'sophie@tabledumarche.example', 'Restauration traditionnelle / gastronomique',
-    JSON.stringify({ frequence: 'Ponctuellement (1 à 3 fois par mois)', postes: ['Cuisinier / chef de partie', 'Serveur / chef de rang'], delai: 'Court terme (24 à 48 h)', problemes: ['Manque de réactivité (délais trop longs)'], services: ['Garantie de remplacement sous 2 heures'], coefficient: 'Entre 1,95 et 2,10', message: 'Besoin de deux extras les samedis soir.' }));
+    JSON.stringify({ frequence: 'Ponctuellement (1 à 3 fois par mois)', postes: ['Cuisinier', 'Serveur / chef de rang'], delai: 'Court terme (24 à 48 h)', problemes: ['Manque de réactivité (délais trop longs)'], services: ['Garantie de remplacement sous 2 heures'], coefficient: 'Entre 1,95 et 2,10', message: 'Besoin de deux extras les samedis soir.' }));
   run(`INSERT INTO prospects (source, etablissement, adresse, repondant, telephone, type_etab, reponses, date_visite, enqueteur, accord, statut, date_relance, notes_agence) VALUES ('visite',?,?,?,?,?,?,?, 'Claire Morel', 'oral', 'a_relancer', ?, ?)`,
     'Hôtel des Célestins', 'Lyon 2e', 'Paul Martin, directeur', '04 78 11 22 33', 'Hôtel / hôtel-restaurant',
-    JSON.stringify({ frequence: 'Saisonnier / événementiel', postes: ['Employé d\'étage / gouvernante', 'Réceptionniste / veilleur de nuit'], satisfaction: 'Moyennement satisfait', reglement: 'Virement à 30 jours' }),
+    JSON.stringify({ frequence: 'Saisonnier / événementiel', postes: ['Employé d\'étage / femme de chambre', 'Réceptionniste / veilleur de nuit'], satisfaction: 'Moyennement satisfait', reglement: 'Virement à 30 jours' }),
     jour(-7), jour(0), 'Intéressé pour la saison des salons. Envoyer une proposition tarifaire.');
   // Étude de marché saisie avec le gérant de la Brasserie Le Comptoir, rattachée à sa fiche client
   run(`INSERT INTO prospects (source, etablissement, adresse, repondant, telephone, email, type_etab, reponses, date_visite, enqueteur, accord, statut, client_id, notes_agence) VALUES ('visite',?,?,?,?,?,?,?,?, 'Claire Morel', 'client', 'client', ?, ?)`,
@@ -180,7 +180,7 @@ tx(() => {
       type_etab: pick(['Restauration traditionnelle / gastronomique', 'Brasserie / restauration rapide', 'Hôtel / hôtel-restaurant', 'Bar / pub / discothèque', 'Traiteur / événementiel'], k),
       effectif: pick(['Moins de 5 personnes', '5 à 15 personnes', '5 à 15 personnes', 'Plus de 15 personnes'], k),
       frequence: pick(['Ponctuellement (1 à 3 fois par mois)', 'Régulièrement (plusieurs fois par semaine)', 'Saisonnier / événementiel', 'Ponctuellement (1 à 3 fois par mois)', 'Rarement / jamais'], k),
-      postes: [pick(['Cuisinier / chef de partie', 'Serveur / chef de rang', 'Commis / plongeur'], k), pick(['Serveur / chef de rang', 'Barman / limonadier', 'Réceptionniste / veilleur de nuit'], k + 1)],
+      postes: [pick(['Cuisinier', 'Serveur / chef de rang', 'Commis / plongeur'], k), pick(['Serveur / chef de rang', 'Barman / limonadier', 'Réceptionniste / veilleur de nuit'], k + 1)],
       delai: pick(['Court terme (24 à 48 h)', 'Urgence absolue (moins de 4 h)', 'Planifié (plus d\'une semaine)'], k),
       problemes: [pick(['Manque de réactivité (délais trop longs)', 'Profils non qualifiés / sans expérience HCR', 'Retards, absences ou abandons de poste', 'Coût / tarifs trop élevés'], k)],
       services: [pick(['Garantie de remplacement sous 2 heures', 'Profils évalués et équipés (tenue HCR)', 'Gestion 100 % dématérialisée (smartphone)'], k)],

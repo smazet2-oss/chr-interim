@@ -101,3 +101,11 @@ test('fiches client créées pour les demandes d\'établissements déjà accept�
   assert.equal(c.nom, 'Hôtel Avant'); assert.equal(c.secteur, 'Hôtellerie'); assert.equal(c.ville, 'Clermont-Ferrand'); assert.equal(c.coefficient, 1.9);
   assert.match(one('SELECT message FROM notifications WHERE message LIKE \'%établissements déjà acceptées%\'').message, /Hôtel Avant/);
 });
+
+test('postes à responsabilité retirés des réponses « postes difficiles à pourvoir »', async () => {
+  run('DELETE FROM parametres WHERE cle = \'migration_postes_responsabilite\'');
+  const id = run('INSERT INTO prospects (source, etablissement, reponses) VALUES (?,?,?)', 'site', 'Le Relais', JSON.stringify({ postes: ['Cuisinier / chef de partie', 'Employé d\'étage / gouvernante', 'Cuisinier'] })).lastInsertRowid;
+  const M = require('../src/migrations');
+  assert.ok(M.postesResponsabilite().reponses >= 1); assert.equal(M.postesResponsabilite(), null);
+  assert.deepEqual(JSON.parse(one('SELECT reponses FROM prospects WHERE id = ?', id).reponses).postes, ['Cuisinier', 'Employé d\'étage / femme de chambre']);
+});

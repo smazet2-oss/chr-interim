@@ -18,6 +18,9 @@ const POSTES = {
   'Barman': 'II-1', 'Réceptionniste': 'II-1', 'Cuisinier': 'II-2', 'Chef de rang': 'II-3',
   'Chef de partie': 'III-1', 'Gouvernante': 'III-1', 'Maître d\'hôtel': 'III-2',
 };
+/** Postes à responsabilité (encadrement, niveau III) : gardés pour la grille et le calcul du taux, retirés des listes de postes à pourvoir. */
+const RESPONSABILITE = ['Chef de partie', 'Gouvernante', 'Maître d\'hôtel'];
+const POSTES_PROPOSES = Object.keys(POSTES).filter(p => !RESPONSABILITE.includes(p));
 const cleNiveau = n => 'grille_' + n.replace('-', '_');
 const clePoste = p => 'niveau_' + p.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z]+/g, '_').replace(/^_|_$/g, '');
-module.exports = { SMIC_DEFAUT, GRILLE_DEFAUT, NIVEAUX, POSTES, cleNiveau, clePoste };
+module.exports = { SMIC_DEFAUT, GRILLE_DEFAUT, NIVEAUX, POSTES, POSTES_PROPOSES, RESPONSABILITE, cleNiveau, clePoste };

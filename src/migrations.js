@@ -78,4 +78,25 @@ function clientsAcceptes() {
   return { fiches: L.length };
 }
 
-module.exports = { smicJuin2026, coefficient190, fichesAcceptees, clientsAcceptes };
+/** Postes à responsabilité retirés de la question « postes les plus difficiles à pourvoir » : anciennes réponses converties (une seule fois). */
+const POSTES_RENOMMES = { 'Cuisinier / chef de partie': 'Cuisinier', 'Employé d\'étage / gouvernante': 'Employé d\'étage / femme de chambre' };
+function postesResponsabilite() {
+  if (fait('migration_postes_responsabilite')) return null;
+  let n = 0;
+  const conv = (table, where) => {
+    for (const x of all(`SELECT id, reponses FROM ${table} ${where}`)) {
+      const r = JSON.parse(x.reponses || '{}');
+      if (!Array.isArray(r.postes) || !r.postes.some(p => POSTES_RENOMMES[p])) continue;
+      r.postes = [...new Set(r.postes.map(p => POSTES_RENOMMES[p] || p))];
+      run(`UPDATE ${table} SET reponses = ? WHERE id = ?`, JSON.stringify(r), x.id); n++;
+    }
+  };
+  tx(() => {
+    conv('prospects', '');
+    if (one('SELECT 1 FROM sqlite_master WHERE type = \'table\' AND name = \'etude_reponses\'')) conv('etude_reponses', 'WHERE cible = \'etablissement\'');
+    marquer('migration_postes_responsabilite');
+  });
+  return { reponses: n };
+}
+
+module.exports = { smicJuin2026, coefficient190, fichesAcceptees, clientsAcceptes, postesResponsabilite };

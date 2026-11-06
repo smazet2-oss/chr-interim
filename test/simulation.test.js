@@ -92,6 +92,12 @@ test('convention HCR : jours fériés, majorations et taux par poste', async () 
   assert.equal(s.brut, 100); assert.equal(s.ht, 145); assert.equal(s.majorations[0].cle, 'mai1');
   assert.equal(H.tauxPoste('Plongeur'), 12.31, 'grille sous le SMIC : le SMIC s\'applique');
   assert.equal(H.tauxPoste('Maître d\'hôtel'), 13.54, 'avenant n° 33, niveau III-2');
+  // Postes à responsabilité : retirés des listes à pourvoir, taux toujours calculé s'ils sont saisis
+  const G = require('../src/hcr-grille');
+  for (const p of ['Chef de partie', 'Gouvernante', 'Maître d\'hôtel']) assert.ok(!G.POSTES_PROPOSES.includes(p), p);
+  assert.ok(G.POSTES_PROPOSES.includes('Serveur') && G.POSTES_PROPOSES.includes('Chef de rang'));
+  const qc = require('../src/candidats').QUESTIONNAIRE.flatMap(x => x.champs).find(x => x.k === 'postes');
+  assert.ok(!qc.options.includes('Maître d\'hôtel') && !qc.options.includes('Gouvernante'));
   // Paramètres modifiables : nuit majorée à 20 %
   const ag = await agence();
   assert.equal((await ag.put('/parametres', { valeurs: { maj_nuit_pc: '20' } })).status, 200);

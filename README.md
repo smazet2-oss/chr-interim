@@ -166,6 +166,8 @@ Dans **Intérimaires › Candidatures intérimaires** et **Clients › Candidatu
 - **Refuser** : e-mail informant du refus, statut « Refusée ».
 - Le message proposé est modifiable avant l'envoi ; sans e-mail connu, un SMS est envoyé. Tout est tracé dans le journal des envois.
 
+**Sans message** : dans la fenêtre « Accepter » ou « Refuser », le bouton « Accepter (ou Refuser) sans envoyer de message » enregistre la décision et le statut sans e-mail ni SMS (par exemple après un appel ou une rencontre). La liste indique « sans message ».
+
 ### Étude de marché (2026, puis 2027, 2028…)
 
 Questionnaire annuel envoyé par e-mail, tiré des questionnaires du site (sans les coordonnées ni les champs libres) :

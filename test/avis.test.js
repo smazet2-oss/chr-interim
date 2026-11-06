@@ -92,3 +92,18 @@ test('note de l\'établissement à la confirmation des heures, avis et alerte no
   const st = (await ag.get('/stats')).data.notes;
   assert.ok(st.clients.basses >= 1 && st.basses_mois >= 1); assert.equal(st.clients_bas[0].valeur, 2);
 });
+
+test('candidatures : accepter ou refuser sans envoyer de message', async () => {
+  const ag = await agence();
+  const nb = () => one('SELECT COUNT(*) n FROM envois_messages').n;
+  const c = run('INSERT INTO candidats (prenom, nom, email, reponses) VALUES (?,?,?,?)', 'Léo', 'Garnier', 'leo@exemple.fr', '{}').lastInsertRowid;
+  const p = run('INSERT INTO prospects (source, etablissement, email, reponses) VALUES (?,?,?,?)', 'site', 'Bistrot Muet', 'bistrot@exemple.fr', '{}').lastInsertRowid;
+  const avant = nb();
+  const r = (await ag.post(`/candidats/${c}/decision`, { decision: 'acceptee', sans_envoi: true })).data;
+  assert.equal(r.statut, 'entretien'); assert.equal(r.sans_envoi, true); assert.deepEqual(r.envois, []);
+  const r2 = (await ag.post(`/prospects/${p}/decision`, { decision: 'refusee', sans_envoi: true })).data;
+  assert.equal(r2.statut, 'perdu'); assert.deepEqual(r2.envois, []);
+  assert.equal(nb(), avant, 'aucun e-mail ni SMS');
+  assert.equal(one('SELECT decision_sans_envoi s FROM candidats WHERE id = ?', c).s, 1);
+  assert.equal(one('SELECT decision, decision_sans_envoi s FROM prospects WHERE id = ?', p).s, 1);
+});

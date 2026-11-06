@@ -1601,11 +1601,11 @@ async function decisionModal(type, id, decision) {
     <label class="f">Objet<input type="text" name="sujet" value="${esc(m.sujet)}" maxlength="200" required></label>
     <label class="f">Message (modifiable)<textarea name="texte" rows="12" maxlength="4000" required data-texte>${esc(m.texte)}</textarea></label>
     <div class="err" hidden></div></div>
-    <div class="panel-f" style="justify-content:flex-end">${btn('Retour', '', 'data-a="close"')}<button class="btn primary" type="submit"${ok ? '' : ' style="background:var(--danger-dot);border-color:var(--danger-dot)"'}>${ic('send')}${ok ? 'Accepter et envoyer' : 'Refuser et envoyer'}</button></div></form>`);
+    <div class="panel-f" style="justify-content:flex-end;flex-wrap:wrap">${btn('Retour', '', 'data-a="close"')}${btn(ok ? 'Accepter sans envoyer de message' : 'Refuser sans envoyer de message', ok ? 'check' : 'ban', `data-a="decidersans" title="La décision est enregistrée, ${type === 'candidat' ? 'l\'intérimaire' : 'l\'établissement'} ne reçoit ni e-mail ni SMS"`)}<button class="btn primary" type="submit"${ok ? '' : ' style="background:var(--danger-dot);border-color:var(--danger-dot)"'}>${ic('send')}${ok ? 'Accepter et envoyer' : 'Refuser et envoyer'}</button></div></form>`);
 }
 const boutonsDecision = (type, x) => ['nouveau', 'a_rappeler', 'a_relancer'].includes(x.statut)
   ? btn('Accepter', 'check', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="acceptee"`, 'sm primary') + btn('Refuser', 'ban', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="refusee"`, 'sm danger') : '';
-const decisionInfo = x => x.decision ? `<div class="small ${x.decision === 'refusee' ? 'muted' : ''}" style="margin-top:2px">${x.decision === 'acceptee' ? `${ic('check', 'style="width:12px;height:12px;vertical-align:-2px"')} Acceptée le ${fdate(x.decision_le.slice(0, 10), 'num')}${x.rdv_propose ? ` · RDV proposé ${new Date(x.rdv_propose).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : ' · RDV sous 48 h demandé'}` : `Refusée le ${fdate(x.decision_le.slice(0, 10), 'num')}`}</div>` : '';
+const decisionInfo = x => x.decision ? `<div class="small ${x.decision === 'refusee' ? 'muted' : ''}" style="margin-top:2px">${x.decision === 'acceptee' ? `${ic('check', 'style="width:12px;height:12px;vertical-align:-2px"')} Acceptée le ${fdate(x.decision_le.slice(0, 10), 'num')}${x.rdv_propose ? ` · RDV ${new Date(x.rdv_propose).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : x.decision_sans_envoi ? '' : ' · RDV sous 48 h demandé'}` : `Refusée le ${fdate(x.decision_le.slice(0, 10), 'num')}`}${x.decision_sans_envoi ? ' · sans message' : ''}</div>` : '';
 
 /* ================= Planning : Mois / Semaine / Intérimaires, agenda en liste sur téléphone ================= */
 // Agence : les trois vues (Intérimaires par défaut) · Employeur : Mois et Semaine · Intérimaire : Semaine.
@@ -1979,6 +1979,12 @@ const A = {
   ecible: el => { S.p.ecible = el.dataset.v; reload(); },
   eannee: el => { S.p.eannee = el.dataset.v; reload(); },
   esource: el => { S.p.esource = el.dataset.v; reload(); },
+  // Décision sans e-mail ni SMS
+  decidersans: el => act(async () => {
+    const f = el.closest('form'), err = f.querySelector('.err'); err.hidden = true;
+    let r; try { r = await POST(`${f.dataset.url}/decision`, { decision: f.dataset.d, rdv: f.elements.rdv?.value || null, sans_envoi: true }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
+    closeModal(); toast(`${r.decision === 'acceptee' ? 'Candidature acceptée' : 'Candidature refusée'}, sans envoi de message.`); reload();
+  }, el),
   deldoc: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.lastChild.textContent = 'Confirmer'; return; } await DEL(`/documents/${el.dataset.id}`); toast('Document supprimé'); reload(); }, el),
   hconf: el => act(async () => { await POST(`/heures/${el.dataset.id}/confirmer`, {}); toast('Heures confirmées'); reload(); }, el),
   hval: el => act(async () => { const b = el.dataset.x === undefined ? {} : { extra_accepte: el.dataset.x === '1' }; await POST(`/heures/${el.dataset.id}/valider`, b); toast('Heures validées'); reload(); }, el),

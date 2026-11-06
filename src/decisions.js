@@ -9,6 +9,7 @@ for (const t of ['candidats', 'prospects']) {
   addColumn(t, 'decision', 'TEXT');
   addColumn(t, 'decision_le', 'TEXT');
   addColumn(t, 'rdv_propose', 'TEXT');
+  addColumn(t, 'decision_sans_envoi', 'INTEGER NOT NULL DEFAULT 0');
 }
 
 const dh = iso => new Date(iso).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' });
@@ -36,9 +37,11 @@ async function decider(table, type, x, b, today) {
   const texte = String(b.texte || m.texte).slice(0, 4000), sujet = String(b.sujet || m.sujet).slice(0, 200);
   const d2 = new Date(today + 'T12:00Z'); d2.setUTCDate(d2.getUTCDate() + 2);
   const statut = decision === 'refusee' ? (type === 'candidat' ? 'refuse' : 'perdu') : (type === 'candidat' ? 'entretien' : 'en_discussion');
-  run(`UPDATE ${table} SET statut = ?, decision = ?, decision_le = datetime('now'), rdv_propose = ?, date_relance = ?, updated_at = datetime('now') WHERE id = ?`,
-    statut, decision, rdv, decision === 'acceptee' ? (rdv ? rdv.slice(0, 10) : d2.toISOString().slice(0, 10)) : null, x.id);
+  run(`UPDATE ${table} SET statut = ?, decision = ?, decision_le = datetime('now'), rdv_propose = ?, date_relance = ?, decision_sans_envoi = ?, updated_at = datetime('now') WHERE id = ?`,
+    statut, decision, rdv, decision === 'acceptee' ? (rdv ? rdv.slice(0, 10) : d2.toISOString().slice(0, 10)) : null, b.sans_envoi ? 1 : 0, x.id);
   const envois = [];
+  // Décision enregistrée sans prévenir la personne (appel téléphonique, rencontre sur place…)
+  if (b.sans_envoi) return { decision, statut, sans_envoi: true, envois: [] };
   if (x.email) envois.push(['mail', await envoyer('mail', x, sujet, texte, { titre: m.titre, lien: '' })]);
   else if (x.telephone) envois.push(['sms', await envoyer('sms', x, sujet, `${P.get('raison_sociale')} : ${texte.replace(/\n+/g, ' ')}`.slice(0, 600), { lien: '' })]);
   return { decision, statut, envois: envois.map(([c, r]) => ({ canal: c, statut: r.statut, detail: r.detail || null })) };

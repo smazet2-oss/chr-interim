@@ -88,3 +88,16 @@ test('fiches intérimaires créées pour les candidatures déjà acceptées', as
   assert.equal(f.prenom, 'Alice'); assert.equal(f.poste, 'Barman'); assert.equal(f.secteur, 'Bar'); assert.match(f.competences, /Véhiculé/);
   assert.match(one('SELECT message FROM notifications WHERE message LIKE \'%candidatures déjà acceptées%\'').message, /Alice Avant/);
 });
+
+test('fiches client créées pour les demandes d\'établissements déjà acceptées', async () => {
+  run('DELETE FROM parametres WHERE cle = \'migration_clients_acceptes\'');
+  const ins = (e, st, dec) => run('INSERT INTO prospects (source, etablissement, adresse, repondant, email, type_etab, statut, decision, reponses) VALUES (?,?,?,?,?,?,?,?,?)', 'site', e, '3 place de Jaude, Clermont-Ferrand', 'Paul, gérant', 'paul@exemple.fr', 'Hôtel / hôtel-restaurant', st, dec, '{}').lastInsertRowid;
+  const a = ins('Hôtel Avant', 'en_discussion', 'acceptee'), r = ins('Bar Refusé', 'perdu', 'refusee'), n = ins('Café Nouveau', 'nouveau', null);
+  const M = require('../src/migrations');
+  assert.equal(M.clientsAcceptes().fiches, 1); assert.equal(M.clientsAcceptes(), null, 'une seule fois');
+  const id = x => one('SELECT client_id FROM prospects WHERE id = ?', x).client_id;
+  assert.equal(id(r), null); assert.equal(id(n), null);
+  const c = one('SELECT * FROM clients WHERE id = ?', id(a));
+  assert.equal(c.nom, 'Hôtel Avant'); assert.equal(c.secteur, 'Hôtellerie'); assert.equal(c.ville, 'Clermont-Ferrand'); assert.equal(c.coefficient, 1.9);
+  assert.match(one('SELECT message FROM notifications WHERE message LIKE \'%établissements déjà acceptées%\'').message, /Hôtel Avant/);
+});

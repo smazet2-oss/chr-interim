@@ -65,4 +65,17 @@ function fichesAcceptees() {
   return { fiches: L.length };
 }
 
-module.exports = { smicJuin2026, coefficient190, fichesAcceptees };
+/** Demandes d'établissements acceptées avant la création automatique des fiches : une fiche client pour chacune (une seule fois). */
+function clientsAcceptes() {
+  if (fait('migration_clients_acceptes')) return null;
+  const { creerClient } = require('./prospects');
+  const L = all(`SELECT * FROM prospects WHERE client_id IS NULL AND (decision = 'acceptee' OR statut IN ('en_discussion', 'client')) ORDER BY id`);
+  tx(() => {
+    for (const p of L) creerClient(p);
+    if (L.length) run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', `${L.length} fiche(s) client créée(s) pour les demandes d'établissements déjà acceptées : ${L.slice(0, 5).map(p => p.etablissement).join(', ')}${L.length > 5 ? '…' : ''}. Complétez-les (SIRET, contrat commercial) et créez leur accès.`);
+    marquer('migration_clients_acceptes');
+  });
+  return { fiches: L.length };
+}
+
+module.exports = { smicJuin2026, coefficient190, fichesAcceptees, clientsAcceptes };

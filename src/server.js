@@ -999,6 +999,8 @@ if (require.main === module) {
   if (coef) console.log('Coefficient par défaut 1,90 :', JSON.stringify(coef));
   const fiches = require('./migrations').fichesAcceptees();
   if (fiches) console.log('Fiches des candidatures déjà acceptées :', JSON.stringify(fiches));
+  const clients = require('./migrations').clientsAcceptes();
+  if (clients) console.log('Fiches des établissements déjà acceptés :', JSON.stringify(clients));
   relances.demarrer();
   etude.demarrer();
 }

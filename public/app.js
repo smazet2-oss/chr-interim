@@ -761,7 +761,7 @@ V.agence.interimaires = async () => {
   return head('Intérimaires', 'Fiches candidats, dossier administratif, contrats et accès à l\'espace intérimaire.', btn('Nouvel intérimaire', 'plus', 'data-a="interimform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun intérimaire. Créez la première fiche.')) :
       `<div class="grid-main side">
-      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}${alerteNote(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
+      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', listeParFonction(L, i => i.poste || 'Autre', s.id, i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}${alerteNote(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`, 'intérimaire'))}
       <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}${gestionProfil('interimaires', s)}</div></div>
       <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
       <dt>Naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}${s.lieu_naissance ? ' à ' + esc(s.lieu_naissance) : ''}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
@@ -778,7 +778,7 @@ V.agence.clients = async () => {
   return head('Clients', 'Fiches entreprises : profil, étude de marché, conditions, contrats, documents et accès à l\'espace employeur.', btn('Nouveau client', 'plus', 'data-a="clientform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun client. Créez la première fiche.')) :
       `<div class="grid-main side">
-      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', `<div class="list">${L.map(c => `<div class="li clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(c.nom)}</div><div><b>${esc(c.nom)}</b><span>${esc([c.secteur, c.ville].filter(Boolean).join(' · '))}${c.suspendu ? ' · suspendu' : ''}</span></div></div><div style="text-align:right">${stars(c.note)}${alerteNote(c.note)}<div class="small muted">${c.nb_missions} mission${c.nb_missions > 1 ? 's' : ''}</div></div></div>`).join('')}</div>`)}
+      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', listeParFonction(L, c => c.secteur || 'Autre', s.id, c => `<div class="li clickable ${c.id === s.id ? 'sel' : ''}" data-a="csel" data-id="${c.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(c.nom)}</div><div><b>${esc(c.nom)}</b><span>${esc([c.secteur, c.ville].filter(Boolean).join(' · '))}${c.suspendu ? ' · suspendu' : ''}</span></div></div><div style="text-align:right">${stars(c.note)}${alerteNote(c.note)}<div class="small muted">${c.nb_missions} mission${c.nb_missions > 1 ? 's' : ''}</div></div></div>`, 'établissement'))}
       <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.nom)}</div><div><h2>${esc(s.nom)}</h2><span>${esc([s.secteur, s.ville].filter(Boolean).join(' · '))}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="clientform" data-id="${s.id}"`, 'sm')}${gestionProfil('clients', s)}</div></div>
       <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>SIRET</dt><dd>${esc(s.siret || '—')}</dd><dt>Adresse</dt><dd>${esc([s.adresse, s.ville].filter(Boolean).join(', ') || '—')}</dd><dt>Interlocuteur</dt><dd>${esc(s.contact || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd>
       <dt>Coefficient</dt><dd><b>${num(s.coefficient)}</b> <span class="small muted">${origineCoef(cc)}</span></dd><dt>Paiement</dt><dd>${s.delai_paiement} jours</dd><dt>Convention</dt><dd>${esc(s.convention)}</dd></dl>
@@ -786,6 +786,17 @@ V.agence.clients = async () => {
       ${accessBox('client', s.id, s.acces)}</div></section>
       ${etudeClientPanel(s, et)}${avisPanel(av, 'client')}${contratsClientPanel(s, cc, 'agence')}${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div></div>`);
 };
+/** Liste des fiches classée par fonction (poste de l'intérimaire, secteur de l'établissement) en listes déroulantes :
+ *  une seule ouverte à la fois, celle de la fiche affichée s'ouvre seule. */
+function listeParFonction(L, cle, selId, rendu, nom) {
+  const G = {};
+  for (const x of L) (G[cle(x)] = G[cle(x)] || []).push(x);
+  const noms = Object.keys(G).sort((a, b) => a.localeCompare(b, 'fr'));
+  const ouvert = noms.find(n => G[n].some(x => x.id === selId));
+  return `<div class="grp-liste">${noms.map((n, k) => { const o = n === ouvert, id = 'grp-' + k + '-' + nom.length; return `<div class="grp${o ? ' ouvert' : ''}">
+    <button type="button" class="grp-t" aria-expanded="${o}" aria-controls="${id}"><span>${esc(n)}</span><span class="grp-n">${G[n].length}</span><span class="grp-chev">${ic('chev')}</span></button>
+    <div class="list grp-c" id="${id}" role="group" aria-label="${esc(n)} : ${G[n].length} ${nom}${G[n].length > 1 ? 's' : ''}"${o ? '' : ' hidden'}>${G[n].map(rendu).join('')}</div></div>`; }).join('')}</div>`;
+}
 /** Fiche client › Profil et étude de marché : réponses complètes au questionnaire (site ou visite terrain), points clés et invitations à l'étude annuelle. */
 let ETUDE_Q = [];
 function etudeClientPanel(c, et) {
@@ -2153,6 +2164,9 @@ document.addEventListener('click', e => {
   const dd = e.target.closest('.dd-btn');
   if (dd) { basculerMenu(dd, dd.getAttribute('aria-expanded') !== 'true'); return; }
   basculerMenu(null);
+  // Listes par fonction : une seule ouverte à la fois
+  const gt = e.target.closest('.grp-t');
+  if (gt) { const o = gt.getAttribute('aria-expanded') !== 'true'; gt.closest('.grp-liste').querySelectorAll('.grp-t').forEach(t => { const x = o && t === gt; t.setAttribute('aria-expanded', x); document.getElementById(t.getAttribute('aria-controls')).hidden = !x; t.parentElement.classList.toggle('ouvert', x); }); return; }
   // Sections repliables : clic sur le titre (ou sur tout l'en-tête d'un groupe de paramètres)
   const acc = e.target.closest('.acc-t') || (e.target.closest('.acc-h') && !e.target.closest('a, button, input, select, label') ? e.target.closest('.acc-h').querySelector('.acc-t') : null);
   if (acc) { const sec = acc.closest('.acc'); ouvrirSection(sec, acc.getAttribute('aria-expanded') !== 'true'); if (acc.getAttribute('aria-expanded') === 'true') { const y = sec.getBoundingClientRect().top + scrollY - (innerWidth <= 900 ? 90 : 70); if (sec.getBoundingClientRect().top < 60) scrollTo({ top: y, behavior: 'smooth' }); } return; }

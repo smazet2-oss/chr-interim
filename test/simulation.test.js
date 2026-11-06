@@ -149,3 +149,19 @@ test('fiche client : étude de marché saisie depuis la fiche et questionnaires 
   assert.equal((await ag.post('/prospects', { client_id: 99999, etablissement: 'X', repondant: 'Y', telephone: '0600000000' })).status, 400);
   assert.equal((await agent().get(`/clients/${c.id}/etude`)).status, 401);
 });
+
+test('demande de mission sur plusieurs jours : une mission par jour, simulation de la période', async () => {
+  const ag = await agence();
+  const c = (await ag.post('/clients', { nom: 'Hôtel Période' })).data;
+  const d1 = plusJours(10), d3 = plusJours(12);
+  const r = await ag.post('/missions', { client_id: c.id, poste: 'Réceptionniste', date: d1, date_fin: d3, debut: '22:00', fin: '07:00', nb_postes: 1 });
+  assert.equal(r.status, 201, JSON.stringify(r.data)); assert.equal(r.data.jours, 3); assert.equal(r.data.ids.length, 3); assert.equal(r.data.date_fin, d3);
+  const M = (await ag.get('/missions')).data.filter(m => r.data.ids.includes(m.id)).map(m => m.date).sort();
+  assert.deepEqual(M, [d1, plusJours(11), d3]);
+  assert.equal((await ag.post('/missions', { client_id: c.id, poste: 'Serveur', date: d3, date_fin: d1, debut: '18:00', fin: '23:00', nb_postes: 1 })).status, 400, 'fin avant début');
+  assert.equal((await ag.post('/missions', { client_id: c.id, poste: 'Serveur', date: d1, date_fin: plusJours(60), debut: '18:00', fin: '23:00', nb_postes: 1 })).status, 400, '31 jours au plus');
+  const s = (await ag.post('/simulation', { client_id: c.id, poste: 'Serveur', date: d1, date_fin: d3, debut: '18:00', fin: '23:00', nb_postes: 2 })).data;
+  assert.equal(s.periode.jours, 3); assert.equal(s.periode.heures, 15); assert.ok(s.periode.ht >= s.ht * 3 - 0.01);
+  const un = (await ag.post('/missions', { client_id: c.id, poste: 'Serveur', date: d1, debut: '18:00', fin: '23:00', nb_postes: 1 })).data;
+  assert.equal(un.jours, 1, 'sans jour de fin : une seule mission');
+});

@@ -343,7 +343,7 @@ async function renderApp() {
   const view = S.view;
   try {
     const html = await V[prof][view]();
-    if (S.view === view) { main.innerHTML = html; accordeon(main); etiqueterTableaux(main); ongletsEnMenu(main); const z = main.querySelector('form [data-sim]'); if (z) majSimulation(z.closest('form')); }
+    if (S.view === view) { main.innerHTML = html; main.querySelectorAll('form[data-f="demande"]').forEach(majPeriode); accordeon(main); etiqueterTableaux(main); ongletsEnMenu(main); const z = main.querySelector('form [data-sim]'); if (z) majSimulation(z.closest('form')); }
   } catch (e) { if (S.me) main.innerHTML = `<div class="panel">${empty('Impossible de charger cette page : ' + esc(e.message))}</div>`; }
   refreshCounts();
 }
@@ -497,6 +497,34 @@ function simBloc(s, profil, ouvert) {
   return `<details class="sim"${ouvert ? ' open' : ''}><summary>${ic('receipt')}<span><b>${simTitre(profil)}</b> · ${simResume(s, profil)}</span></summary>${simDetail(s, profil)}
     <p class="hint">Estimation indicative${profil === 'interim' ? ' pour les horaires prévus, hors heures supplémentaires, primes et avantages repas. Le montant exact figure sur votre fiche de paie.' : ' pour les horaires prévus, hors heures supplémentaires. Le montant exact figure sur la facture.'}</p></details>`;
 }
+/** Horaire au format horloge 24 h (heures et minutes), quelle que soit la langue du navigateur. La valeur part dans un champ caché HH:MM. */
+function horloge(nom, libelle, valeur) {
+  const [h, m] = String(valeur || '18:00').split(':');
+  const opts = (n, pas, v) => [...Array(Math.ceil(n / pas))].map((_, k) => String(k * pas).padStart(2, '0')).map(x => `<option ${x === v ? 'selected' : ''}>${x}</option>`).join('');
+  return `<div class="f"><span>${libelle}</span><div class="horloge" data-horloge>${ic('clock')}<select data-h aria-label="${libelle} : heure">${opts(24, 1, h)}</select><b>h</b><select data-m aria-label="${libelle} : minutes">${opts(60, 5, m)}</select><input type="hidden" name="${nom}" value="${h}:${m}"></div></div>`;
+}
+/** Période et horaires d'une demande de mission : jour de début, jour de fin, nombre de jours, horaires en 24 h et durée du poste. */
+function periodeMission(t, jour) {
+  return `<label class="f">Jour de début<input type="date" name="date" min="${t}" value="${jour}" required data-jdebut></label>
+    <label class="f">Jour de fin<input type="date" name="date_fin" min="${jour}" value="${jour}" required data-jfin></label>
+    ${horloge('debut', 'Heure de début', '18:00')}${horloge('fin', 'Heure de fin', '23:30')}
+    <div class="full periode-resume" data-periode-resume></div>`;
+}
+const PERIODE_MAX = 31;
+/** Nombre de jours de la mission et durée du poste, mis à jour pendant la saisie. */
+function majPeriode(f) {
+  const z = f.querySelector('[data-periode-resume]'); if (!z) return;
+  const d = f.elements.date?.value, e = f.elements.date_fin?.value, deb = f.elements.debut?.value, fin = f.elements.fin?.value;
+  if (f.elements.date_fin && d) { f.elements.date_fin.min = d; if (!e || e < d) f.elements.date_fin.value = d; }
+  const de = f.elements.date_fin?.value || d;
+  const n = d && de ? Math.round((Date.parse(de + 'T12:00Z') - Date.parse(d + 'T12:00Z')) / 864e5) + 1 : 0;
+  const mn = x => { const [h, m] = x.split(':').map(Number); return h * 60 + m; };
+  const dur = deb && fin ? ((mn(fin) - mn(deb)) + 1440) % 1440 || 1440 : 0, nuit = deb && fin && mn(fin) <= mn(deb);
+  const jr = x => new Date(x + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' });
+  z.innerHTML = `<span class="periode-jours${n > PERIODE_MAX ? ' trop' : ''}">${ic('cal')}<b>${n} jour${n > 1 ? 's' : ''}</b>${n > 1 ? ` · du ${jr(d)} au ${jr(de)}` : d ? ` · ${jr(d)}` : ''}</span>
+    <span>${ic('clock')}Poste de <b>${Math.floor(dur / 60)} h${dur % 60 ? ' ' + String(dur % 60).padStart(2, '0') : ''}</b>${nuit ? ' (fin le lendemain)' : ''}${n > 1 ? ` · ${num(Math.round(dur * n / 6) / 10)} h au total par personne` : ''}</span>
+    ${n > PERIODE_MAX ? `<span class="periode-err">31 jours au plus par demande</span>` : n > 1 ? `<span class="small muted">Une mission sera créée pour chaque jour, aux mêmes horaires.</span>` : ''}`;
+}
 /** Simulation mise à jour pendant la saisie d'un formulaire (agence et employeur). */
 const simLive = base => `<div class="sim-live full" data-sim="${esc(JSON.stringify(base || {}))}"><div class="sim-vide small muted">${ic('receipt')}Renseignez les horaires pour voir le coût estimé.</div></div>`;
 let simTimer = 0;
@@ -504,8 +532,8 @@ function majSimulation(form) {
   const zone = form.querySelector('[data-sim]'); if (!zone) return;
   clearTimeout(simTimer);
   simTimer = setTimeout(async () => {
-    const b = { ...JSON.parse(zone.dataset.sim || '{}'), ...Object.fromEntries([...new FormData(form)].filter(([k]) => ['client_id', 'date', 'poste', 'debut', 'fin', 'nb_postes', 'taux_horaire', 'motif'].includes(k))) };
-    try { const s = await POST('/simulation', b); zone.innerHTML = simBloc(s, S.me.profil, true); }
+    const b = { ...JSON.parse(zone.dataset.sim || '{}'), ...Object.fromEntries([...new FormData(form)].filter(([k]) => ['client_id', 'date', 'date_fin', 'poste', 'debut', 'fin', 'nb_postes', 'taux_horaire', 'motif'].includes(k))) };
+    try { const s = await POST('/simulation', b); zone.innerHTML = simBloc(s, S.me.profil, true) + (s.periode ? `<div class="sim-periode">${ic('cal')}<span>Pour les <b>${s.periode.jours} jours</b> : <b>${eur(s.periode.ht)} HT</b> (${eur(s.periode.ttc)} TTC)${s.periode.marge !== undefined ? ` · marge estimée ${eur(s.periode.marge)}` : ''} · ${num(s.periode.heures)} h par personne</span></div>` : ''); }
     catch { zone.innerHTML = `<div class="sim-vide small muted">${ic('receipt')}Simulation indisponible : vérifiez les horaires.</div>`; }
   }, 250);
 }
@@ -1031,9 +1059,8 @@ V.client.demandes = async () => {
   return head('Mes missions', 'Envoyez vos besoins. L\'agence les valide et les diffuse, puis vous acceptez ou refusez les intérimaires qui ont accepté la mission.') +
     `<div class="grid-main"><div style="display:flex;flex-direction:column;gap:18px;min-width:0">${actives.map(m => missionCard(m, 'client')).join('') || panel(null, '', empty('Aucune demande en cours.'))}
     ${passees.length ? panel('Historique', '', `<div class="list">${passees.slice(-10).reverse().map(m => `<div class="li"><div><b>${m.nb_postes} × ${esc(m.poste)}</b><div class="small muted">${fdate(m.date)}</div></div>${badge(...missionStatut(m))}</div>`).join('')}</div>`) : ''}</div>
-    ${!peut('c_demandes') ? panel('Nouvelle demande', '', `<div class="panel-b small muted">${ic('lock', 'style="width:14px;height:14px;vertical-align:-2px"')} Les demandes de mission passent par l'agence : contactez-la.</div>`) : panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f">Date<input type="date" name="date" min="${t}" required value="${S.p.dem_date || addDays(t || new Date().toISOString().slice(0, 10), 7)}"></label>
-      <label class="f">Poste<input type="text" name="poste" required list="postes-liste" placeholder="Serveur"></label>${listePostes()}
-      <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
+    ${!peut('c_demandes') ? panel('Nouvelle demande', '', `<div class="panel-b small muted">${ic('lock', 'style="width:14px;height:14px;vertical-align:-2px"')} Les demandes de mission passent par l'agence : contactez-la.</div>`) : panel('Nouvelle demande', '', `<form data-f="demande" class="panel-b form"><label class="f full">Poste<input type="text" name="poste" required list="postes-liste" placeholder="Serveur"></label>${listePostes()}
+      ${periodeMission(t || new Date().toISOString().slice(0, 10), S.p.dem_date || addDays(t || new Date().toISOString().slice(0, 10), 7))}
       <label class="f">Nombre de personnes<input type="number" name="nb_postes" value="1" min="1" max="30" required></label><label class="f full">Précisions pour l'agence<textarea name="commentaire" placeholder="Tenue, lieu de rendez-vous…"></textarea></label>
       ${simLive()}<div class="full"><button class="btn primary" type="submit">${ic('send')}Envoyer la demande</button></div></form>`)}</div>`;
 };
@@ -1788,8 +1815,8 @@ async function missionForm() {
   const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10);
   openModal(`${modalHead(ic('plus') + 'Nouvelle mission')}<form data-f="mission"><div class="panel-b form">
     <label class="f full">Client<select name="client_id" required>${cs.map(c => `<option value="${c.id}">${esc(c.nom)}</option>`).join('')}</select></label>
-    <label class="f">Poste<input type="text" name="poste" required list="postes-liste"></label>${listePostes()}<label class="f">Date<input type="date" name="date" min="${t}" value="${addDays(t, 7)}" required></label>
-    <label class="f">Début<input type="time" name="debut" value="18:00" required></label><label class="f">Fin<input type="time" name="fin" value="23:30" required></label>
+    <label class="f full">Poste<input type="text" name="poste" required list="postes-liste"></label>${listePostes()}
+    ${periodeMission(t, addDays(t, 7))}
     <label class="f">Nombre de postes<input type="number" name="nb_postes" min="1" max="30" value="1" required></label><label class="f">Taux horaire brut (€)<input type="number" name="taux_horaire" step="0.01" min="${S.cfg?.smic || 10}" max="60" value="${(S.cfg?.smic || 12).toFixed(2)}" required><span class="hint" data-taux-aide>Minimum HCR du poste, jamais sous le SMIC.</span></label>
     <label class="f full">Motif de recours (figure sur le contrat)<select name="motif" data-motif>${opt(S.cfg?.motifs || [])}</select></label>
     <div class="full form" data-remplace hidden><label class="f">Salarié remplacé (nom et prénom)<input type="text" name="remplace_nom" maxlength="120"></label><label class="f">Poste du salarié remplacé<input type="text" name="remplace_poste" maxlength="120"></label></div>
@@ -1799,7 +1826,7 @@ async function missionForm() {
       <label class="f full">Équipements de protection fournis<input type="text" name="epi" maxlength="600" placeholder="Chaussures antidérapantes, tablier…"></label></div></details>
     ${simLive()}</div>
     ${modalFoot('Créer la mission', 'type="submit"')}</form>`);
-  majSimulation($('form[data-f="mission"]'));
+  majSimulation($('form[data-f="mission"]')); majPeriode($('form[data-f="mission"]'));
 }
 async function diffuseModal(id) {
   const [ms, is] = await Promise.all([GET('/missions'), GET('/interimaires')]);
@@ -2067,7 +2094,7 @@ const F = {
     try { await POST('/password', { actuel: fd.get('actuel'), nouveau: fd.get('nouveau') }); } catch (e) { err.textContent = e.message; err.hidden = false; return; }
     closeModal(); toast('Mot de passe modifié');
   }),
-  mission: fd => act(async () => { await POST('/missions', Object.fromEntries(fd)); closeModal(); toast('Mission créée. Diffusez-la aux intérimaires.'); go('missions'); }),
+  mission: fd => act(async () => { const r = await POST('/missions', Object.fromEntries(fd)); closeModal(); toast(r.jours > 1 ? `${r.jours} missions créées (une par jour). Diffusez-les aux intérimaires.` : 'Mission créée. Diffusez-la aux intérimaires.'); go('missions'); }),
   diffuser: (fd, f) => act(async () => {
     const r = await POST(`/missions/${f.dataset.id}/diffuser`, { interims: fd.getAll('interim').map(Number), canaux: fd.getAll('canal'), taux_horaire: Number(fd.get('taux_horaire')) });
     closeModal(); toast(`Mission envoyée à ${r.envoyes} intérimaire${r.envoyes > 1 ? 's' : ''}${r.simules.length ? ` (${r.simules.join(', ')} : simulé, voir le journal)` : ''}.`); reload();
@@ -2143,7 +2170,7 @@ const F = {
   ccsign: (fd, f) => act(async () => { const k = await POST(`/contrats-clients/${f.dataset.id}/signer`, { nom: fd.get('nom'), accepte: fd.get('accepte') === '1' }); closeModal(); toast(`Contrat signé : coefficient ${num(k.coefficient)} appliqué.`); S.cfg = await GET('/config').catch(() => S.cfg); reload(); }),
   client: (fd, f) => act(async () => { const b = Object.fromEntries(fd); const r = f.dataset.id ? await PUT(`/clients/${f.dataset.id}`, b) : await POST('/clients', b); S.p.csel = r.id; closeModal(); toast('Fiche enregistrée'); go('clients'); }),
   upload: fd => act(async () => { await api('POST', '/documents', fd); toast('Document déposé'); reload(); }),
-  demande: fd => act(async () => { await POST('/missions', Object.fromEntries(fd)); toast('Demande envoyée. L\'agence va la valider et la diffuser.'); reload(); }),
+  demande: fd => act(async () => { const r = await POST('/missions', Object.fromEntries(fd)); toast(r.jours > 1 ? `Demande envoyée pour ${r.jours} jours. L'agence va la valider et la diffuser.` : 'Demande envoyée. L\'agence va la valider et la diffuser.'); reload(); }),
   jour: fd => { S.p.jd = fd.get('date'); reload(); },
   evaluer: (fd, f) => act(async () => { if (!fd.get('note')) throw new Error('Choisissez une note de 1 à 5 étoiles.'); await POST(`/heures/${f.dataset.id}/evaluer`, Object.fromEntries(fd)); toast('Note enregistrée'); reload(); }),
   confirmer: (fd, f) => act(async () => {
@@ -2221,6 +2248,12 @@ document.addEventListener('change', e => {
   const t = e.target.form?.querySelector(`[name="${e.target.name}_autre"]`);
   if (t && (e.target.type === 'radio' || e.target.value === 'Autre')) { t.hidden = !(e.target.value === 'Autre' && e.target.checked); if (!t.hidden) t.focus(); }
 });
+// Horloge 24 h : heures et minutes recopiées dans le champ caché, puis période et simulation recalculées
+document.addEventListener('change', e => {
+  const hz = e.target.closest?.('[data-horloge]');
+  if (hz) { const c = hz.querySelector('input[type=hidden]'); c.value = `${hz.querySelector('[data-h]').value}:${hz.querySelector('[data-m]').value}`; c.dispatchEvent(new Event('input', { bubbles: true })); }
+});
+document.addEventListener('input', e => { const f = e.target.closest?.('form[data-f="mission"],form[data-f="demande"]'); if (f) majPeriode(f); });
 document.addEventListener('input', e => { const f = e.target.closest?.('form[data-f="mission"],form[data-f="demande"],form[data-f="diffuser"]'); if (f && e.target.name !== 'interim' && e.target.name !== 'canal') majSimulation(f); });
 document.addEventListener('input', e => { if (e.target.dataset && 'rules' in e.target.dataset) { const r = $('#rules'); if (r) r.innerHTML = rulesHtml(e.target.value); } });
 document.addEventListener('submit', e => {

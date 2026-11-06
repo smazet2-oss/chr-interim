@@ -969,3 +969,17 @@ button.lien-profil:focus-visible{outline:2px solid #C99948;outline-offset:2px;bo
 .grp-t[aria-expanded="true"] .grp-chev{transform:rotate(90deg)}
 .grp-c[hidden]{display:none}
 .grp-c .li{padding-left:24px}
+
+/* ---------- Demande de mission : période et horaires en 24 h ---------- */
+.horloge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--line-strong);border-radius:8px;background:var(--surface);min-height:42px;width:100%}
+.horloge:focus-within{outline:2px solid #C99948;outline-offset:1px}
+.horloge>svg{width:18px;height:18px;color:#C99948;flex:none}
+.horloge select{border:0;background:var(--surface-2);border-radius:6px;padding:6px 8px;font:inherit;font-size:17px;font-weight:600;font-variant-numeric:tabular-nums;color:var(--ink);cursor:pointer;width:auto;min-width:0}
+.horloge b{font-size:15px;color:var(--ink-3)}
+.periode-resume{display:flex;flex-wrap:wrap;gap:6px 18px;align-items:center;padding:10px 12px;border-radius:10px;background:var(--surface-2);border:1px solid var(--line);font-size:13.5px}
+.periode-resume>span{display:inline-flex;align-items:center;gap:6px}
+.periode-resume svg{width:16px;height:16px;color:#7E5F24}
+.periode-jours b{color:#112233}
+.periode-jours.trop b,.periode-err{color:var(--danger-fg);font-weight:600}
+.sim-periode{display:flex;gap:8px;align-items:center;margin-top:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(201,153,72,.55);background:rgba(201,153,72,.08);font-size:13.5px}
+.sim-periode svg{width:16px;height:16px;color:#7E5F24;flex:none}

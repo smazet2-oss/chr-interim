@@ -475,6 +475,15 @@ api.get('/missions', (req, res) => {
      JOIN envois e ON e.mission_id = m.id WHERE e.interim_id = ? ORDER BY m.date, m.debut`, req.user.interim_id);
   res.json(ms.map(m => missionPourInterim(m, req.user.interim_id)));
 });
+/** Jours d'une période de mission (début et fin inclus) ; sans jour de fin, le seul jour de début. */
+function joursPeriode(debut, fin) {
+  if (!fin || fin === debut) return [debut];
+  if (!isDate(fin)) fail(400, 'Jour de fin invalide.');
+  if (fin < debut) fail(400, 'Le jour de fin doit être le même jour ou après le jour de début.');
+  const L = [], d = new Date(debut + 'T12:00Z');
+  while (d.toISOString().slice(0, 10) <= fin) { L.push(d.toISOString().slice(0, 10)); d.setUTCDate(d.getUTCDate() + 1); if (L.length > 31) fail(400, 'Une demande couvre 31 jours au plus : faites-en plusieurs pour une période plus longue.'); }
+  return L;
+}
 api.post('/missions', role('agence', 'client'), wrap((req, res) => {
   const b = req.body;
   const client_id = req.user.profil === 'client' ? req.user.client_id : Number(b.client_id);
@@ -484,6 +493,8 @@ api.post('/missions', role('agence', 'client'), wrap((req, res) => {
   const poste = str(b.poste, 80); if (!poste) fail(400, 'Indiquez le poste.');
   if (!isDate(b.date)) fail(400, 'Date invalide.');
   if (b.date < today()) fail(400, 'La date est déjà passée.');
+  // Période : du jour de début au jour de fin, une mission par jour (31 jours au plus)
+  const jours = joursPeriode(b.date, b.date_fin);
   if (!isTime(b.debut) || !isTime(b.fin)) fail(400, 'Horaires invalides (format HH:MM).');
   const nb = parseInt(b.nb_postes, 10); if (!(nb >= 1 && nb <= 30)) fail(400, 'Nombre de postes invalide.');
   const motif = MOTIFS.includes(b.motif) ? b.motif : MOTIFS[0];
@@ -493,9 +504,9 @@ api.post('/missions', role('agence', 'client'), wrap((req, res) => {
   // Précisions reprises dans le contrat de mission (sinon, valeurs habituelles du poste)
   const extra = Object.fromEntries(['remplace_nom', 'remplace_poste', 'taches', 'risques', 'epi'].map(k => [k, str(b[k], k.startsWith('remplace') ? 120 : 600) || null]));
   if (/remplacement/i.test(motif) && !extra.remplace_nom) fail(400, 'Motif de remplacement : indiquez le nom du salarié remplacé (mention obligatoire du contrat).');
-  const r = run('INSERT INTO missions (client_id, poste, date, debut, fin, nb_postes, taux_horaire, commentaire, motif, created_by, remplace_nom, remplace_poste, taches, risques, epi) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
-    client_id, poste, b.date, b.debut, b.fin, nb, taux, str(b.commentaire, 500), motif, req.user.id, extra.remplace_nom, extra.remplace_poste, extra.taches, extra.risques, extra.epi);
-  res.status(201).json(missionRow(r.lastInsertRowid));
+  const ids = tx(() => jours.map(d => Number(run('INSERT INTO missions (client_id, poste, date, debut, fin, nb_postes, taux_horaire, commentaire, motif, created_by, remplace_nom, remplace_poste, taches, risques, epi) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    client_id, poste, d, b.debut, b.fin, nb, taux, str(b.commentaire, 500), motif, req.user.id, extra.remplace_nom, extra.remplace_poste, extra.taches, extra.risques, extra.epi).lastInsertRowid)));
+  res.status(201).json({ ...missionRow(ids[0]), jours: ids.length, ids, date_fin: jours[jours.length - 1] });
 }));
 
 /** Simulation en direct pendant la saisie d'une mission : coût (employeur, agence) selon le profil. */
@@ -507,7 +518,15 @@ api.post('/simulation', role('agence', 'client'), wrap((req, res) => {
   const nb = Math.min(30, Math.max(1, parseInt(b.nb_postes, 10) || 1));
   const taux = p === 'agence' && Number(b.taux_horaire) >= hcr.smic() && Number(b.taux_horaire) <= 60 ? Number(b.taux_horaire) : hcr.tauxPoste(b.poste);
   const motif = MOTIFS.includes(b.motif) ? b.motif : MOTIFS[0];
-  res.json(simulation.vue(simulation.calculer({ date: isDate(b.date) ? b.date : null, debut: b.debut, fin: b.fin, nb_postes: nb, taux_horaire: taux, motif, coefficient: c.coefficient }), p));
+  const un = d => simulation.calculer({ date: d, debut: b.debut, fin: b.fin, nb_postes: nb, taux_horaire: taux, motif, coefficient: c.coefficient });
+  const s0 = un(isDate(b.date) ? b.date : null), v = simulation.vue(s0, p);
+  // Plusieurs jours : total de la période (majorations de chaque jour : dimanche, jours fériés…)
+  if (isDate(b.date) && isDate(b.date_fin) && b.date_fin > b.date) {
+    let jours; try { jours = joursPeriode(b.date, b.date_fin); } catch { jours = [b.date]; }
+    const L = jours.map(un), som = k => Math.round(L.reduce((a, x) => a + x[k], 0) * 100) / 100;
+    v.periode = { jours: jours.length, heures: som('heures'), ...(p === 'agence' ? { ht: som('ht'), ttc: som('ttc'), cout_agence: som('cout_agence'), marge: som('marge') } : { ht: som('ht'), ttc: som('ttc') }) };
+  }
+  res.json(v);
 }));
 
 /** Diffusion par l'agence : choix des intérimaires et des canaux. */

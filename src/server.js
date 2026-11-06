@@ -997,6 +997,8 @@ if (require.main === module) {
   if (smic) console.log('Mise à jour SMIC 2026 :', JSON.stringify(smic));
   const coef = require('./migrations').coefficient190();
   if (coef) console.log('Coefficient par défaut 1,90 :', JSON.stringify(coef));
+  const fiches = require('./migrations').fichesAcceptees();
+  if (fiches) console.log('Fiches des candidatures déjà acceptées :', JSON.stringify(fiches));
   relances.demarrer();
   etude.demarrer();
 }

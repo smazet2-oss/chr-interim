@@ -52,4 +52,17 @@ function coefficient190() {
   return bilan;
 }
 
-module.exports = { smicJuin2026, coefficient190 };
+/** Candidatures d'intérimaires acceptées avant la création automatique des fiches : une fiche intérimaire pour chacune (une seule fois). */
+function fichesAcceptees() {
+  if (fait('migration_fiches_acceptees')) return null;
+  const { creerFiche } = require('./candidats');
+  const L = all(`SELECT * FROM candidats WHERE interim_id IS NULL AND (decision = 'acceptee' OR statut IN ('entretien', 'inscrit')) ORDER BY id`);
+  tx(() => {
+    for (const c of L) creerFiche({ ...c, reponses: JSON.parse(c.reponses || '{}') });
+    if (L.length) run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', `${L.length} fiche(s) intérimaire(s) créée(s) pour les candidatures déjà acceptées : ${L.slice(0, 5).map(c => c.prenom + ' ' + c.nom).join(', ')}${L.length > 5 ? '…' : ''}. Complétez-les (n° de sécurité sociale, domicile) et créez leur accès.`);
+    marquer('migration_fiches_acceptees');
+  });
+  return { fiches: L.length };
+}
+
+module.exports = { smicJuin2026, coefficient190, fichesAcceptees };

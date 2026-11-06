@@ -75,3 +75,16 @@ test('coefficient par défaut 1,90 : paramètre, entreprises sans contrat relev�
   assert.match(one('SELECT message FROM notifications WHERE message LIKE \'%gardent le coefficient%\'').message, /Avec contrat 1,60/);
   assert.equal((await (await agence()).get('/config')).data.coefficient_minimum, 1.9);
 });
+
+test('fiches intérimaires créées pour les candidatures déjà acceptées', async () => {
+  run('DELETE FROM parametres WHERE cle = \'migration_fiches_acceptees\'');
+  const ins = (p, n, st, dec) => run('INSERT INTO candidats (prenom, nom, email, poste, statut, decision, reponses) VALUES (?,?,?,?,?,?,?)', p, n, p.toLowerCase() + '@exemple.fr', 'Barman', st, dec, JSON.stringify({ vehicule: true })).lastInsertRowid;
+  const a = ins('Alice', 'Avant', 'entretien', 'acceptee'), b = ins('Bruno', 'Inscrit', 'inscrit', null), r = ins('Rémi', 'Refus', 'refuse', 'refusee'), n = ins('Nina', 'Nouvelle', 'nouveau', null);
+  const M = require('../src/migrations');
+  assert.equal(M.fichesAcceptees().fiches, 2); assert.equal(M.fichesAcceptees(), null, 'une seule fois');
+  const id = x => one('SELECT interim_id FROM candidats WHERE id = ?', x).interim_id;
+  assert.ok(id(a) && id(b)); assert.equal(id(r), null); assert.equal(id(n), null);
+  const f = one('SELECT * FROM interimaires WHERE id = ?', id(a));
+  assert.equal(f.prenom, 'Alice'); assert.equal(f.poste, 'Barman'); assert.equal(f.secteur, 'Bar'); assert.match(f.competences, /Véhiculé/);
+  assert.match(one('SELECT message FROM notifications WHERE message LIKE \'%candidatures déjà acceptées%\'').message, /Alice Avant/);
+});

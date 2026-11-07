@@ -124,7 +124,7 @@ function creerFiche(c) {
 function agence(api, h) {
   const { fail, wrap, role } = h;
   api.get('/candidats', role('agence'), (req, res) => res.json(all('SELECT * FROM candidats ORDER BY CASE WHEN statut IN (\'inscrit\', \'refuse\') THEN 1 ELSE 0 END, COALESCE(date_relance, \'9999\'), id DESC').map(lire)
-    .map(c => { const AGE = require('./age'), a = AGE.age(c.reponses.date_naissance, h.today()); return { ...c, age: a, categorie_age: AGE.categorie(a) }; })));
+    .map(c => { const AGE = require('./age'), a = AGE.age(c.reponses.date_naissance, h.today()); return { ...c, age: a, categorie_age: AGE.categorie(a, c.reponses.date_naissance, h.today()) }; })));
   /** Texte proposé avant l'envoi, puis décision (acceptée : demande de rendez-vous sous 48 h ; refusée). */
   api.get('/candidats/:id/modele', role('agence'), wrap((req, res) => {
     const c = one('SELECT * FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');

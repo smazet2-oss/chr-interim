@@ -70,3 +70,16 @@ test('diffusion : mission non conforme non proposée au mineur, acceptation refu
   const m2 = (await ag.post('/missions', { client_id: c.id, poste: 'Serveur', date: d, debut: '11:00', fin: '15:00', nb_postes: 1 })).data;
   assert.equal((await ag.post(`/missions/${m2.id}/diffuser`, { interims: [mineur.id], canaux: ['sms'] })).data.envoyes, 1);
 });
+
+test('âge légal de départ à la retraite selon la génération', () => {
+  assert.equal(A.moisRetraite('1961-05-10'), 744); assert.equal(A.libelleMois(744), '62 ans');
+  assert.equal(A.moisRetraite('1964-06-01'), 753); assert.equal(A.libelleMois(753), '62 ans et 9 mois');
+  assert.equal(A.moisRetraite('1965-02-01'), 753, '1er trimestre 1965 : 62 ans et 9 mois');
+  assert.equal(A.moisRetraite('1967-06-01'), 762); assert.equal(A.moisRetraite('1975-01-01'), 768);
+  // Né le 1er mars 1964 : 62 ans et 9 mois le 1er décembre 2026
+  assert.equal(A.categorie(62, '1964-03-01', '2026-11-30'), null);
+  assert.equal(A.categorie(62, '1964-03-01', '2026-12-01'), 'senior');
+  // Né en 1966 : 63 ans et 3 mois ; à 63 ans pile, pas encore
+  assert.equal(A.categorie(63, '1963-01-01'.replace('1963', '1966'), '2029-01-01'), null);
+  assert.equal(A.categorie(63, '1966-01-01', '2029-04-01'), 'senior');
+});

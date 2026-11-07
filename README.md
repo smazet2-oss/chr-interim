@@ -123,11 +123,11 @@ Dans Intérimaires › Fiches intérimaires et Clients › Fiches clients, la li
 
 ### Âge : mineurs et 64 ans ou plus
 
-La date de naissance (fiche intérimaire, candidature) donne l'âge. Une **alerte rouge** avec l'âge s'affiche pour les **mineurs** (« Mineur · 17 ans », « Moins de 16 ans ») et les personnes de **64 ans ou plus**, sur la fiche, dans la liste, dans les candidatures et dans la fenêtre de diffusion. La fiche détaille les conditions particulières :
+La date de naissance (fiche intérimaire, candidature) donne l'âge. Une **alerte rouge** avec l'âge s'affiche pour les **mineurs** (« Mineur · 17 ans », « Moins de 16 ans ») et les personnes ayant atteint l'**âge légal de départ à la retraite** de leur génération, sur la fiche, dans la liste, dans les candidatures et dans la fenêtre de diffusion. La fiche détaille les conditions particulières :
 
 - **Mineurs** (Code du travail, dérogations hôtellerie-restauration) : 8 h par jour et 35 h par semaine au plus ; pause de 30 min dès 4 h 30 ; repos quotidien de 12 h (14 h avant 16 ans) et 2 jours consécutifs par semaine ; nuit interdite de 22 h à 6 h (20 h à 6 h avant 16 ans), jusqu'à 23 h 30 possible en HCR avec la dérogation de l'inspection du travail (R3163-2) ; dimanches et jours fériés possibles en HCR ; service au bar interdit sauf jeunes en formation ; visite de prévention et autorisation parentale avant la première mission ; travaux dangereux interdits. Moins de 16 ans : emploi interdit sauf exceptions.
 - **Contrôle des missions** : une mission qui finit après 23 h 30, commence avant 6 h ou dure plus de 8 h n'est pas proposée à un mineur (case grisée à la diffusion, refus à l'acceptation) ; une fin entre 22 h et 23 h 30, un poste au bar ou un poste de plus de 4 h 30 affichent une alerte à vérifier.
-- **64 ans ou plus** : vérifier la situation de retraite (cumul emploi-retraite) et adapter le suivi de santé et les postes physiques.
+- **Âge légal de la retraite atteint** (62 ans avant septembre 1961, 62 ans et 3 mois fin 1961, 62 ans et 6 mois en 1962, 62 ans et 9 mois en 1963-1964 et au 1er trimestre 1965, puis 63 ans à 63 ans et 9 mois de 1965 à 1968, 64 ans ensuite, réforme suspendue au 1er septembre 2026 ; tableau dans `src/age.js`) : vérifier la situation de retraite (cumul emploi-retraite) et adapter le suivi de santé et les postes physiques.
 
 Règles indicatives, à faire valider (DREETS, médecine du travail) ; elles se modifient dans `src/age.js`.
 

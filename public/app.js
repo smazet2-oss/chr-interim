@@ -821,17 +821,21 @@ function ageCalc(dn) {
   const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10), [y, m, d] = dn.split('-').map(Number), [ty, tm, td] = t.split('-').map(Number);
   return ty - y - (tm < m || (tm === m && td < d) ? 1 : 0);
 }
-function catAge(a) { return a === null || a === undefined ? null : a < 16 ? 'moins16' : a < 18 ? 'mineur' : a >= (S.cfg?.age_senior || 64) ? 'senior' : null; }
+/** Âge légal de départ à la retraite de la génération (en mois), d'après le tableau du serveur. */
+const moisRetraite = dn => ((S.cfg?.retraite || [['9999-12-31', 768]]).find(([d]) => dn <= d) || [0, 768])[1];
+const libMois = m => `${Math.floor(m / 12)} ans${m % 12 ? ` et ${m % 12} mois` : ''}`;
+function ageMois(dn) { const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10), [y, m, d] = dn.split('-').map(Number), [ty, tm, td] = t.split('-').map(Number); return (ty - y) * 12 + (tm - m) - (td < d ? 1 : 0); }
+function catAge(a, dn) { return a === null || a === undefined ? null : a < 16 ? 'moins16' : a < 18 ? 'mineur' : dn && ageMois(dn) >= moisRetraite(dn) ? 'senior' : null; }
 function alerteAge(dn, court) {
-  const a = ageCalc(dn), c = catAge(a); if (!c) return '';
-  const L = { moins16: 'Moins de 16 ans', mineur: 'Mineur', senior: `${S.cfg?.age_senior || 64} ans ou plus` }[c];
+  const a = ageCalc(dn), c = catAge(a, dn); if (!c) return '';
+  const L = { moins16: 'Moins de 16 ans', mineur: 'Mineur', senior: `Âge légal de la retraite (${libMois(moisRetraite(dn))})` }[c];
   return `<span class="alerte-age" title="${esc(L)} : ${a} ans">${ic('alert')}${court ? `${a} ans` : `${L} · ${a} ans`}</span>`;
 }
 /** Conditions particulières : mineurs (Code du travail et dérogations hôtellerie-restauration) ou 64 ans ou plus. */
 function conditionsAge(dn) {
-  const a = ageCalc(dn), c = catAge(a); if (!c) return '';
+  const a = ageCalc(dn), c = catAge(a, dn); if (!c) return '';
   const R = c === 'senior' ? S.cfg?.regles_senior || [] : S.cfg?.regles_mineurs || [];
-  const titre = c === 'senior' ? `Personne de ${a} ans : points de vigilance` : c === 'moins16' ? `Moins de 16 ans (${a} ans) : emploi interdit, sauf travaux légers pendant les vacances scolaires avec autorisation de l'inspection du travail` : `Mineur de ${a} ans : conditions de travail particulières (hôtellerie-restauration)`;
+  const titre = c === 'senior' ? `${a} ans : âge légal de départ à la retraite atteint (${libMois(moisRetraite(dn))} pour sa génération)` : c === 'moins16' ? `Moins de 16 ans (${a} ans) : emploi interdit, sauf travaux légers pendant les vacances scolaires avec autorisation de l'inspection du travail` : `Mineur de ${a} ans : conditions de travail particulières (hôtellerie-restauration)`;
   return `<div class="conditions-age"><div class="conditions-age-t">${ic('alert')}<b>${esc(titre)}</b></div><ul>${R.map(x => `<li>${esc(x)}</li>`).join('')}</ul>${c !== 'senior' ? '<p class="small">Les missions de nuit (après 23 h 30 ou avant 6 h) et de plus de 8 heures ne peuvent pas lui être proposées.</p>' : ''}</div>`;
 }
 /** Liste des fiches classée par fonction (poste de l'intérimaire, secteur de l'établissement) en listes déroulantes :

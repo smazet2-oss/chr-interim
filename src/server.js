@@ -264,7 +264,7 @@ const INTERIM_SQL = `SELECT i.*,
 api.get('/interimaires', (req, res) => {
   const p = req.user.profil;
   // Agence : âge et catégorie (mineur, moins de 16 ans, 64 ans ou plus) calculés à la date du jour
-  if (p === 'agence') return res.json(all(INTERIM_SQL + ' ORDER BY i.nom, i.prenom').map(i => { const a = AGE.age(i.date_naissance, today()); return { ...i, age: a, categorie_age: AGE.categorie(a) }; }));
+  if (p === 'agence') return res.json(all(INTERIM_SQL + ' ORDER BY i.nom, i.prenom').map(i => { const a = AGE.age(i.date_naissance, today()); return { ...i, age: a, categorie_age: AGE.categorie(a, i.date_naissance, today()) }; }));
   if (p === 'interim') return res.json(all(INTERIM_SQL + ' WHERE i.id = ?', req.user.interim_id));
   // Employeur : intérimaires venus chez lui, candidats à ses missions, et nouveaux inscrits de son secteur.
   const cid = req.user.client_id, secteur = one('SELECT secteur FROM clients WHERE id = ?', cid).secteur;
@@ -568,7 +568,7 @@ api.get('/missions/:id/controle-age', role('agence'), (req, res) => {
   const m = missionRow(req.params.id); if (!m) fail(404, 'Mission introuvable.');
   const out = {};
   for (const i of all('SELECT id, date_naissance FROM interimaires WHERE suspendu = 0 AND date_naissance IS NOT NULL')) {
-    const a = AGE.age(i.date_naissance, m.date), cat = AGE.categorie(a); if (!cat) continue;
+    const a = AGE.age(i.date_naissance, m.date), cat = AGE.categorie(a, i.date_naissance, m.date); if (!cat) continue;
     out[i.id] = { age: a, categorie: cat, ...AGE.controleMission(a, m, m.client_secteur) };
   }
   res.json(out);
@@ -985,7 +985,7 @@ api.post('/journal/supprimer', role('agence'), (req, res) => {
   res.json({ supprimes: Number(r.changes) });
 });
 api.get('/config', (req, res) => res.json({ points_etab: POINTS_ETAB, note_basse: NOTE_BASSE, canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES,
-  regles_mineurs: AGE.REGLES_MINEURS, regles_senior: AGE.REGLES_SENIOR, age_senior: AGE.SENIOR,
+  regles_mineurs: AGE.REGLES_MINEURS, regles_senior: AGE.REGLES_SENIOR, retraite: AGE.RETRAITE,
   taux_postes: hcr.tauxPostes(), smic: hcr.smic(), coefficient_minimum: contratsClients.coefMin(),
   // Coût d'une heure pour l'agence ÷ taux horaire brut (fin de mission, congés payés, charges) : sert au calcul de marge d'un contrat.
   ...(req.user.profil === 'agence' ? { facteur_cout: (1 + P.num('ifm_taux', 10) / 100) * (1 + P.num('iccp_taux', 10) / 100) * (1 + P.num('charges_patronales_taux', 20) / 100) } : {}) }));

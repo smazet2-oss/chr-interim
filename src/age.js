@@ -3,7 +3,22 @@
 // et contrôle des missions proposées aux mineurs selon le Code du travail et les dérogations propres à l'hôtellerie-restauration (HCR).
 // Règles à faire valider et à tenir à jour (DREETS, Code du travail articles L3162-1 et suivants, R3163-1 et suivants, R3164-1 et suivants).
 
-const SENIOR = 64;
+const SENIOR = 64; // repère d'affichage ; le seuil réel est l'âge légal de départ à la retraite de la génération (ci-dessous)
+/** Âge légal de départ à la retraite selon la date de naissance (réforme de 2023, suspendue au 1er septembre 2026), en mois.
+ *  [né jusqu'au (inclus), âge légal en mois]. À mettre à jour si la loi change. */
+const RETRAITE = [['1961-08-31', 744], ['1961-12-31', 747], ['1962-12-31', 750], ['1964-12-31', 753], ['1965-03-31', 753],
+  ['1965-12-31', 756], ['1966-12-31', 759], ['1967-12-31', 762], ['1968-12-31', 765], ['9999-12-31', 768]];
+const moisRetraite = naissance => (RETRAITE.find(([d]) => naissance <= d) || RETRAITE[RETRAITE.length - 1])[1];
+const libelleMois = m => `${Math.floor(m / 12)} ans${m % 12 ? ` et ${m % 12} mois` : ''}`;
+/** Âge en mois révolus. */
+function ageMois(naissance, ref) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(naissance || ''))) return null;
+  const r = ref || new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+  const [y, m, d] = naissance.split('-').map(Number), [ry, rm, rd] = r.split('-').map(Number);
+  return (ry - y) * 12 + (rm - m) - (rd < d ? 1 : 0);
+}
+/** Âge légal de la retraite atteint à la date de référence ? */
+const retraiteAtteinte = (naissance, ref) => { const am = ageMois(naissance, ref); return am !== null && am >= moisRetraite(naissance); };
 
 /** Âge révolu à une date (AAAA-MM-JJ). null si la date de naissance est absente ou invalide. */
 function age(naissance, ref) {
@@ -15,11 +30,11 @@ function age(naissance, ref) {
 }
 
 /** Catégorie d'âge : 'moins16' (emploi interdit sauf exceptions), 'mineur' (16-17 ans), 'senior' (64 ans ou plus), null sinon. */
-function categorie(a) {
+function categorie(a, naissance, ref) {
   if (a === null || a === undefined) return null;
   if (a < 16) return 'moins16';
   if (a < 18) return 'mineur';
-  if (a >= SENIOR) return 'senior';
+  if (naissance ? retraiteAtteinte(naissance, ref) : a >= SENIOR) return 'senior';
   return null;
 }
 
@@ -36,7 +51,7 @@ const REGLES_MINEURS = [
   'Travaux dangereux interdits sans dérogation (machines tranchantes, produits chimiques, port de charges lourdes…).',
 ];
 const REGLES_SENIOR = [
-  'Âge légal de départ à la retraite atteint ou proche : vérifier si la personne perçoit une pension (cumul emploi-retraite à déclarer à sa caisse).',
+  'Âge légal de départ à la retraite atteint : vérifier si la personne perçoit une pension (cumul emploi-retraite à déclarer à sa caisse).',
   'Adapter le suivi de santé et les postes physiques (port de charges, station debout prolongée, nuit).',
 ];
 
@@ -65,4 +80,4 @@ function controleMission(a, m, secteurClient) {
   return { bloquants, alertes };
 }
 
-module.exports = { age, categorie, controleMission, REGLES_MINEURS, REGLES_SENIOR, SENIOR };
+module.exports = { age, ageMois, categorie, controleMission, moisRetraite, libelleMois, retraiteAtteinte, REGLES_MINEURS, REGLES_SENIOR, SENIOR, RETRAITE };

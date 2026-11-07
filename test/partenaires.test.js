@@ -116,3 +116,32 @@ test('commission au pourcentage : en attente du chiffre d\'affaires déclaré pa
   assert.equal((await pa.get(`/partenaire/factures/${autre}`)).status, 404);
   assert.equal((await pa.get('/partenaire/presentations')).data.length, 1);
 });
+
+test('sourcing de clients : établissement présenté au partenaire, client signé et commission client', async () => {
+  const ag = await agence();
+  const pid = (await ag.post('/partenaires', { raison_sociale: 'Hôtellerie Intérim', email: 'contact@hi.example', commission_client_type: 'pourcentage', commission_client_valeur: '6' })).data.id;
+  const acc = (await ag.post('/acces', { type: 'partenaire', id: pid })).data;
+  const pa = await connecte(acc.username, acc.password, 'Partenaire2026');
+  // Recherche de clients déposée par le partenaire
+  let r = await pa.post('/partenaire/demandes', { type: 'client', poste: 'Hôtels 3 et 4 étoiles', ville: 'Lyon', nb_postes: 2 });
+  assert.equal(r.status, 201); assert.equal(r.data.type, 'client'); const did = r.data.id;
+  assert.ok((await ag.get('/notifications')).data.some(n => /recherche de clients du partenaire Hôtellerie Intérim/.test(n.message)));
+  // Établissement venu du formulaire « Besoin de renforts ? »
+  const pub = await fetch(base + '/public/contact', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CHR': '1' }, body: JSON.stringify({ etablissement: 'Hôtel du Parc', repondant: 'Léa Martin', telephone: '0478000000', consentement: true, type_etab: 'Hôtel / hôtel-restaurant' }) });
+  assert.equal(pub.status, 201);
+  const pr = (await ag.get('/prospects')).data.find(x => x.etablissement === 'Hôtel du Parc');
+  assert.equal((await ag.post('/presentations', { type: 'client', partenaire_id: pid, demande_id: did, prospect_id: pr.id })).status, 400); // accord requis
+  r = await ag.post('/presentations', { type: 'client', partenaire_id: pid, demande_id: did, prospect_id: pr.id, consentement: true });
+  assert.equal(r.status, 201); assert.equal(r.data.type, 'client'); assert.equal(r.data.etablissement, 'Hôtel du Parc'); const xid = r.data.id;
+  assert.equal((await ag.post('/presentations', { type: 'client', partenaire_id: pid, prospect_id: pr.id, consentement: true })).status, 409);
+  // Une recherche de clients n'accepte pas de candidat, et inversement
+  const cid = one('SELECT id FROM candidats LIMIT 1').id;
+  assert.equal((await ag.post('/presentations', { partenaire_id: pid, demande_id: did, candidat_id: cid, consentement: true })).status, 400);
+  // Le partenaire voit l'établissement et déclare le client signé avec le CA réalisé
+  r = await pa.get('/partenaire/presentations'); assert.equal(r.data[0].type, 'client'); assert.equal(r.data[0].etablissement, 'Hôtel du Parc');
+  assert.equal((await pa.get(`/partenaire/presentations/${xid}/cv`)).status, 404);
+  r = await pa.put(`/partenaire/presentations/${xid}`, { statut: 'placee' }); assert.equal(r.data.commission_statut, 'attente_ca');
+  r = await pa.put(`/partenaire/presentations/${xid}`, { montant_ca: '10000' }); assert.equal(r.data.commission_montant, 600);
+  assert.ok((await ag.get('/notifications')).data.some(n => /Hôtel du Parc client signé/.test(n.message)));
+  r = await pa.get('/partenaire/tableau'); assert.equal(r.data.stats.clients_signes, 1); assert.match(r.data.commission_client, /6 %/);
+});

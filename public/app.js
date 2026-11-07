@@ -118,7 +118,7 @@ const NAV = {
       ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star'], ['etude_i', 'Étude de marché', 'chart']]],
     ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target'], ['etude_c', 'Étude de marché', 'chart']]],
     ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
-    ['+', 'Partenariats', 'link', [['partenaires', 'Agences partenaires', 'link'], ['sourcing', 'Sourcing job boards', 'target'], ['commissions', 'Commissions', 'wallet']]],
+    ['+', 'Partenariats', 'link', [['partenaires', 'Agences partenaires', 'link'], ['sourcing', 'Sourcing candidats', 'target'], ['sourcing_clients', 'Sourcing clients', 'building'], ['commissions', 'Commissions', 'wallet']]],
     ['+', 'Administration', 'gear', [['stats', 'Statistiques', 'chart'], ['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']]],
     ['histoire', 'Notre histoire', 'star']],
   client: [['accueil', 'Tableau de bord', 'dash'], ['jour', 'Planning', 'cal'], ['demandes', 'Mes missions', 'briefcase'],
@@ -128,7 +128,7 @@ const NAV = {
     ['+', 'Suivi', 'chart', [['heures', 'Mes heures', 'clock'], ['stats', 'Mes statistiques', 'chart'], ['profil', 'Profil et CV', 'idcard'], ['avis', 'Avis', 'star']]],
     ['+', 'Administratif et social', 'folder', [['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']]], ['histoire', 'Notre histoire', 'star']],
   // Agence d'emploi partenaire : l'agence lui présente des candidats sourcés sur les job boards (apport d'affaires).
-  partenaire: [['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes besoins de recrutement', 'briefcase'], ['candidats', 'Candidats présentés', 'users'],
+  partenaire: [['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes besoins', 'briefcase'], ['candidats', 'Candidats présentés', 'users'], ['clients', 'Clients présentés', 'building'],
     ['+', 'Administratif', 'folder', [['commissions', 'Commissions et factures', 'wallet'], ['convention', 'Convention de partenariat', 'file']]], ['histoire', 'Notre histoire', 'star']],
 };
 /** Menu à plat (listes déroulantes dépliées) et groupe d'une rubrique. */
@@ -150,7 +150,7 @@ const SPACE = { agence: 'Espace agence', client: 'Espace employeur', interim: 'E
 const BANNER = {
   agence: 'Profil agence : contrôle complet sur tous les espaces.',
   client: 'Vous pouvez modifier le planning, les heures et les notes de fin de service, et déposer vos documents. Le reste est géré par l\'agence.',
-  partenaire: 'Agence partenaire : déposez vos besoins de recrutement, consultez les candidats présentés, donnez votre retour et suivez vos commissions. Le reste est géré par l\'agence.',
+  partenaire: 'Agence partenaire : déposez vos besoins de candidats et de clients, consultez les candidats et les clients présentés, donnez votre retour et suivez vos commissions. Le reste est géré par l\'agence.',
   interim: 'Vous pouvez modifier vos disponibilités, vos heures, vos notes de fin de service, déposer les documents de votre dossier, ajouter vos expériences et signer vos contrats. Le reste est géré par l\'agence.',
 };
 
@@ -372,10 +372,11 @@ async function refreshCounts() {
       const [cs, ps] = await Promise.all([GET('/candidats'), GET('/prospects')]);
       set('candidats', cs.filter(x => x.statut === 'nouveau').length);
       set('prospects', ps.filter(x => x.statut === 'nouveau').length);
-      if (peut('a_partenaires')) { const D = await GET('/partenaires-demandes'); set('sourcing', D.filter(d => d.statut === 'ouverte' && !d.presentes).length); }
+      if (peut('a_partenaires')) { const D = await GET('/partenaires-demandes'); set('sourcing', D.filter(d => d.type !== 'client' && d.statut === 'ouverte' && !d.presentes).length); set('sourcing_clients', D.filter(d => d.type === 'client' && d.statut === 'ouverte' && !d.presentes).length); }
     } else if (prof === 'partenaire') {
       const L = await GET('/partenaire/presentations');
-      set('candidats', L.filter(x => x.statut === 'proposee').length);
+      set('candidats', L.filter(x => x.type !== 'client' && x.statut === 'proposee').length);
+      set('clients', L.filter(x => x.type === 'client' && x.statut === 'proposee').length);
       $('#menu-btn .dot').hidden = ![...document.querySelectorAll('[data-count]')].some(c => !c.hidden);
       return; // pas de notifications de l'agence dans l'espace partenaire
     } else if (prof === 'client') {
@@ -878,7 +879,7 @@ let ETUDE_Q = [];
 function etudeClientPanel(c, et) {
   const F = et?.fiches || [], x = F[0], inv = et?.invitations || [];
   const suivi = inv.length ? `<div class="small muted">${inv.map(e => `Étude ${e.annee} : ${e.repondu_le ? 'a répondu (réponses anonymes, dans Statistiques › Étude de marché)' : e.clique_le ? 'a ouvert le questionnaire' : e.envoye_le ? 'invité le ' + fdate(e.envoye_le, 'num') + (e.relance_le ? ', relancé' : '') : 'invitation non envoyée'}`).join(' · ')}</div>` : '';
-  const actions = `<div class="row" style="flex-wrap:wrap;gap:8px">${btn(x ? 'Compléter (nouvelle saisie)' : 'Saisir l\'étude de marché', 'edit', `data-a="etudeclient" data-id="${c.id}"`, 'sm')}${btn('Envoyer le questionnaire annuel', 'send', 'data-a="nav" data-v="etude_c"', 'sm ghost')}</div>`;
+  const actions = `<div class="row" style="flex-wrap:wrap;gap:8px">${btn(x ? 'Compléter (nouvelle saisie)' : 'Saisir l\'étude de marché', 'edit', `data-a="etudeclient" data-id="${c.id}"`, 'sm')}${peut('a_partenaires') && !c.suspendu ? btn('Présenter à un partenaire', 'send', `data-a="presclient" data-src="c:${c.id}"`, 'sm ghost') : ''}${btn('Envoyer le questionnaire annuel', 'send', 'data-a="nav" data-v="etude_c"', 'sm ghost')}</div>`;
   if (!x) return panel('Profil et étude de marché', '', `<div class="panel-b" style="display:flex;flex-direction:column;gap:10px">${empty('Aucun questionnaire pour cet établissement : saisissez-le avec le responsable (5 à 7 minutes) ou invitez-le à l\'étude de marché annuelle.')}${suivi}${actions}</div>`);
   const r = x.reponses, val = q => { const v = r[q.k]; if (v === undefined || v === '' || v === null) return null; const t = Array.isArray(v) ? v.join(', ') : v === true ? 'Oui' : String(v); return r[q.k + '_autre'] ? `${t} (${r[q.k + '_autre']})` : t; };
   const CLES = [['type_etab', 'building'], ['effectif', 'users'], ['frequence', 'clock'], ['delai', 'alert'], ['coefficient', 'receipt'], ['reglement', 'wallet']];
@@ -1387,7 +1388,7 @@ async function prospectModal(id) {
       <label class="f">Date de relance / prochain contact<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
       <label class="f full">Notes de l'agence<textarea name="notes_agence" maxlength="3000">${esc(x.notes_agence || '')}</textarea></label>
       ${decisionInfo(x) ? `<div class="full">${decisionInfo(x)}</div>` : ''}
-      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('prospect', x)}${x.client_id ? btn('Ouvrir la fiche client', 'building', `data-a="ouvrirfiche" data-t="client" data-id="${x.client_id}"`, 'sm') : btn('Créer la fiche client', 'building', `data-a="pclient" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="pdel" data-id="${x.id}"`, 'sm danger')}</div>
+      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('prospect', x)}${x.client_id ? btn('Ouvrir la fiche client', 'building', `data-a="ouvrirfiche" data-t="client" data-id="${x.client_id}"`, 'sm') : btn('Créer la fiche client', 'building', `data-a="pclient" data-id="${x.id}"`, 'sm')}${x.statut !== 'perdu' && peut('a_partenaires') ? btn('Présenter à un partenaire', 'send', `data-a="presclient" data-src="${x.client_id ? 'c:' + x.client_id : 'p:' + x.id}"`, 'sm') : ''}${btn('Supprimer', 'trash', `data-a="pdel" data-id="${x.id}"`, 'sm danger')}</div>
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
   if (x.cv_fichier) $('#modal .modal')?.classList.add('modal-large');
 }
@@ -2321,6 +2322,12 @@ document.addEventListener('submit', e => {
 
 /* ---------------- Partenariats : agences ETT partenaires (apport d'affaires en sourcing) ---------------- */
 const PRES_ST = { proposee: ['attente', 'Proposé'], entretien: ['pris', 'Entretien'], retenue: ['libre', 'Retenu'], refusee: ['off', 'Non retenu'], placee: ['libre', 'Placé'] };
+// Sourcing de clients : mêmes étapes, libellés commerciaux
+const PRES_ST_CLI = { proposee: ['attente', 'Proposé'], entretien: ['pris', 'Rendez-vous'], retenue: ['libre', 'En négociation'], refusee: ['off', 'Sans suite'], placee: ['libre', 'Client signé'] };
+const stPres = x => (x.type === 'client' ? PRES_ST_CLI : PRES_ST)[x.statut];
+const nomPres = x => x.type === 'client' ? x.etablissement || x.nom : `${x.prenom} ${x.nom}`;
+const typeBadge = x => x.type === 'client' ? badge('pris', 'Client') : badge('attente', 'Candidat');
+const libComCli = p => p.commission_client_type === 'forfait' ? `${eur(p.commission_client_valeur)} HT / client signé` : `${num(p.commission_client_valeur)} % du CA HT client`;
 const COM_ST = { non_due: ['off', '—'], attente_ca: ['attente', 'CA à déclarer'], a_facturer: ['attente', 'À facturer'], facturee: ['pris', 'Facturée'], payee: ['libre', 'Payée'] };
 const DEM_ST = { ouverte: ['attente', 'Ouvert'], pourvue: ['libre', 'Pourvu'], annulee: ['off', 'Annulé'] };
 const PART_ST = { actif: ['libre', 'Actif'], suspendu: ['attente', 'Suspendu'], termine: ['off', 'Partenariat terminé'] };
@@ -2341,8 +2348,10 @@ function partenaireChamps(p = {}) {
     <label class="f">Zones couvertes<input type="text" name="zones" maxlength="300" placeholder="Lyon, Villeurbanne, Rhône (69)" value="${v('zones')}"></label>
     <label class="f full">Métiers recrutés<input type="text" name="metiers" maxlength="300" placeholder="Salle, cuisine, hôtellerie" value="${v('metiers')}"></label>
     <h3 class="q-titre full">Convention d'apporteur d'affaires</h3>
-    <label class="f">Commission<select name="commission_type"><option value="forfait" ${p.commission_type !== 'pourcentage' ? 'selected' : ''}>Forfait par candidat placé (€ HT)</option><option value="pourcentage" ${p.commission_type === 'pourcentage' ? 'selected' : ''}>Pourcentage du chiffre d'affaires HT</option></select></label>
+    <label class="f">Commission candidats placés<select name="commission_type"><option value="forfait" ${p.commission_type !== 'pourcentage' ? 'selected' : ''}>Forfait par candidat placé (€ HT)</option><option value="pourcentage" ${p.commission_type === 'pourcentage' ? 'selected' : ''}>Pourcentage du chiffre d'affaires HT</option></select></label>
     <label class="f">Montant ou pourcentage<input type="text" name="commission_valeur" inputmode="decimal" required value="${esc(p.commission_valeur ?? 300)}"></label>
+    <label class="f">Commission clients présentés<select name="commission_client_type"><option value="pourcentage" ${p.commission_client_type !== 'forfait' ? 'selected' : ''}>Pourcentage du chiffre d'affaires HT réalisé avec le client</option><option value="forfait" ${p.commission_client_type === 'forfait' ? 'selected' : ''}>Forfait par client signé (€ HT)</option></select></label>
+    <label class="f">Montant ou pourcentage (clients)<input type="text" name="commission_client_valeur" inputmode="decimal" required value="${esc(p.commission_client_valeur ?? 5)}"></label>
     <label class="f">Délai de paiement (jours)<input type="number" name="delai_paiement" min="0" max="60" value="${esc(p.delai_paiement ?? 30)}"></label>
     <label class="f">Non-contournement (mois)<input type="number" name="duree_garantie" min="1" max="36" value="${esc(p.duree_garantie ?? 12)}"></label>
     <label class="f full">Conditions particulières<textarea name="conditions" maxlength="2000">${v('conditions')}</textarea></label>
@@ -2361,33 +2370,43 @@ function demandeChamps(d = {}) {
     <label class="f full">Profil recherché, horaires, conditions<textarea name="description" maxlength="2000" placeholder="Expérience, langues, horaires en coupure, tenue, logement…">${esc(d.description || '')}</textarea></label>
     <fieldset class="q full"><legend>Job boards à privilégier (facultatif)</legend><div class="choix">${JB().filter(j => !['Site CHR Intérim', 'Bouche-à-oreille', 'Autre'].includes(j)).map(j => `<label><input type="checkbox" name="job_boards" value="${esc(j)}" ${jb.includes(j) ? 'checked' : ''}><span>${esc(j)}</span></label>`).join('')}</div></fieldset>`;
 }
+function demandeClientChamps(d = {}) {
+  return `<input type="hidden" name="type" value="client">
+    <label class="f">Type d'établissement recherché<input type="text" name="poste" required maxlength="100" list="etab-liste" placeholder="Hôtels 3-4 étoiles, brasseries, traiteurs…" value="${esc(d.poste || '')}"></label>
+    <datalist id="etab-liste">${['Hôtels', 'Hôtels-restaurants', 'Restaurants traditionnels', 'Brasseries', 'Bars et cafés', 'Traiteurs et événementiel', 'Restauration collective', 'Restauration rapide'].map(x => `<option value="${x}">`).join('')}</datalist>
+    <label class="f">Ville ou secteur<input type="text" name="ville" maxlength="100" value="${esc(d.ville || '')}"></label>
+    <label class="f">Nombre de clients souhaités<input type="number" name="nb_postes" min="1" max="50" value="${esc(d.nb_postes || 1)}"></label>
+    <label class="f full">Profil des clients recherchés<textarea name="description" maxlength="2000" placeholder="Taille, volume d'extras, métiers, saisonnalité…">${esc(d.description || '')}</textarea></label>`;
+}
 const lireDemandeForm = fd => ({ ...Object.fromEntries(fd), job_boards: fd.getAll('job_boards') });
 
 function presentationsTable(L, mode) {
   const ag = mode !== 'partenaire'; // 'agence' (avec la colonne partenaire), 'fiche' (fiche du partenaire) ou 'partenaire'
-  if (!L.length) return empty(mode === 'partenaire' ? 'Aucun candidat présenté pour le moment.' : 'Aucun candidat présenté.');
-  return `<div class="scroll"><table><thead><tr><th>Candidat</th>${mode === 'agence' ? '<th>Partenaire</th>' : ''}<th>Besoin</th><th>Présenté le</th><th>Suite donnée</th><th>Commission</th><th></th></tr></thead><tbody>
-    ${L.map(x => `<tr><td><b>${esc(x.prenom)} ${esc(x.nom)}</b> ${jbBadge(x.source)}<div class="small muted">${esc([x.poste, x.ville].filter(Boolean).join(' · '))}</div></td>
-      ${mode === 'agence' ? `<td>${esc(x.raison_sociale || '')}</td>` : ''}<td class="small">${esc(x.demande_poste || 'Candidature spontanée')}</td><td>${fdate(x.created_at.slice(0, 10), 'num')}</td>
-      <td>${badge(...PRES_ST[x.statut])}${x.date_placement ? `<div class="small muted">le ${fdate(x.date_placement, 'num')}</div>` : ''}${x.retour_partenaire ? `<div class="small">${esc(x.retour_partenaire)}</div>` : ''}</td>
+  const cli = L.length && L.every(x => x.type === 'client'), mixte = L.some(x => x.type === 'client') && !cli;
+  if (!L.length) return empty(mode === 'partenaire' ? 'Rien de présenté pour le moment.' : 'Aucune présentation.');
+  return `<div class="scroll"><table><thead><tr><th>${cli ? 'Établissement' : mixte ? 'Candidat ou établissement' : 'Candidat'}</th>${mode === 'agence' ? '<th>Partenaire</th>' : ''}<th>Besoin</th><th>Présenté le</th><th>Suite donnée</th><th>Commission</th><th></th></tr></thead><tbody>
+    ${L.map(x => `<tr><td>${x.type === 'client' ? `<b>${esc(x.etablissement)}</b>${mixte ? ' ' + typeBadge(x) : ''} ${jbBadge(x.source)}<div class="small muted">${esc([x.prenom, x.secteur, x.adresse].filter(Boolean).join(' · '))}</div>` : `<b>${esc(x.prenom)} ${esc(x.nom)}</b>${mixte ? ' ' + typeBadge(x) : ''} ${jbBadge(x.source)}<div class="small muted">${esc([x.poste, x.ville].filter(Boolean).join(' · '))}</div>`}</td>
+      ${mode === 'agence' ? `<td>${esc(x.raison_sociale || '')}</td>` : ''}<td class="small">${esc(x.demande_poste || (x.type === 'client' ? 'Présentation spontanée' : 'Candidature spontanée'))}</td><td>${fdate(x.created_at.slice(0, 10), 'num')}</td>
+      <td>${badge(...stPres(x))}${x.date_placement ? `<div class="small muted">le ${fdate(x.date_placement, 'num')}</div>` : ''}${x.retour_partenaire ? `<div class="small">${esc(x.retour_partenaire)}</div>` : ''}</td>
       <td>${x.commission_statut === 'non_due' ? '<span class="muted">—</span>' : `${x.commission_montant != null ? `<b>${eur(x.commission_montant)}</b> ` : ''}${badge(...COM_ST[x.commission_statut])}`}</td>
       <td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${(ag ? x.cv_fichier : x.a_cv && peut('p_cv')) ? `<a class="btn sm ghost" href="/api/${ag ? 'presentations' : 'partenaire/presentations'}/${x.id}/cv">${ic('download')}CV</a>` : ''}
         ${ag || peut('p_retours') ? btn(ag ? 'Suivi' : 'Donner la suite', 'edit', `data-a="presouvrir" data-id="${x.id}"`, 'sm' + (!ag && x.statut === 'proposee' ? ' primary' : '')) : ''}</div></td></tr>`).join('')}</tbody></table></div>`;
 }
 async function presentationModal(id) {
   const part = S.me.profil === 'partenaire', L = await GET(part ? '/partenaire/presentations' : '/presentations'), x = L.find(p => p.id === id); if (!x) return;
-  const pourc = part ? (await GET('/partenaire/commissions')).commission.includes('%') : null;
-  openModal(`${modalHead(ic('idcard') + `${esc(x.prenom)} ${esc(x.nom)}`, `${esc(x.poste || 'Poste non précisé')}${x.ville ? ' · ' + esc(x.ville) : ''} · présenté le ${fdate(x.created_at.slice(0, 10), 'num')}${part ? '' : ' à ' + esc(x.raison_sociale)}`)}
-    <div class="panel-b" style="display:flex;flex-direction:column;gap:10px"><dl class="kv"><dt>Téléphone</dt><dd>${x.telephone ? `<a class="link" href="tel:${esc(x.telephone.replace(/\s/g, ''))}">${esc(x.telephone)}</a>` : '—'}</dd><dt>E-mail</dt><dd>${x.email ? `<a class="link" href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : '—'}</dd>
-      <dt>Besoin</dt><dd>${esc(x.demande_poste || 'Candidature spontanée')}</dd><dt>Origine</dt><dd>${esc(x.source || '—')}</dd></dl>
-      ${x.resume ? `<h3 class="q-titre">Profil</h3><p class="small" style="white-space:pre-wrap;margin:0">${esc(x.resume)}</p>` : ''}
+  const cli = x.type === 'client', ST = cli ? PRES_ST_CLI : PRES_ST;
+  const pourc = part ? (c => (cli ? c.commission_client : c.commission).includes('%'))(await GET('/partenaire/commissions')) : null;
+  openModal(`${modalHead(ic(cli ? 'building' : 'idcard') + esc(nomPres(x)), `${cli ? esc(x.secteur || 'Établissement') : esc(x.poste || 'Poste non précisé')}${x.ville && !cli ? ' · ' + esc(x.ville) : ''} · présenté le ${fdate(x.created_at.slice(0, 10), 'num')}${part ? '' : ' à ' + esc(x.raison_sociale)}`)}
+    <div class="panel-b" style="display:flex;flex-direction:column;gap:10px"><dl class="kv">${cli ? `<dt>Contact</dt><dd>${esc(x.prenom || '—')}</dd><dt>Adresse</dt><dd>${esc(x.adresse || '—')}</dd>` : ''}<dt>Téléphone</dt><dd>${x.telephone ? `<a class="link" href="tel:${esc(x.telephone.replace(/\s/g, ''))}">${esc(x.telephone)}</a>` : '—'}</dd><dt>E-mail</dt><dd>${x.email ? `<a class="link" href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : '—'}</dd>
+      <dt>${cli ? 'Recherche' : 'Besoin'}</dt><dd>${esc(x.demande_poste || (cli ? 'Présentation spontanée' : 'Candidature spontanée'))}</dd><dt>Origine</dt><dd>${esc(x.source || '—')}</dd></dl>
+      ${x.resume ? `<h3 class="q-titre">${cli ? 'Besoins de l\'établissement' : 'Profil'}</h3><p class="small" style="white-space:pre-wrap;margin:0">${esc(x.resume)}</p>` : ''}
       ${(part ? x.a_cv && peut('p_cv') : x.cv_fichier) ? `<div><a class="btn sm" href="/api/${part ? 'partenaire/presentations' : 'presentations'}/${x.id}/cv">${ic('download')}Télécharger le CV</a></div>` : ''}
-      <p class="hint">Candidat présenté avec son accord. Ses données servent uniquement à son recrutement (RGPD).</p></div>
+      <p class="hint">${cli ? 'Établissement présenté avec son accord. Ses coordonnées servent uniquement à cette relation commerciale (RGPD).' : 'Candidat présenté avec son accord. Ses données servent uniquement à son recrutement (RGPD).'}</p></div>
     <form data-f="presmaj" data-id="${x.id}" class="panel-b form" style="border-top:1px solid var(--line)"><h3 class="q-titre full">Suite donnée</h3>
-      <label class="f">Statut<select name="statut">${Object.entries(PRES_ST).map(([k, [, l]]) => `<option value="${k}" ${x.statut === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      <label class="f">Date de placement<input type="date" name="date_placement" value="${esc(x.date_placement || '')}"></label>
-      ${part && pourc === false ? '' : `<label class="f">Chiffre d'affaires HT réalisé (€)${part ? '' : ' <span class="small muted">(commission au %)</span>'}<input type="text" name="montant_ca" inputmode="decimal" value="${esc(x.montant_ca ?? '')}"></label>`}
-      <label class="f full">${part ? 'Votre retour' : 'Retour du partenaire'}<textarea name="retour_partenaire" maxlength="2000" placeholder="Entretien prévu le…, embauché en CDD de 3 mois…">${esc(x.retour_partenaire || '')}</textarea></label>
+      <label class="f">Statut<select name="statut">${Object.entries(ST).map(([k, [, l]]) => `<option value="${k}" ${x.statut === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="f">${cli ? 'Date de signature' : 'Date de placement'}<input type="date" name="date_placement" value="${esc(x.date_placement || '')}"></label>
+      ${part && pourc === false ? '' : `<label class="f">${cli ? 'Chiffre d\'affaires HT réalisé avec le client (€)' : 'Chiffre d\'affaires HT réalisé (€)'}${part ? '' : ' <span class="small muted">(commission au %)</span>'}<input type="text" name="montant_ca" inputmode="decimal" value="${esc(x.montant_ca ?? '')}"></label>`}
+      <label class="f full">${part ? 'Votre retour' : 'Retour du partenaire'}<textarea name="retour_partenaire" maxlength="2000" placeholder="${cli ? 'Rendez-vous le…, premières missions prévues…' : 'Entretien prévu le…, embauché en CDD de 3 mois…'}">${esc(x.retour_partenaire || '')}</textarea></label>
       ${['facturee', 'payee'].includes(x.commission_statut) ? `<p class="hint full">Commission facturée (${esc(x.facture_numero)}) : le placement ne peut plus être modifié.</p>` : ''}
       <div class="err full" hidden></div>
       <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${part ? '' : btn('Retirer', 'trash', `data-a="presdel" data-id="${x.id}"`, 'sm danger')}</div><div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer</button></div></div></form>`);
@@ -2396,34 +2415,35 @@ async function presentationModal(id) {
 /* ===== Agence : partenaires ===== */
 V.agence.partenaires = async () => {
   const d = await GET('/partenaires'), L = d.partenaires, tot = k => L.reduce((a, p) => a + (p[k] || 0), 0);
-  return head('Agences partenaires', 'Vous êtes apporteur d\'affaires : vous trouvez des candidats sur les job boards et les présentez aux agences d\'emploi partenaires, qui vous versent une commission sur chaque placement. Chaque partenaire dispose de son espace : besoins de recrutement, candidats présentés, retours, commissions et convention signée en ligne.', btn('Nouveau partenaire', 'plus', 'data-a="partnew"', 'primary')) +
-    `<div class="kpis">${kpi('Partenaires actifs', 'link', L.filter(p => p.statut === 'actif').length, `${L.filter(p => p.convention_signee_le).length} convention(s) signée(s)`)}${kpi('Besoins ouverts', 'briefcase', tot('demandes_ouvertes'))}${kpi('Candidats placés', 'check', tot('places'), `${tot('presentes')} présenté(s)`)}${kpi('Commissions à encaisser', 'wallet', eur(tot('a_facturer') + tot('facturee')), `${eur(tot('payee'))} encaissées`)}</div>` +
-    panel(null, '', L.length ? `<div class="scroll"><table><thead><tr><th>Partenaire</th><th>Commission</th><th>Convention</th><th>Accès</th><th class="r">Besoins ouverts</th><th class="r">Présentés</th><th class="r">Placés</th><th>Statut</th></tr></thead><tbody>
+  return head('Agences partenaires', 'Vous êtes apporteur d\'affaires : vous trouvez des candidats sur les job boards et des clients (hôtels, cafés, restaurants) et les présentez aux agences d\'emploi partenaires, qui vous versent une commission sur chaque placement et chaque client signé. Chaque partenaire dispose de son espace : besoins de candidats et de clients, présentations, retours, commissions et convention signée en ligne.', btn('Nouveau partenaire', 'plus', 'data-a="partnew"', 'primary')) +
+    `<div class="kpis">${kpi('Partenaires actifs', 'link', L.filter(p => p.statut === 'actif').length, `${L.filter(p => p.convention_signee_le).length} convention(s) signée(s)`)}${kpi('Besoins ouverts', 'briefcase', tot('demandes_ouvertes'))}${kpi('Candidats placés', 'check', tot('places'), `${tot('presentes')} présenté(s)`)}${kpi('Clients signés', 'building', tot('clients_signes'), `${tot('clients_presentes')} présenté(s)`)}${kpi('Commissions à encaisser', 'wallet', eur(tot('a_facturer') + tot('facturee')), `${eur(tot('payee'))} encaissées`)}</div>` +
+    panel(null, '', L.length ? `<div class="scroll"><table><thead><tr><th>Partenaire</th><th>Commission</th><th>Convention</th><th>Accès</th><th class="r">Besoins ouverts</th><th class="r">Candidats présentés</th><th class="r">Placés</th><th class="r">Clients présentés</th><th class="r">Clients signés</th><th>Statut</th></tr></thead><tbody>
       ${L.map(p => `<tr class="clickable" data-a="partouvrir" data-id="${p.id}" tabindex="0"><td><b class="lien-profil">${esc(p.raison_sociale)}</b><div class="small muted">${esc([p.contact, p.ville].filter(Boolean).join(' · '))}</div></td>
-        <td class="small">${libCom(p)}</td><td>${p.convention_signee_le ? badge('libre', 'Signée ' + fdate(p.convention_signee_le, 'num')) : badge('attente', 'À signer')}</td><td>${p.acces ? `<span class="mono small">${esc(p.acces)}</span>` : '<span class="muted small">Aucun</span>'}</td>
-        <td class="r num">${p.demandes_ouvertes}</td><td class="r num">${p.presentes}${p.a_traiter ? ` <span class="small muted">(${p.a_traiter} sans retour)</span>` : ''}</td><td class="r num"><b>${p.places}</b></td><td>${badge(...PART_ST[p.statut])}</td></tr>`).join('')}</tbody></table></div>`
+        <td class="small">Candidats : ${libCom(p)}<br>Clients : ${libComCli(p)}</td><td>${p.convention_signee_le ? badge('libre', 'Signée ' + fdate(p.convention_signee_le, 'num')) : badge('attente', 'À signer')}</td><td>${p.acces ? `<span class="mono small">${esc(p.acces)}</span>` : '<span class="muted small">Aucun</span>'}</td>
+        <td class="r num">${p.demandes_ouvertes}</td><td class="r num">${p.presentes}${p.a_traiter ? ` <span class="small muted">(${p.a_traiter} sans retour)</span>` : ''}</td><td class="r num"><b>${p.places}</b></td><td class="r num">${p.clients_presentes}</td><td class="r num"><b>${p.clients_signes}</b></td><td>${badge(...PART_ST[p.statut])}</td></tr>`).join('')}</tbody></table></div>`
       : empty('Aucune agence partenaire. Créez le premier partenaire, puis son accès : il pourra déposer ses besoins de recrutement et suivre les candidats que vous lui présentez.'));
 };
 async function partenaireModal(id) {
   const p = await GET('/partenaires/' + id);
-  openModal(`${modalHead(ic('link') + esc(p.raison_sociale) + ' ' + badge(...PART_ST[p.statut]), `${libCom(p)} · convention ${esc(p.convention_numero || '')}`)}
+  openModal(`${modalHead(ic('link') + esc(p.raison_sociale) + ' ' + badge(...PART_ST[p.statut]), `Candidats : ${libCom(p)} · clients : ${libComCli(p)} · convention ${esc(p.convention_numero || '')}`)}
     <div class="panel-b" style="display:flex;flex-direction:column;gap:12px">
-      <div class="kpis">${kpi('Besoins ouverts', 'briefcase', p.demandes_ouvertes)}${kpi('Présentés', 'send', p.presentes, p.a_traiter ? `${p.a_traiter} sans retour` : '')}${kpi('Placés', 'check', p.places)}${kpi('À encaisser', 'wallet', eur(p.a_facturer + p.facturee), `${eur(p.payee)} encaissées`)}</div>
+      <div class="kpis">${kpi('Besoins ouverts', 'briefcase', p.demandes_ouvertes)}${kpi('Présentés', 'send', p.presentes, p.a_traiter ? `${p.a_traiter} sans retour` : '')}${kpi('Placés', 'check', p.places)}${kpi('Clients signés', 'building', p.clients_signes, `${p.clients_presentes} présenté(s)`)}${kpi('À encaisser', 'wallet', eur(p.a_facturer + p.facturee), `${eur(p.payee)} encaissées`)}</div>
       ${accessBox('partenaire', p.id, p.acces)}
       <div class="access"><div><div class="small muted">Convention d'apporteur d'affaires ${esc(p.convention_numero || '')}</div>${p.convention_signee_le ? `<b>Signée ${p.convention_signee_mode === 'papier' ? 'sur papier' : 'en ligne'} par ${esc(p.convention_signee_nom)} le ${fdate(p.convention_signee_le, 'num')}</b>` : '<b>En attente de signature par le partenaire</b>'}</div>
         <div class="row"><a class="btn sm" href="/api/partenaires/${p.id}/convention" target="_blank" rel="noopener">${ic('file')}Lire la convention</a></div></div>
       ${p.convention_signee_le ? '' : `<form data-f="partsigner" data-id="${p.id}" class="inline-form"><label class="f">Signée sur papier par (nom et fonction)<input type="text" name="nom" minlength="3" maxlength="120" required></label><button class="btn sm" type="submit">${ic('check')}Enregistrer la signature papier</button></form>`}
-      <h3 class="q-titre">Besoins de recrutement</h3>
-      ${p.demandes.length ? `<div class="list">${p.demandes.map(d => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${d.nb_postes} × ${esc(d.poste)}</b> ${badge(...DEM_ST[d.statut])}<div class="small muted">${esc([d.ville, d.type_contrat, periodeBesoin(d)].filter(Boolean).join(' · '))}</div></div>${d.statut === 'ouverte' ? btn('Présenter un candidat', 'send', `data-a="presenter" data-p="${p.id}" data-d="${d.id}"`, 'sm') : ''}</div>`).join('')}</div>` : '<p class="small muted">Aucun besoin déposé.</p>'}
-      <div class="row">${btn('Ajouter un besoin', 'plus', `data-a="demnew" data-p="${p.id}"`, 'sm')}${btn('Présenter un candidat', 'send', `data-a="presenter" data-p="${p.id}"`, 'sm')}</div>
-      <h3 class="q-titre">Candidats présentés</h3>${presentationsTable(p.presentations.map(x => ({ ...x, raison_sociale: p.raison_sociale })), 'fiche')}</div>
+      <h3 class="q-titre">Besoins de candidats et recherches de clients</h3>
+      ${p.demandes.length ? `<div class="list">${p.demandes.map(d => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${d.nb_postes} × ${esc(d.poste)}</b> ${d.type === 'client' ? badge('pris', 'Clients') : badge('attente', 'Candidats')} ${badge(...DEM_ST[d.statut])}<div class="small muted">${esc([d.ville, d.type_contrat, periodeBesoin(d)].filter(Boolean).join(' · '))}</div></div>${d.statut === 'ouverte' ? (d.type === 'client' ? btn('Présenter un établissement', 'building', `data-a="presclient" data-p="${p.id}" data-d="${d.id}"`, 'sm') : btn('Présenter un candidat', 'send', `data-a="presenter" data-p="${p.id}" data-d="${d.id}"`, 'sm')) : ''}</div>`).join('')}</div>` : '<p class="small muted">Aucun besoin déposé.</p>'}
+      <div class="row" style="flex-wrap:wrap">${btn('Ajouter un besoin de candidats', 'plus', `data-a="demnew" data-p="${p.id}"`, 'sm')}${btn('Ajouter une recherche de clients', 'plus', `data-a="demnew" data-p="${p.id}" data-t="client"`, 'sm')}${btn('Présenter un candidat', 'send', `data-a="presenter" data-p="${p.id}"`, 'sm')}${btn('Présenter un établissement', 'building', `data-a="presclient" data-p="${p.id}"`, 'sm')}</div>
+      <h3 class="q-titre">Candidats présentés</h3>${presentationsTable(p.presentations.filter(x => x.type !== 'client'), 'fiche')}
+      <h3 class="q-titre">Clients présentés</h3>${presentationsTable(p.presentations.filter(x => x.type === 'client'), 'fiche')}</div>
     <form data-f="partedit" data-id="${p.id}" class="panel-b form" style="border-top:1px solid var(--line)"><h3 class="q-titre full">Fiche du partenaire</h3>${partenaireChamps(p)}
       <p class="hint full">Une modification de la commission, du délai, de la durée ou des conditions particulières après signature crée une nouvelle convention à signer.</p><div class="err full" hidden></div>
       <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px">${btn('Supprimer', 'trash', `data-a="partdel" data-id="${p.id}"`, 'sm danger')}<div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer</button></div></div></form>`);
   $('#modal .modal')?.classList.add('modal-large');
 }
-function demandeModal(pid) {
-  openModal(`${modalHead(ic('briefcase') + 'Nouveau besoin de recrutement')}<form data-f="demnew" data-p="${pid || ''}"><div class="panel-b form">${demandeChamps()}<div class="err full" hidden></div></div>${modalFoot('Enregistrer le besoin', 'type="submit"')}</form>`);
+function demandeModal(pid, type) {
+  openModal(`${modalHead(ic('briefcase') + (type === 'client' ? 'Nouvelle recherche de clients' : 'Nouveau besoin de recrutement'))}<form data-f="demnew" data-p="${pid || ''}"><div class="panel-b form">${type === 'client' ? demandeClientChamps() : demandeChamps()}<div class="err full" hidden></div></div>${modalFoot('Enregistrer le besoin', 'type="submit"')}</form>`);
 }
 async function presenterModal(pid, did, cid) {
   const [d, D, C] = await Promise.all([GET('/partenaires'), GET('/partenaires-demandes'), GET('/candidats')]);
@@ -2453,11 +2473,12 @@ function sourcingModal() {
     <div class="err full" hidden></div></div>${modalFoot(ic('plus') + 'Ajouter', 'type="submit"')}</form>`);
 }
 V.agence.sourcing = async () => {
-  const [d, D, X] = await Promise.all([GET('/partenaires'), GET('/partenaires-demandes'), GET('/presentations')]);
+  const [d, D0, X0] = await Promise.all([GET('/partenaires'), GET('/partenaires-demandes'), GET('/presentations')]);
+  const D = D0.filter(x => x.type !== 'client'), X = X0.filter(x => x.type !== 'client');
   const ouv = D.filter(x => x.statut === 'ouverte'), aPourvoir = ouv.reduce((a, x) => a + Math.max(0, x.nb_postes - x.places), 0);
   const places = X.filter(x => x.statut === 'placee').length, base = location.origin + '/candidature?src=';
   const liens = [['indeed', 'Indeed'], ['hellowork', 'HelloWork'], ['francetravail', 'France Travail'], ['linkedin', 'LinkedIn'], ['facebook', 'Facebook'], ['jobteaser', 'Jobteaser'], ['studentjob', 'StudentJob'], ['leboncoin', 'Leboncoin'], ['lhotellerie', 'L\'Hôtellerie Restauration']];
-  return head('Sourcing job boards', 'Besoins de recrutement des agences partenaires, candidats trouvés sur les job boards et suivi des présentations.', btn('Ajouter un candidat sourcé', 'plus', 'data-a="sourcenew"') + btn('Présenter un candidat', 'send', 'data-a="presenter"', 'primary')) +
+  return head('Sourcing candidats (job boards)', 'Besoins de recrutement des agences partenaires, candidats trouvés sur les job boards et suivi des présentations.', btn('Ajouter un candidat sourcé', 'plus', 'data-a="sourcenew"') + btn('Présenter un candidat', 'send', 'data-a="presenter"', 'primary')) +
     `<div class="kpis">${kpi('Besoins ouverts', 'briefcase', ouv.length, `${aPourvoir} poste(s) à pourvoir`)}${kpi('Candidats présentés', 'send', X.length, `${X.filter(x => x.statut === 'proposee').length} sans retour du partenaire`, X.some(x => x.statut === 'proposee') ? 'down' : '')}${kpi('Placés', 'check', places, X.length ? `${num(Math.round(places / X.length * 1000) / 10)} % des présentés` : '')}${kpi('Candidats sourcés', 'target', d.job_boards.reduce((a, j) => a + j.candidats, 0), `${d.job_boards.length} origine(s)`)}</div>` +
     panel(`Besoins des partenaires (${ouv.length} ouverts)`, '', D.length ? `<div class="scroll"><table><thead><tr><th>Partenaire</th><th>Besoin</th><th>Période</th><th>Job boards</th><th class="r">Présentés</th><th>Statut</th><th></th></tr></thead><tbody>
       ${D.map(x => `<tr><td><b>${esc(x.raison_sociale)}</b><div class="small muted">reçu le ${fdate(x.created_at.slice(0, 10), 'num')}</div></td><td><b>${x.nb_postes} × ${esc(x.poste)}</b><div class="small muted">${esc([x.ville, x.type_contrat, x.taux_horaire ? num(x.taux_horaire) + ' €/h' : ''].filter(Boolean).join(' · '))}</div>${x.description ? `<div class="small">${esc(x.description.slice(0, 160))}</div>` : ''}</td>
@@ -2471,51 +2492,90 @@ V.agence.sourcing = async () => {
 V.agence.commissions = async () => {
   const X = (await GET('/presentations')).filter(x => x.commission_statut !== 'non_due');
   const s = st => X.filter(x => x.commission_statut === st).reduce((a, x) => a + (x.commission_montant || 0), 0);
-  return head('Commissions', 'Commissions d\'apport d\'affaires sur les candidats placés chez vos partenaires : facturez-les, puis enregistrez le paiement. Les factures sont visibles dans l\'espace du partenaire.') +
-    `<div class="kpis">${kpi('À facturer', 'receipt', eur(s('a_facturer')), `${X.filter(x => x.commission_statut === 'a_facturer').length} placement(s)`)}${kpi('Facturées, en attente', 'clock', eur(s('facturee')))}${kpi('Encaissées', 'wallet', eur(s('payee')))}${kpi('CA à déclarer', 'alert', X.filter(x => x.commission_statut === 'attente_ca').length, 'Commission au pourcentage', X.some(x => x.commission_statut === 'attente_ca') ? 'down' : '')}</div>` +
-    panel(null, '', X.length ? `<div class="scroll"><table><thead><tr><th>Partenaire</th><th>Candidat placé</th><th>Placé le</th><th class="r">CA déclaré</th><th class="r">Commission HT</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${X.map(x => `<tr><td><b>${esc(x.raison_sociale)}</b></td><td>${esc(x.prenom)} ${esc(x.nom)} ${jbBadge(x.source)}<div class="small muted">${esc(x.poste || '')}</div></td><td>${fdate(x.date_placement, 'num')}</td><td class="r num">${x.montant_ca != null ? eur(x.montant_ca) : '—'}</td><td class="r num"><b>${x.commission_montant != null ? eur(x.commission_montant) : '—'}</b></td>
+  return head('Commissions', 'Commissions d\'apport d\'affaires sur les candidats placés et les clients signés par vos partenaires : facturez-les, puis enregistrez le paiement. Les factures sont visibles dans l\'espace du partenaire.') +
+    `<div class="kpis">${kpi('À facturer', 'receipt', eur(s('a_facturer')), `${X.filter(x => x.commission_statut === 'a_facturer').length} ligne(s)`)}${kpi('Facturées, en attente', 'clock', eur(s('facturee')))}${kpi('Encaissées', 'wallet', eur(s('payee')))}${kpi('CA à déclarer', 'alert', X.filter(x => x.commission_statut === 'attente_ca').length, 'Commissions au pourcentage', X.some(x => x.commission_statut === 'attente_ca') ? 'down' : '')}</div>` +
+    panel(null, '', X.length ? `<div class="scroll"><table><thead><tr><th>Partenaire</th><th>Candidat placé ou client signé</th><th>Le</th><th class="r">CA déclaré</th><th class="r">Commission HT</th><th>Statut</th><th></th></tr></thead><tbody>
+      ${X.map(x => `<tr><td><b>${esc(x.raison_sociale)}</b></td><td>${esc(nomPres(x))} ${typeBadge(x)}<div class="small muted">${esc(x.type === 'client' ? x.secteur || '' : x.poste || '')}</div></td><td>${fdate(x.date_placement, 'num')}</td><td class="r num">${x.montant_ca != null ? eur(x.montant_ca) : '—'}</td><td class="r num"><b>${x.commission_montant != null ? eur(x.commission_montant) : '—'}</b></td>
         <td>${badge(...COM_ST[x.commission_statut])}${x.facture_numero ? `<div class="small mono">${esc(x.facture_numero)}</div>` : ''}</td>
         <td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${x.commission_statut === 'a_facturer' ? btn('Facturer', 'receipt', `data-a="comfact" data-id="${x.id}"`, 'sm primary') : ''}${x.commission_statut === 'facturee' ? btn('Marquer payée', 'check', `data-a="compaye" data-id="${x.id}"`, 'sm') : ''}${x.commission_statut === 'attente_ca' ? btn('Saisir le CA', 'edit', `data-a="presouvrir" data-id="${x.id}"`, 'sm') : ''}${x.facture_numero ? `<a class="btn sm ghost" href="/api/presentations/${x.id}/facture" target="_blank" rel="noopener">${ic('file')}Facture</a>` : ''}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune commission : elles apparaissent dès qu\'un partenaire déclare un placement.'));
+};
+
+
+/* ===== Agence : sourcing de clients pour les partenaires ===== */
+async function presenterClientModal(pid, did, src) {
+  const [d, D, Pr, Cl] = await Promise.all([GET('/partenaires'), GET('/partenaires-demandes'), GET('/prospects'), GET('/clients')]);
+  const actifs = d.partenaires.filter(p => p.statut === 'actif');
+  if (!actifs.length) return toast('Aucun partenaire actif : créez d\'abord une agence partenaire.', true);
+  const dest = actifs.map(p => `<optgroup label="${esc(p.raison_sociale)}"><option value="${p.id}:" ${String(pid) === String(p.id) && !did ? 'selected' : ''}>${esc(p.raison_sociale)} · présentation spontanée</option>
+    ${D.filter(x => x.partenaire_id === p.id && x.type === 'client' && x.statut === 'ouverte').map(x => `<option value="${p.id}:${x.id}" ${String(did) === String(x.id) ? 'selected' : ''}>${esc(p.raison_sociale)} · recherche : ${esc(x.poste)}${x.ville ? ', ' + esc(x.ville) : ''}</option>`).join('')}</optgroup>`).join('');
+  const pros = Pr.filter(x => x.statut !== 'perdu' && !x.client_id), cls = Cl.filter(c => !c.suspendu);
+  openModal(`${modalHead(ic('building') + 'Présenter un établissement à un partenaire', 'Le partenaire reçoit un e-mail et retrouve les coordonnées et les besoins de l\'établissement dans son espace.')}<form data-f="presclient"><div class="panel-b form">
+    <label class="f full">Agence partenaire et recherche<select name="dest" required>${dest}</select></label>
+    <label class="f full">Établissement<select name="etab" required><option value="">Choisir…</option>
+      ${pros.length ? `<optgroup label="Candidatures clients (prospects)">${pros.map(x => `<option value="p:${x.id}" ${src === 'p:' + x.id ? 'selected' : ''}>${esc(x.etablissement)}${x.type_etab ? ' · ' + esc(x.type_etab) : ''}${x.repondant ? ' · ' + esc(x.repondant) : ''}</option>`).join('')}</optgroup>` : ''}
+      ${cls.length ? `<optgroup label="Fiches clients">${cls.map(c => `<option value="c:${c.id}" ${src === 'c:' + c.id ? 'selected' : ''}>${esc(c.nom)} · ${esc(c.secteur)}${c.ville ? ' · ' + esc(c.ville) : ''}</option>`).join('')}</optgroup>` : ''}</select></label>
+    <label class="f full">Présentation (facultatif : sinon résumé automatique de ses besoins)<textarea name="resume" maxlength="2000" placeholder="Volume d'extras, métiers, saisonnalité, interlocuteur…"></textarea></label>
+    <label class="check full"><input type="checkbox" name="consentement" value="1" required> L'établissement a donné son accord pour être présenté à cette agence partenaire.</label>
+    <div class="err full" hidden></div></div>${modalFoot(ic('send') + 'Présenter', 'type="submit"')}</form>`);
+}
+V.agence.sourcing_clients = async () => {
+  const [D0, X0] = await Promise.all([GET('/partenaires-demandes'), GET('/presentations')]);
+  const D = D0.filter(x => x.type === 'client'), X = X0.filter(x => x.type === 'client'), ouv = D.filter(x => x.statut === 'ouverte');
+  const signes = X.filter(x => x.statut === 'placee'), com = X.filter(x => ['a_facturer', 'facturee', 'payee'].includes(x.commission_statut)).reduce((a, x) => a + (x.commission_montant || 0), 0);
+  return head('Sourcing clients', 'Présentez à vos agences partenaires des établissements (hôtels, cafés, restaurants, traiteurs) qui ont besoin de personnel : candidatures « Besoin de renforts ? », visites terrain ou fiches clients. Vous percevez une commission sur chaque client signé.', btn('Présenter un établissement', 'building', 'data-a="presclient"', 'primary')) +
+    `<div class="kpis">${kpi('Recherches ouvertes', 'target', ouv.length, `${ouv.reduce((a, x) => a + Math.max(0, x.nb_postes - x.places), 0)} client(s) recherché(s)`)}${kpi('Établissements présentés', 'send', X.length, `${X.filter(x => x.statut === 'proposee').length} sans retour du partenaire`, X.some(x => x.statut === 'proposee') ? 'down' : '')}${kpi('Clients signés', 'check', signes.length, X.length ? `${num(Math.round(signes.length / X.length * 1000) / 10)} % des présentés` : '')}${kpi('Commissions clients', 'wallet', eur(com))}</div>` +
+    panel(`Recherches de clients des partenaires (${ouv.length} ouvertes)`, '', D.length ? `<div class="scroll"><table><thead><tr><th>Partenaire</th><th>Recherche</th><th class="r">Présentés</th><th>Statut</th><th></th></tr></thead><tbody>
+      ${D.map(x => `<tr><td><b>${esc(x.raison_sociale)}</b><div class="small muted">reçue le ${fdate(x.created_at.slice(0, 10), 'num')}</div></td><td><b>${x.nb_postes} × ${esc(x.poste)}</b><div class="small muted">${esc(x.ville || '')}</div>${x.description ? `<div class="small">${esc(x.description.slice(0, 160))}</div>` : ''}</td>
+        <td class="r num">${x.presentes}${x.places ? ` · <b>${x.places} signé(s)</b>` : ''}</td><td>${badge(...DEM_ST[x.statut])}</td>
+        <td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${x.statut === 'ouverte' ? btn('Présenter', 'building', `data-a="presclient" data-p="${x.partenaire_id}" data-d="${x.id}"`, 'sm primary') + btn('Terminée', 'check', `data-a="demst" data-id="${x.id}" data-s="pourvue"`, 'sm') : btn('Rouvrir', '', `data-a="demst" data-id="${x.id}" data-s="ouverte"`, 'sm ghost')}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune recherche de clients. Vos partenaires les déposent depuis leur espace ; vous pouvez aussi présenter un établissement spontanément.')) +
+    panel('Établissements présentés', '', presentationsTable(X, 'agence'));
 };
 
 /* ===== Espace partenaire ===== */
 V.partenaire.accueil = async () => {
   const t = await GET('/partenaire/tableau'), p = t.partenaire, s = t.stats;
   const conv = p.convention_signee_le ? '' : `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('edit')}</div><div><b>Convention d'apporteur d'affaires à signer</b><div class="small muted">Lisez-la et signez-la en ligne pour démarrer le partenariat.</div></div>${btn('Signer la convention', 'chev', 'data-a="nav" data-v="convention"', 'sm primary')}</div></section>`;
-  return head(`Bienvenue, ${esc(p.raison_sociale)}`, `Partenariat avec ${esc(t.agence.nom)} : déposez vos besoins de recrutement, nous recherchons les candidats sur les job boards et vous les présentons. Indiquez la suite donnée à chaque candidat.`, peut('p_demandes') ? btn('Nouveau besoin', 'plus', 'data-a="nav" data-v="demandes"', 'primary') : '') + conv +
-    `<div class="kpis">${kpi('Besoins ouverts', 'briefcase', s.demandes_ouvertes)}${kpi('Candidats à traiter', 'idcard', s.a_traiter, s.a_traiter ? 'Donnez-nous votre retour' : 'À jour', s.a_traiter ? 'down' : '')}${kpi('Entretiens', 'cal', s.entretiens)}${kpi('Placés', 'check', s.places, `${s.presentes} présenté(s)`)}</div>` +
-    `<div class="grid-main">${panel('Candidats à traiter', btn('Tous les candidats', 'chev', 'data-a="nav" data-v="candidats"', 'sm'), t.a_traiter.length ? `<div class="list">${t.a_traiter.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${esc(x.prenom)} ${esc(x.nom)}</b><div class="small muted">${esc([x.poste, x.ville].filter(Boolean).join(' · '))} · présenté le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div>${peut('p_retours') ? btn('Donner la suite', 'edit', `data-a="presouvrir" data-id="${x.id}"`, 'sm primary') : ''}</div>`).join('')}</div>` : empty('Aucun candidat en attente de votre retour.'))}
-    ${panel('Vos besoins ouverts', '', t.demandes.length ? `<div class="list">${t.demandes.map(d => `<div class="li"><div><b>${d.nb_postes} × ${esc(d.poste)}</b><div class="small muted">${esc([d.ville, d.type_contrat, periodeBesoin(d)].filter(Boolean).join(' · '))}</div></div><span class="small">${d.presentes} présenté(s)</span></div>`).join('')}</div>` : empty('Aucun besoin ouvert.'))}</div>` +
-    panel('Votre contact', '', `<div class="panel-b"><dl class="kv"><dt>Agence</dt><dd>${esc(t.agence.nom)}</dd>${t.agence.telephone ? `<dt>Téléphone</dt><dd><a class="link" href="tel:${esc(t.agence.telephone.replace(/\s/g, ''))}">${esc(t.agence.telephone)}</a></dd>` : ''}${t.agence.email ? `<dt>E-mail</dt><dd><a class="link" href="mailto:${esc(t.agence.email)}">${esc(t.agence.email)}</a></dd>` : ''}<dt>Commission</dt><dd>${esc(t.commission)}</dd></dl>
-      <ol class="small" style="margin:14px 0 0;padding-left:18px;line-height:1.7"><li>Déposez chaque besoin (poste, ville, dates, profil) dans « Mes besoins de recrutement ».</li><li>Nous diffusons les annonces sur les job boards et sélectionnons les candidats.</li><li>Vous recevez un e-mail à chaque candidat présenté : profil et CV dans « Candidats présentés ».</li><li>Indiquez la suite : entretien, retenu, non retenu, placé${t.commission.includes('%') ? ' (avec le chiffre d\'affaires réalisé)' : ''}.</li><li>La commission est facturée au placement ; factures dans « Commissions et factures ».</li></ol></div>`);
+  return head(`Bienvenue, ${esc(p.raison_sociale)}`, `Partenariat avec ${esc(t.agence.nom)} : déposez vos besoins de recrutement et vos recherches de clients : nous trouvons les candidats sur les job boards et les établissements qui ont besoin de personnel, et vous les présentons. Indiquez la suite donnée à chacun.`, peut('p_demandes') ? btn('Nouveau besoin', 'plus', 'data-a="nav" data-v="demandes"', 'primary') : '') + conv +
+    `<div class="kpis">${kpi('Besoins ouverts', 'briefcase', s.demandes_ouvertes)}${kpi('Candidats à traiter', 'idcard', s.a_traiter, s.a_traiter ? 'Donnez-nous votre retour' : 'À jour', s.a_traiter ? 'down' : '')}${kpi('Clients à traiter', 'building', s.clients_a_traiter, `${s.clients_signes} client(s) signé(s)`, s.clients_a_traiter ? 'down' : '')}${kpi('Placés', 'check', s.places, `${s.presentes} présenté(s)`)}</div>` +
+    `<div class="grid-main">${panel('À traiter', btn('Candidats', 'chev', 'data-a="nav" data-v="candidats"', 'sm') + btn('Clients', 'chev', 'data-a="nav" data-v="clients"', 'sm'), t.a_traiter.length ? `<div class="list">${t.a_traiter.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${esc(nomPres(x))}</b> ${typeBadge(x)}<div class="small muted">${esc((x.type === 'client' ? [x.secteur, x.adresse] : [x.poste, x.ville]).filter(Boolean).join(' · '))} · présenté le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div>${peut('p_retours') ? btn('Donner la suite', 'edit', `data-a="presouvrir" data-id="${x.id}"`, 'sm primary') : ''}</div>`).join('')}</div>` : empty('Rien en attente de votre retour.'))}
+    ${panel('Vos besoins ouverts', '', t.demandes.length ? `<div class="list">${t.demandes.map(d => `<div class="li"><div><b>${d.nb_postes} × ${esc(d.poste)}</b> ${d.type === 'client' ? badge('pris', 'Clients') : ''}<div class="small muted">${esc((d.type === 'client' ? [d.ville] : [d.ville, d.type_contrat, periodeBesoin(d)]).filter(Boolean).join(' · '))}</div></div><span class="small">${d.presentes} présenté(s)</span></div>`).join('')}</div>` : empty('Aucun besoin ouvert.'))}</div>` +
+    panel('Votre contact', '', `<div class="panel-b"><dl class="kv"><dt>Agence</dt><dd>${esc(t.agence.nom)}</dd>${t.agence.telephone ? `<dt>Téléphone</dt><dd><a class="link" href="tel:${esc(t.agence.telephone.replace(/\s/g, ''))}">${esc(t.agence.telephone)}</a></dd>` : ''}${t.agence.email ? `<dt>E-mail</dt><dd><a class="link" href="mailto:${esc(t.agence.email)}">${esc(t.agence.email)}</a></dd>` : ''}<dt>Commission candidats</dt><dd>${esc(t.commission)}</dd><dt>Commission clients</dt><dd>${esc(t.commission_client)}</dd></dl>
+      <ol class="small" style="margin:14px 0 0;padding-left:18px;line-height:1.7"><li>Déposez chaque besoin (poste, ville, dates, profil) dans « Mes besoins » ; décrivez aussi les clients que vous recherchez (type d'établissement, ville).</li><li>Nous diffusons les annonces sur les job boards et sélectionnons les candidats.</li><li>Vous recevez un e-mail à chaque candidat présenté : profil et CV dans « Candidats présentés ».</li><li>Indiquez la suite : entretien, retenu, non retenu, placé${t.commission.includes('%') ? ' (avec le chiffre d\'affaires réalisé)' : ''}.</li><li>Pour chaque établissement présenté (« Clients présentés »), indiquez rendez-vous, négociation, sans suite ou client signé${t.commission_client.includes('%') ? ' avec le chiffre d\'affaires réalisé' : ''}.</li><li>La commission est facturée au placement ou à la signature du client ; factures dans « Commissions et factures ».</li></ol></div>`);
 };
 V.partenaire.demandes = async () => {
   const D = await GET('/partenaire/demandes');
-  return head('Mes besoins de recrutement', 'Décrivez chaque poste à pourvoir : nous recherchons les candidats sur les job boards et vous les présentons dans « Candidats présentés ».') +
-    (peut('p_demandes') ? panel('Nouveau besoin', '', `<form data-f="pdemande" class="panel-b form">${demandeChamps()}<div class="err full" hidden></div><div class="full row"><button class="btn primary" type="submit">${ic('send')}Envoyer le besoin</button></div></form>`) : '') +
-    panel(`Mes besoins (${D.length})`, '', D.length ? `<div class="scroll"><table><thead><tr><th>Besoin</th><th>Période</th><th class="r">Présentés</th><th class="r">Placés</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${D.map(d => `<tr><td><b>${d.nb_postes} × ${esc(d.poste)}</b><div class="small muted">${esc([d.ville, d.type_contrat, d.taux_horaire ? num(d.taux_horaire) + ' €/h' : ''].filter(Boolean).join(' · '))}</div></td><td class="small">${periodeBesoin(d)}</td><td class="r num">${d.presentes}</td><td class="r num">${d.places}</td><td>${badge(...DEM_ST[d.statut])}</td>
+  const f = S.p.pdt === 'client' ? 'client' : 'candidat';
+  return head('Mes besoins', 'Décrivez chaque poste à pourvoir : nous recherchons les candidats sur les job boards (« Candidats présentés »). Décrivez aussi les clients que vous recherchez : nous vous présentons des établissements qui ont besoin de personnel (« Clients présentés »).') +
+    (peut('p_demandes') ? panel(f === 'client' ? 'Nouvelle recherche de clients' : 'Nouveau besoin de candidats', `<div class="seg" data-titre="Je recherche"><button type="button" aria-pressed="${f === 'candidat'}" data-a="pdtype" data-t="candidat">${ic('users')}Des candidats</button><button type="button" aria-pressed="${f === 'client'}" data-a="pdtype" data-t="client">${ic('building')}Des clients</button></div>`,
+      `<form data-f="pdemande" class="panel-b form">${f === 'client' ? demandeClientChamps() : demandeChamps()}<div class="err full" hidden></div><div class="full row"><button class="btn primary" type="submit">${ic('send')}${f === 'client' ? 'Envoyer la recherche' : 'Envoyer le besoin'}</button></div></form>`) : '') +
+    panel(`Mes besoins (${D.length})`, '', D.length ? `<div class="scroll"><table><thead><tr><th>Besoin</th><th>Période</th><th class="r">Présentés</th><th class="r">Placés ou signés</th><th>Statut</th><th></th></tr></thead><tbody>
+      ${D.map(d => `<tr><td><b>${d.nb_postes} × ${esc(d.poste)}</b> ${d.type === 'client' ? badge('pris', 'Clients') : badge('attente', 'Candidats')}<div class="small muted">${esc((d.type === 'client' ? [d.ville] : [d.ville, d.type_contrat, d.taux_horaire ? num(d.taux_horaire) + ' €/h' : '']).filter(Boolean).join(' · '))}</div></td><td class="small">${d.type === 'client' ? '—' : periodeBesoin(d)}</td><td class="r num">${d.presentes}</td><td class="r num">${d.places}</td><td>${badge(...DEM_ST[d.statut])}</td>
         <td class="r"><div class="row" style="justify-content:flex-end;flex-wrap:nowrap">${peut('p_demandes') ? (d.statut === 'ouverte' ? btn('Pourvu', 'check', `data-a="pdemst" data-id="${d.id}" data-s="pourvue"`, 'sm') + btn('Annuler', 'ban', `data-a="pdemst" data-id="${d.id}" data-s="annulee"`, 'sm ghost') : btn('Rouvrir', '', `data-a="pdemst" data-id="${d.id}" data-s="ouverte"`, 'sm ghost')) : ''}</div></td></tr>`).join('')}</tbody></table></div>` : empty('Aucun besoin déposé.'));
 };
+V.partenaire.clients = async () => {
+  const L = (await GET('/partenaire/presentations')).filter(x => x.type === 'client'), f = S.p.pkf || 'tous';
+  const vis = L.filter(x => f === 'tous' || x.statut === f);
+  return head('Clients présentés', 'Établissements (hôtels, cafés, restaurants, traiteurs) qui ont besoin de personnel, présentés avec leur accord. Contactez-les et indiquez la suite donnée : rendez-vous, négociation, sans suite ou client signé.') +
+    panel(null, `<div class="seg" data-titre="Suite donnée">${[['tous', `Tous (${L.length})`], ...Object.entries(PRES_ST_CLI).map(([k, [, l]]) => [k, `${l} (${L.filter(x => x.statut === k).length})`])].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="pkfiltre" data-f="${k}">${l}</button>`).join('')}</div>`, presentationsTable(vis, 'partenaire'));
+};
 V.partenaire.candidats = async () => {
-  const L = await GET('/partenaire/presentations'), f = S.p.pcf || 'tous';
+  const L = (await GET('/partenaire/presentations')).filter(x => x.type !== 'client'), f = S.p.pcf || 'tous';
   const vis = L.filter(x => f === 'tous' || x.statut === f);
   return head('Candidats présentés', 'Candidats sélectionnés pour vous, présentés avec leur accord. Indiquez la suite donnée à chacun : c\'est ce qui nous permet d\'affiner nos recherches.') +
     panel(null, `<div class="seg" data-titre="Suite donnée">${[['tous', `Tous (${L.length})`], ...Object.entries(PRES_ST).map(([k, [, l]]) => [k, `${l} (${L.filter(x => x.statut === k).length})`])].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="pcfiltre" data-f="${k}">${l}</button>`).join('')}</div>`, presentationsTable(vis, 'partenaire'));
 };
 V.partenaire.commissions = async () => {
   const c = await GET('/partenaire/commissions'), t = c.totaux;
-  return head('Commissions et factures', `Commission prévue par la convention : ${esc(c.commission)}, payable à ${c.delai_paiement} jours.`) +
+  return head('Commissions et factures', `Commissions prévues par la convention : candidats, ${esc(c.commission)} ; clients, ${esc(c.commission_client)}. Payables à ${c.delai_paiement} jours.`) +
     `<div class="kpis">${kpi('À facturer', 'receipt', eur(t.a_facturer))}${kpi('Factures à régler', 'clock', eur(t.facturee))}${kpi('Réglées', 'wallet', eur(t.payee))}${t.attente_ca ? kpi('CA à déclarer', 'alert', t.attente_ca, 'Indiquez le chiffre d\'affaires réalisé', 'down') : ''}</div>` +
-    panel(null, '', c.lignes.length ? `<div class="scroll"><table><thead><tr><th>Candidat placé</th><th>Placé le</th><th class="r">CA déclaré</th><th class="r">Commission HT</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${c.lignes.map(x => `<tr><td><b>${esc(x.prenom)} ${esc(x.nom)}</b><div class="small muted">${esc(x.poste || '')}</div></td><td>${fdate(x.date_placement, 'num')}</td><td class="r num">${x.montant_ca != null ? eur(x.montant_ca) : '—'}</td><td class="r num"><b>${x.commission_montant != null ? eur(x.commission_montant) : '—'}</b></td><td>${badge(...COM_ST[x.commission_statut])}</td>
-        <td class="r">${x.facture_numero ? `<a class="btn sm ghost" href="/api/partenaire/factures/${x.id}" target="_blank" rel="noopener">${ic('file')}Facture ${esc(x.facture_numero)}</a>` : x.commission_statut === 'attente_ca' && peut('p_retours') ? btn('Déclarer le CA', 'edit', `data-a="presouvrir" data-id="${x.id}"`, 'sm primary') : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune commission : elles apparaissent quand vous déclarez un candidat placé.'));
+    panel(null, '', c.lignes.length ? `<div class="scroll"><table><thead><tr><th>Candidat placé ou client signé</th><th>Le</th><th class="r">CA déclaré</th><th class="r">Commission HT</th><th>Statut</th><th></th></tr></thead><tbody>
+      ${c.lignes.map(x => `<tr><td><b>${esc(nomPres(x))}</b> ${typeBadge(x)}<div class="small muted">${esc(x.type === 'client' ? x.secteur || '' : x.poste || '')}</div></td><td>${fdate(x.date_placement, 'num')}</td><td class="r num">${x.montant_ca != null ? eur(x.montant_ca) : '—'}</td><td class="r num"><b>${x.commission_montant != null ? eur(x.commission_montant) : '—'}</b></td><td>${badge(...COM_ST[x.commission_statut])}</td>
+        <td class="r">${x.facture_numero ? `<a class="btn sm ghost" href="/api/partenaire/factures/${x.id}" target="_blank" rel="noopener">${ic('file')}Facture ${esc(x.facture_numero)}</a>` : x.commission_statut === 'attente_ca' && peut('p_retours') ? btn('Déclarer le CA', 'edit', `data-a="presouvrir" data-id="${x.id}"`, 'sm primary') : ''}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune commission : elles apparaissent quand vous déclarez un candidat placé ou un client signé.'));
 };
 V.partenaire.convention = async () => {
   const t = await GET('/partenaire/tableau'), p = t.partenaire;
   return head('Convention de partenariat', `Convention d'apporteur d'affaires n° ${esc(p.convention_numero || '')} entre ${esc(t.agence.nom)} et ${esc(p.raison_sociale)}.`) +
-    panel('Points clés', `<a class="btn sm" href="/api/partenaire/convention" target="_blank" rel="noopener">${ic('file')}Lire la convention complète</a>`, `<div class="panel-b"><dl class="kv"><dt>Objet</dt><dd>Recherche et présentation de candidats (job boards, réseaux sociaux, vivier de l'agence)</dd><dt>Commission</dt><dd>${esc(t.commission)}</dd><dt>Paiement</dt><dd>${p.delai_paiement} jours à compter de la facture</dd><dt>Non-contournement</dt><dd>${p.duree_garantie} mois après la présentation de chaque candidat</dd><dt>Données personnelles</dt><dd>Candidats présentés avec leur accord ; données utilisées uniquement pour leur recrutement</dd><dt>Durée</dt><dd>1 an renouvelable, préavis d'un mois</dd></dl></div>`) +
+    panel('Points clés', `<a class="btn sm" href="/api/partenaire/convention" target="_blank" rel="noopener">${ic('file')}Lire la convention complète</a>`, `<div class="panel-b"><dl class="kv"><dt>Objet</dt><dd>Recherche et présentation de candidats (job boards, réseaux sociaux, vivier de l'agence) et d'établissements clients</dd><dt>Commission candidats</dt><dd>${esc(t.commission)}</dd><dt>Commission clients</dt><dd>${esc(t.commission_client)}</dd><dt>Paiement</dt><dd>${p.delai_paiement} jours à compter de la facture</dd><dt>Non-contournement</dt><dd>${p.duree_garantie} mois après la présentation de chaque candidat ou client</dd><dt>Données personnelles</dt><dd>Candidats présentés avec leur accord ; données utilisées uniquement pour leur recrutement</dd><dt>Durée</dt><dd>1 an renouvelable, préavis d'un mois</dd></dl></div>`) +
     (p.convention_signee_le ? panel('Signature', '', `<div class="panel-b">${badge('libre', 'Signée')} par <b>${esc(p.convention_signee_nom)}</b> le ${fdate(p.convention_signee_le, 'num')}${p.convention_signee_mode === 'papier' ? ' (sur papier)' : ' (en ligne)'}</div>`)
       : peut('p_convention') ? panel('Signer en ligne', '', `<form data-f="pconvsigner" class="panel-b form"><label class="f full">Nom et fonction du signataire<input type="text" name="nom" required minlength="3" maxlength="120" placeholder="Jean Dupont, gérant"></label>
         <label class="check full"><input type="checkbox" name="accepte" value="1" required> J'ai lu la convention, je l'accepte et je suis habilité(e) à signer pour l'agence.</label><div class="err full" hidden></div><div class="full row"><button class="btn primary" type="submit">${ic('check')}Signer la convention</button></div></form>`) : '');
@@ -2527,8 +2587,9 @@ Object.assign(A, {
   partnew: () => { openModal(`${modalHead(ic('link') + 'Nouvelle agence partenaire', 'Vous lui présenterez des candidats sourcés sur les job boards, contre une commission par placement.')}<form data-f="partnew"><div class="panel-b form">${partenaireChamps()}<div class="err full" hidden></div></div>${modalFoot('Créer le partenaire', 'type="submit"')}</form>`); $('#modal .modal')?.classList.add('modal-large'); },
   partouvrir: el => act(() => partenaireModal(Number(el.dataset.id)), el),
   partdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.append(' : confirmer'); return; } await DEL('/partenaires/' + el.dataset.id); closeModal(); toast('Partenaire supprimé'); reload(); }, el),
-  demnew: el => demandeModal(el.dataset.p),
+  demnew: el => demandeModal(el.dataset.p, el.dataset.t),
   presenter: el => act(() => presenterModal(el.dataset.p, el.dataset.d, el.dataset.c), el),
+  presclient: el => act(() => presenterClientModal(el.dataset.p, el.dataset.d, el.dataset.src), el),
   presouvrir: el => act(() => presentationModal(Number(el.dataset.id)), el),
   presdel: el => act(async () => { if (el.dataset.confirm !== '1') { el.dataset.confirm = '1'; el.append(' : confirmer'); return; } await DEL('/presentations/' + el.dataset.id); closeModal(); toast('Présentation retirée'); reload(); }, el),
   sourcenew: () => sourcingModal(),
@@ -2537,6 +2598,8 @@ Object.assign(A, {
   comfact: el => act(async () => { const x = await POST(`/presentations/${el.dataset.id}/facturer`); toast('Facture ' + x.facture_numero + ' établie'); reload(); }, el),
   compaye: el => act(async () => { await POST(`/presentations/${el.dataset.id}/payee`); toast('Paiement enregistré'); reload(); }, el),
   pcfiltre: el => { S.p.pcf = el.dataset.f; reload(); },
+  pkfiltre: el => { S.p.pkf = el.dataset.f; reload(); },
+  pdtype: el => { S.p.pdt = el.dataset.t; reload(); },
 });
 Object.assign(F, {
   partnew: (fd, f) => act(async () => { try { await POST('/partenaires', Object.fromEntries(fd)); } catch (e) { return erreurForm(f, e); } closeModal(); toast('Partenaire créé : créez son accès depuis sa fiche'); reload(); }),
@@ -2548,9 +2611,14 @@ Object.assign(F, {
     let r; try { r = await POST('/presentations', { partenaire_id: Number(pid), demande_id: did ? Number(did) : null, candidat_id: Number(fd.get('candidat_id')), resume: fd.get('resume'), consentement: !!fd.get('consentement') }); } catch (e) { return erreurForm(f, e); }
     closeModal(); toast(r.envoi === 'envoye' ? 'Candidat présenté, partenaire prévenu par e-mail' : 'Candidat présenté'); reload();
   }),
+  presclient: (fd, f) => act(async () => {
+    const [pid, did] = String(fd.get('dest')).split(':'), [k, id] = String(fd.get('etab')).split(':');
+    let r; try { r = await POST('/presentations', { type: 'client', partenaire_id: Number(pid), demande_id: did ? Number(did) : null, [k === 'p' ? 'prospect_id' : 'client_id']: Number(id), resume: fd.get('resume'), consentement: !!fd.get('consentement') }); } catch (e) { return erreurForm(f, e); }
+    closeModal(); toast(r.envoi === 'envoye' ? 'Établissement présenté, partenaire prévenu par e-mail' : 'Établissement présenté'); reload();
+  }),
   presmaj: (fd, f) => act(async () => { try { await PUT((S.me.profil === 'partenaire' ? '/partenaire/presentations/' : '/presentations/') + f.dataset.id, Object.fromEntries(fd)); } catch (e) { return erreurForm(f, e); } closeModal(); toast('Suite enregistrée'); reload(); }),
   sourcenew: (fd, f) => act(async () => { for (const [k, v] of [...fd]) if (v === '' || (v instanceof File && !v.size)) fd.delete(k); try { await POST('/candidats/sourcing', fd); } catch (e) { return erreurForm(f, e); } closeModal(); toast('Candidat ajouté aux candidatures'); reload(); }),
-  pdemande: (fd, f) => act(async () => { try { await POST('/partenaire/demandes', lireDemandeForm(fd)); } catch (e) { return erreurForm(f, e); } toast('Besoin envoyé à l\'agence'); reload(); }),
+  pdemande: (fd, f) => act(async () => { try { await POST('/partenaire/demandes', lireDemandeForm(fd)); } catch (e) { return erreurForm(f, e); } toast(fd.get('type') === 'client' ? 'Recherche de clients envoyée à l\'agence' : 'Besoin envoyé à l\'agence'); reload(); }),
   pconvsigner: (fd, f) => act(async () => { try { await POST('/partenaire/convention/signer', { nom: fd.get('nom'), accepte: !!fd.get('accepte') }); } catch (e) { return erreurForm(f, e); } S.me = await GET('/me'); toast('Convention signée, merci !'); reload(); }),
 });
 

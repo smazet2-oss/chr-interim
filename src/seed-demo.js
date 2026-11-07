@@ -236,6 +236,12 @@ tx(() => {
       'Expérience : 1 à 3 ans\nDisponibilités : Le soir, Le week-end', statut, extra, statut === 'placee' ? jour(-2) : null, statut === 'placee' ? 350 : null, statut === 'placee' ? 'a_facturer' : 'non_due');
     pres(0, 'placee', 'Embauchée en contrat saisonnier jusqu\'à fin septembre.');
     pres(1, 'proposee');
+    // Sourcing de clients : recherche du partenaire et établissement présenté (prospect « Hôtel des Célestins »)
+    const dc = Number(run('INSERT INTO partenaires_demandes (partenaire_id, type, poste, ville, nb_postes, description) VALUES (?,?,?,?,?,?)', pid, 'client', 'Hôtels 3 et 4 étoiles', 'Lyon', 2, 'Besoins réguliers en réception et étages, saison des salons.').lastInsertRowid);
+    const pr = one('SELECT * FROM prospects WHERE etablissement = ?', 'Hôtel des Célestins');
+    if (pr) run(`INSERT INTO presentations (type, partenaire_id, demande_id, prospect_id, etablissement, secteur, adresse, prenom, nom, poste, ville, telephone, source, resume, consentement_le, statut, retour_partenaire)
+      VALUES ('client',?,?,?,?,?,?,?, '', ?, ?, ?, 'Visite terrain', ?, datetime('now', '-3 days'), 'entretien', ?)`, pid, dc, pr.id, pr.etablissement, pr.type_etab, pr.adresse, pr.repondant, pr.type_etab, pr.adresse, pr.telephone,
+      'Recours aux extras : Saisonnier / événementiel\nPostes recherchés : Employé d\'étage / femme de chambre, Réceptionniste / veilleur de nuit', 'Rendez-vous avec le directeur prévu la semaine prochaine.');
   }
 });
 console.log('Démonstration installée. Comptes (mot de passe « Demo2026! ») : claire.morel (agence), comptoir.lyon (employeur), yanis.benali, lucas.martin, thomas.petit (intérimaires), rhone.emploi (agence partenaire).');

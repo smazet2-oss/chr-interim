@@ -61,6 +61,16 @@ addColumn('users', 'partenaire_id', 'INTEGER REFERENCES partenaires(id) ON DELET
 // Origine des candidatures (job board) et accord du candidat pour être présenté aux agences partenaires
 addColumn('candidats', 'source', "TEXT NOT NULL DEFAULT 'Site CHR Intérim'");
 addColumn('candidats', 'partage_partenaires', 'INTEGER NOT NULL DEFAULT 0');
+// Sourcing de clients : établissements (prospects ou fiches clients) présentés aux partenaires, comme les candidats
+addColumn('presentations', 'type', "TEXT NOT NULL DEFAULT 'candidat'"); // 'candidat' | 'client'
+addColumn('presentations', 'prospect_id', 'INTEGER REFERENCES prospects(id) ON DELETE SET NULL');
+addColumn('presentations', 'client_id', 'INTEGER REFERENCES clients(id) ON DELETE SET NULL');
+addColumn('presentations', 'etablissement', 'TEXT');
+addColumn('presentations', 'secteur', 'TEXT');
+addColumn('presentations', 'adresse', 'TEXT');
+addColumn('partenaires_demandes', 'type', "TEXT NOT NULL DEFAULT 'candidat'");
+addColumn('partenaires', 'commission_client_type', "TEXT NOT NULL DEFAULT 'pourcentage'");
+addColumn('partenaires', 'commission_client_valeur', 'REAL NOT NULL DEFAULT 5');
 
 const JOB_BOARDS = ['Site CHR Intérim', 'Indeed', 'HelloWork', 'France Travail', 'LinkedIn', 'Facebook', 'Jobteaser', 'StudentJob', 'L\'Hôtellerie Restauration (lhotellerie-restauration.fr)', 'Leboncoin', 'Bouche-à-oreille', 'Autre'];
 /** Origine d'une candidature d'après le lien de l'annonce (?src=indeed, ?src=hellowork…). */
@@ -86,14 +96,19 @@ const dfr = iso => iso ? new Date(iso.slice(0, 10) + 'T12:00').toLocaleDateStrin
 const eur = n => (Number(n) || 0).toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
 const lireDemande = d => d && { ...d, job_boards: JSON.parse(d.job_boards || '[]') };
 const libCommission = p => p.commission_type === 'forfait' ? `${eur(p.commission_valeur)} HT par candidat placé` : `${String(p.commission_valeur).replace('.', ',')} % du chiffre d'affaires HT réalisé sur le placement`;
+const libCommissionClient = p => p.commission_client_type === 'forfait' ? `${eur(p.commission_client_valeur)} HT par client signé` : `${String(p.commission_client_valeur).replace('.', ',')} % du chiffre d'affaires HT réalisé avec le client`;
+/** Conditions applicables à une présentation : celles des candidats ou celles des clients. */
+const conditions = (p, type) => type === 'client' ? { t: p.commission_client_type, v: p.commission_client_valeur } : { t: p.commission_type, v: p.commission_valeur };
+const nomPres = x => x.type === 'client' ? (x.etablissement || x.nom) : `${x.prenom} ${x.nom}`;
 
 /** Commission d'une présentation selon la convention du partenaire (recalculée tant qu'elle n'est pas facturée). */
 function commission(p, pres) {
   if (['facturee', 'payee'].includes(pres.commission_statut)) return { commission_montant: pres.commission_montant, commission_statut: pres.commission_statut };
   if (pres.statut !== 'placee') return { commission_montant: null, commission_statut: 'non_due' };
-  if (p.commission_type === 'forfait') return { commission_montant: Math.round(p.commission_valeur * 100) / 100, commission_statut: 'a_facturer' };
+  const c = conditions(p, pres.type);
+  if (c.t === 'forfait') return { commission_montant: Math.round(c.v * 100) / 100, commission_statut: 'a_facturer' };
   if (!(pres.montant_ca > 0)) return { commission_montant: null, commission_statut: 'attente_ca' };
-  return { commission_montant: Math.round(pres.montant_ca * p.commission_valeur) / 100, commission_statut: 'a_facturer' };
+  return { commission_montant: Math.round(pres.montant_ca * c.v) / 100, commission_statut: 'a_facturer' };
 }
 /** Enregistre le statut, le retour, le placement et le chiffre d'affaires d'une présentation. */
 function majPresentation(pres, b, parPartenaire) {
@@ -110,8 +125,8 @@ function majPresentation(pres, b, parPartenaire) {
   run(`UPDATE presentations SET statut = ?, retour_partenaire = ?, date_placement = ?, montant_ca = ?, commission_montant = ?, commission_statut = ?, updated_at = datetime('now') WHERE id = ?`,
     n.statut, n.retour_partenaire, n.date_placement, n.montant_ca, n.commission_montant, n.commission_statut, pres.id);
   if (parPartenaire && n.statut !== pres.statut) {
-    const lib = { proposee: 'proposé', entretien: 'en entretien', retenue: 'retenu', refusee: 'non retenu', placee: 'placé' }[n.statut];
-    run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', `Partenaire ${p.raison_sociale} : ${pres.prenom} ${pres.nom} ${lib}${n.retour_partenaire ? ' : ' + n.retour_partenaire.slice(0, 120) : ''}`);
+    const lib = (pres.type === 'client' ? { proposee: 'proposé', entretien: 'en rendez-vous', retenue: 'en négociation', refusee: 'sans suite', placee: 'client signé' } : { proposee: 'proposé', entretien: 'en entretien', retenue: 'retenu', refusee: 'non retenu', placee: 'placé' })[n.statut];
+    run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', `Partenaire ${p.raison_sociale} : ${nomPres(pres)} ${lib}${n.retour_partenaire ? ' : ' + n.retour_partenaire.slice(0, 120) : ''}`);
   }
   if (n.statut === 'placee' && pres.demande_id) {
     const d = one('SELECT * FROM partenaires_demandes WHERE id = ?', pres.demande_id);
@@ -122,7 +137,7 @@ function majPresentation(pres, b, parPartenaire) {
 }
 
 /** Vue partenaire d'une présentation : sans les notes internes, CV seulement avec l'accord du candidat. */
-const pourPartenaire = x => ({ id: x.id, demande_id: x.demande_id, prenom: x.prenom, nom: x.nom, poste: x.poste, ville: x.ville, telephone: x.telephone, email: x.email, source: x.source, resume: x.resume,
+const pourPartenaire = x => ({ id: x.id, type: x.type, etablissement: x.etablissement, secteur: x.secteur, adresse: x.adresse, demande_id: x.demande_id, prenom: x.prenom, nom: x.nom, poste: x.poste, ville: x.ville, telephone: x.telephone, email: x.email, source: x.source, resume: x.resume,
   a_cv: !!x.cv_fichier, cv_nom: x.cv_nom, statut: x.statut, retour_partenaire: x.retour_partenaire, date_placement: x.date_placement, montant_ca: x.montant_ca,
   commission_montant: x.commission_montant, commission_statut: x.commission_statut, facture_numero: x.facture_numero, facturee_le: x.facturee_le, payee_le: x.payee_le, created_at: x.created_at, demande_poste: x.demande_poste || null });
 
@@ -146,10 +161,11 @@ dl{display:grid;grid-template-columns:minmax(160px,auto) 1fr;gap:4px 16px;margin
 <h2>Entre les parties</h2><dl><dt>L'apporteur d'affaires</dt><dd>${ag}</dd><dt>L'agence partenaire</dt><dd>${pa}</dd></dl>
 <h2>Article 1 · Objet</h2><p>L'apporteur d'affaires recherche, sur les sites d'emploi (job boards), les réseaux sociaux et son propre vivier, des candidats correspondant aux besoins de recrutement que l'agence partenaire lui transmet dans son espace en ligne, principalement pour les métiers de l'hôtellerie, des cafés et de la restauration. Il présente ces candidats à l'agence partenaire, qui reste seule juge de leur recrutement et seule employeur des personnes qu'elle embauche ou met à disposition.</p>
 <h2>Article 2 · Présentation des candidats</h2><p>Chaque candidat est présenté dans l'espace partenaire avec son profil et, s'il est joint, son CV. L'apporteur d'affaires ne présente un candidat qu'avec son accord préalable et en conserve la preuve. L'agence partenaire indique pour chaque candidat la suite donnée (entretien, retenu, non retenu, placé), au plus tard 15 jours après sa présentation, et déclare tout placement dans un délai de 8 jours.</p>
-<h2>Article 3 · Rémunération</h2><dl><dt>Commission</dt><dd><b>${libCommission(p)}</b></dd><dt>Fait générateur</dt><dd>Toute embauche ou mise à disposition, sous quelque forme que ce soit, d'un candidat présenté, dans les ${p.duree_garantie} mois suivant sa présentation</dd>
-<dt>Facturation</dt><dd>À la déclaration du placement${p.commission_type === 'pourcentage' ? ', sur la base du chiffre d\'affaires HT déclaré par l\'agence partenaire' : ''}, TVA en sus</dd><dt>Paiement</dt><dd>${p.delai_paiement} jours à compter de la date de facture ; pénalités de retard au taux légal et indemnité forfaitaire de 40 € pour frais de recouvrement</dd></dl>
-<h2>Article 4 · Non-contournement</h2><p>L'agence partenaire s'interdit d'embaucher ou de mettre à disposition un candidat présenté sans déclarer le placement, directement ou par une société liée, pendant ${p.duree_garantie} mois à compter de sa présentation.</p>
-<h2>Article 5 · Données personnelles</h2><p>Chaque partie est responsable des traitements qu'elle met en œuvre au sens du Règlement général sur la protection des données (RGPD). Les données des candidats sont utilisées uniquement pour le recrutement, ne sont pas cédées à des tiers et sont supprimées à la demande du candidat ou au plus tard 2 ans après le dernier contact. L'agence partenaire informe le candidat qu'elle détient ses données dès son premier contact.</p>
+<h2>Article 2 bis · Présentation de clients</h2><p>L'apporteur d'affaires peut également présenter à l'agence partenaire des entreprises (hôtels, cafés, restaurants, traiteurs…) ayant des besoins de personnel, avec leur accord préalable. L'agence partenaire indique la suite donnée (rendez-vous, négociation, sans suite, client signé) et déclare toute signature dans un délai de 8 jours.</p>
+<h2>Article 3 · Rémunération</h2><dl><dt>Commission candidats</dt><dd><b>${libCommission(p)}</b></dd><dt>Commission clients</dt><dd><b>${libCommissionClient(p)}</b>${p.commission_client_type === 'pourcentage' ? `, sur les ${p.duree_garantie} premiers mois de relation commerciale` : ''}</dd><dt>Fait générateur</dt><dd>Toute embauche ou mise à disposition, sous quelque forme que ce soit, d'un candidat présenté, et toute relation commerciale avec un client présenté, dans les ${p.duree_garantie} mois suivant sa présentation</dd>
+<dt>Facturation</dt><dd>À la déclaration du placement ou de la signature du client ; commission au pourcentage sur la base du chiffre d'affaires HT déclaré par l'agence partenaire ; TVA en sus</dd><dt>Paiement</dt><dd>${p.delai_paiement} jours à compter de la date de facture ; pénalités de retard au taux légal et indemnité forfaitaire de 40 € pour frais de recouvrement</dd></dl>
+<h2>Article 4 · Non-contournement</h2><p>L'agence partenaire s'interdit d'embaucher ou de mettre à disposition un candidat présenté, ou de travailler avec un client présenté, sans le déclarer, directement ou par une société liée, pendant ${p.duree_garantie} mois à compter de sa présentation.</p>
+<h2>Article 5 · Données personnelles</h2><p>Chaque partie est responsable des traitements qu'elle met en œuvre au sens du Règlement général sur la protection des données (RGPD). Les données des candidats et des contacts des entreprises présentées sont utilisées uniquement pour le recrutement et la relation commerciale correspondante, ne sont pas cédées à des tiers et sont supprimées à la demande du candidat ou au plus tard 2 ans après le dernier contact. L'agence partenaire informe le candidat qu'elle détient ses données dès son premier contact.</p>
 <h2>Article 6 · Indépendance et non-exclusivité</h2><p>Les parties agissent en toute indépendance. La présente convention n'est pas exclusive. L'apporteur d'affaires n'effectue aucun acte de placement au nom de l'agence partenaire et ne peut l'engager.</p>
 <h2>Article 7 · Durée</h2><p>Convention conclue pour un an à compter de sa signature, renouvelable par tacite reconduction, résiliable par chaque partie avec un préavis d'un mois. Les commissions sur les candidats présentés avant la résiliation restent dues.</p>
 ${p.conditions ? `<h2>Conditions particulières</h2><p style="white-space:pre-wrap">${e(p.conditions)}</p>` : ''}
@@ -169,7 +185,7 @@ header{display:flex;justify-content:space-between;gap:16px;border-bottom:3px sol
 <div class="cols"><div><b>${g('raison_sociale')}</b><br>${e([P.get('adresse'), [P.get('code_postal'), P.get('ville')].filter(Boolean).join(' ')].filter(Boolean).join(', '))}${P.get('siret') ? '<br>SIRET ' + g('siret') : ''}${P.get('tva_intra') ? '<br>TVA ' + g('tva_intra') : ''}</div>
 <div><b>${e(p.raison_sociale)}</b><br>${e([p.adresse, p.ville].filter(Boolean).join(', '))}${p.siret ? '<br>SIRET ' + e(p.siret) : ''}</div></div>
 <table><thead><tr><th>Désignation</th><th class="r">Montant HT</th></tr></thead><tbody>
-<tr><td>Commission d'apport d'affaires (convention ${e(p.convention_numero || '')}) : placement de ${e(x.prenom)} ${e(x.nom)}${x.poste ? ', ' + e(x.poste) : ''}, le ${dfr(x.date_placement)}${x.montant_ca && p.commission_type === 'pourcentage' ? `<br><span style="color:#6b7280">${String(p.commission_valeur).replace('.', ',')} % de ${eur(x.montant_ca)} HT de chiffre d'affaires déclaré</span>` : ''}</td><td class="r">${eur(ht)}</td></tr>
+<tr><td>Commission d'apport d'affaires (convention ${e(p.convention_numero || '')}) : ${x.type === 'client' ? `client ${e(nomPres(x))} signé` : `placement de ${e(x.prenom)} ${e(x.nom)}${x.poste ? ', ' + e(x.poste) : ''}`}, le ${dfr(x.date_placement)}${x.montant_ca && conditions(p, x.type).t === 'pourcentage' ? `<br><span style="color:#6b7280">${String(conditions(p, x.type).v).replace('.', ',')} % de ${eur(x.montant_ca)} HT de chiffre d'affaires déclaré</span>` : ''}</td><td class="r">${eur(ht)}</td></tr>
 <tr><td class="r">TVA ${String(tva).replace('.', ',')} %</td><td class="r">${eur(tv)}</td></tr><tr class="tot"><td class="r">Total TTC</td><td class="r">${eur(ht + tv)}</td></tr></tbody></table>
 <p style="font-size:13px;color:#6b7280;margin-top:18px">Paiement à ${p.delai_paiement} jours${P.get('iban') ? ', par virement : IBAN ' + g('iban') : ''}. Pénalités de retard : ${g('penalites') || 'taux légal'} ; indemnité forfaitaire de 40 € pour frais de recouvrement.</p>
 <p class="noprint" style="color:#6b7280;font-size:13px">Pour imprimer ou enregistrer en PDF : menu Imprimer du navigateur (Ctrl + P).</p></body></html>`;
@@ -197,8 +213,12 @@ function register(api, h) {
     if (b.notes_agence !== undefined) p.notes_agence = str(b.notes_agence, 3000);
     if (b.commission_type !== undefined) { if (!['forfait', 'pourcentage'].includes(b.commission_type)) fail(400, 'Type de commission invalide.'); p.commission_type = b.commission_type; }
     if (b.commission_valeur !== undefined) p.commission_valeur = nombre(b.commission_valeur);
-    const type = p.commission_type || ancien.commission_type || 'forfait', val = p.commission_valeur ?? ancien.commission_valeur ?? 300;
-    if (!(val > 0) || (type === 'pourcentage' && val > 100) || val > 100000) fail(400, type === 'pourcentage' ? 'Pourcentage de commission invalide (entre 0 et 100).' : 'Montant de commission invalide.');
+    if (b.commission_client_type !== undefined) { if (!['forfait', 'pourcentage'].includes(b.commission_client_type)) fail(400, 'Type de commission invalide.'); p.commission_client_type = b.commission_client_type; }
+    if (b.commission_client_valeur !== undefined) p.commission_client_valeur = nombre(b.commission_client_valeur);
+    for (const [kt, kv, def, quoi] of [['commission_type', 'commission_valeur', 300, 'candidats'], ['commission_client_type', 'commission_client_valeur', 5, 'clients']]) {
+      const type = p[kt] || ancien[kt] || (kt === 'commission_type' ? 'forfait' : 'pourcentage'), val = p[kv] ?? ancien[kv] ?? def;
+      if (!(val > 0) || (type === 'pourcentage' && val > 100) || val > 100000) fail(400, type === 'pourcentage' ? `Pourcentage de commission ${quoi} invalide (entre 0 et 100).` : `Montant de commission ${quoi} invalide.`);
+    }
     if (b.delai_paiement !== undefined) { p.delai_paiement = parseInt(b.delai_paiement, 10); if (!(p.delai_paiement >= 0 && p.delai_paiement <= 60)) fail(400, 'Délai de paiement invalide (60 jours maximum).'); }
     if (b.duree_garantie !== undefined) { p.duree_garantie = parseInt(b.duree_garantie, 10); if (!(p.duree_garantie >= 1 && p.duree_garantie <= 36)) fail(400, 'Durée de non-contournement invalide (1 à 36 mois).'); }
     if (b.statut !== undefined) { if (!['actif', 'suspendu', 'termine'].includes(b.statut)) fail(400, 'Statut invalide.'); p.statut = b.statut; }
@@ -206,23 +226,24 @@ function register(api, h) {
     return p;
   };
   const demandeBody = b => {
-    const d = { poste: str(b.poste, 100), ville: str(b.ville, 100), nb_postes: parseInt(b.nb_postes || 1, 10), date_debut: b.date_debut || null, date_fin: b.date_fin || null,
+    const d = { type: b.type === 'client' ? 'client' : 'candidat', poste: str(b.poste, 100), ville: str(b.ville, 100), nb_postes: parseInt(b.nb_postes || 1, 10), date_debut: b.date_debut || null, date_fin: b.date_fin || null,
       type_contrat: CONTRATS.includes(b.type_contrat) ? b.type_contrat : CONTRATS[0], taux_horaire: nombre(b.taux_horaire), description: str(b.description, 2000),
       job_boards: JSON.stringify((Array.isArray(b.job_boards) ? b.job_boards : b.job_boards ? [b.job_boards] : []).filter(x => JOB_BOARDS.includes(x))) };
-    if (!d.poste) fail(400, 'Indiquez le poste à pourvoir.');
-    if (!(d.nb_postes >= 1 && d.nb_postes <= 50)) fail(400, 'Nombre de postes invalide (1 à 50).');
+    if (!d.poste) fail(400, d.type === 'client' ? 'Indiquez le type d\'établissement recherché.' : 'Indiquez le poste à pourvoir.');
+    if (!(d.nb_postes >= 1 && d.nb_postes <= 50)) fail(400, d.type === 'client' ? 'Nombre de clients invalide (1 à 50).' : 'Nombre de postes invalide (1 à 50).');
     for (const k of ['date_debut', 'date_fin']) if (d[k] && !isDate(d[k])) fail(400, 'Date invalide.');
     if (d.date_debut && d.date_fin && d.date_fin < d.date_debut) fail(400, 'La date de fin précède la date de début.');
     if (d.taux_horaire !== null && !(d.taux_horaire > 0 && d.taux_horaire < 200)) fail(400, 'Taux horaire invalide.');
     return d;
   };
-  const insererDemande = (pid, d) => Number(run('INSERT INTO partenaires_demandes (partenaire_id, poste, ville, nb_postes, date_debut, date_fin, type_contrat, taux_horaire, description, job_boards) VALUES (?,?,?,?,?,?,?,?,?,?)',
-    pid, d.poste, d.ville || null, d.nb_postes, d.date_debut, d.date_fin, d.type_contrat, d.taux_horaire, d.description, d.job_boards).lastInsertRowid);
+  const insererDemande = (pid, d) => Number(run('INSERT INTO partenaires_demandes (partenaire_id, type, poste, ville, nb_postes, date_debut, date_fin, type_contrat, taux_horaire, description, job_boards) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+    pid, d.type, d.poste, d.ville || null, d.nb_postes, d.date_debut, d.date_fin, d.type_contrat, d.taux_horaire, d.description, d.job_boards).lastInsertRowid);
   const numeroConvention = () => { const a = h.today().slice(0, 4), n = one('SELECT COUNT(*) n FROM partenaires WHERE convention_numero LIKE ?', `AA-${a}-%`).n + 1; return `AA-${a}-${String(n).padStart(4, '0')}`; };
   const stats = pid => {
-    const L = presentationsDe(pid);
+    const T = presentationsDe(pid), L = T.filter(x => x.type !== 'client'), K = T.filter(x => x.type === 'client');
     return { demandes_ouvertes: one('SELECT COUNT(*) n FROM partenaires_demandes WHERE partenaire_id = ? AND statut = \'ouverte\'', pid).n, presentes: L.length,
-      a_traiter: L.filter(x => x.statut === 'proposee').length, entretiens: L.filter(x => x.statut === 'entretien').length, places: L.filter(x => x.statut === 'placee').length, ...totaux(L) };
+      a_traiter: L.filter(x => x.statut === 'proposee').length, entretiens: L.filter(x => x.statut === 'entretien').length, places: L.filter(x => x.statut === 'placee').length,
+      clients_presentes: K.length, clients_a_traiter: K.filter(x => x.statut === 'proposee').length, clients_rdv: K.filter(x => x.statut === 'entretien').length, clients_signes: K.filter(x => x.statut === 'placee').length, ...totaux(T) };
   };
 
   /* ---------- Agence ---------- */
@@ -230,9 +251,9 @@ function register(api, h) {
     const L = all('SELECT p.*, (SELECT username FROM users u WHERE u.partenaire_id = p.id LIMIT 1) AS acces FROM partenaires p ORDER BY p.statut = \'actif\' DESC, p.raison_sociale');
     // Performance des job boards : candidats sourcés, présentés, placés et commissions
     const jb = all(`SELECT COALESCE(c.source, 'Site CHR Intérim') AS source, COUNT(*) AS candidats,
-        (SELECT COUNT(*) FROM presentations x WHERE x.source = COALESCE(c.source, 'Site CHR Intérim')) AS presentes,
-        (SELECT COUNT(*) FROM presentations x WHERE x.source = COALESCE(c.source, 'Site CHR Intérim') AND x.statut = 'placee') AS places,
-        (SELECT COALESCE(SUM(commission_montant), 0) FROM presentations x WHERE x.source = COALESCE(c.source, 'Site CHR Intérim') AND x.commission_statut IN ('a_facturer','facturee','payee')) AS commissions
+        (SELECT COUNT(*) FROM presentations x WHERE x.type = 'candidat' AND x.source = COALESCE(c.source, 'Site CHR Intérim')) AS presentes,
+        (SELECT COUNT(*) FROM presentations x WHERE x.type = 'candidat' AND x.source = COALESCE(c.source, 'Site CHR Intérim') AND x.statut = 'placee') AS places,
+        (SELECT COALESCE(SUM(commission_montant), 0) FROM presentations x WHERE x.type = 'candidat' AND x.source = COALESCE(c.source, 'Site CHR Intérim') AND x.commission_statut IN ('a_facturer','facturee','payee')) AS commissions
       FROM candidats c GROUP BY 1 ORDER BY candidats DESC`);
     res.json({ partenaires: L.map(p => ({ ...p, ...stats(p.id) })), job_boards: jb, liste_job_boards: JOB_BOARDS, contrats: CONTRATS });
   });
@@ -251,7 +272,7 @@ function register(api, h) {
     const a = one('SELECT * FROM partenaires WHERE id = ?', req.params.id); if (!a) fail(404, 'Partenaire introuvable.');
     const p = partenaireBody(req.body || {}, a); if (p.raison_sociale === '') fail(400, 'La raison sociale est obligatoire.');
     // Conditions financières modifiées après signature : nouvelle convention à signer
-    const financier = ['commission_type', 'commission_valeur', 'delai_paiement', 'duree_garantie', 'conditions'].some(k => p[k] !== undefined && p[k] !== a[k]);
+    const financier = ['commission_type', 'commission_valeur', 'commission_client_type', 'commission_client_valeur', 'delai_paiement', 'duree_garantie', 'conditions'].some(k => p[k] !== undefined && p[k] !== a[k]);
     tx(() => {
       const cols = Object.keys(p); if (cols.length) run(`UPDATE partenaires SET ${cols.map(k => k + ' = ?').join(', ')} WHERE id = ?`, ...cols.map(k => p[k]), a.id);
       if (financier && a.convention_signee_le) run('UPDATE partenaires SET convention_numero = ?, convention_signee_le = NULL, convention_signee_nom = NULL, convention_signee_mode = NULL WHERE id = ?', numeroConvention(), a.id);
@@ -297,18 +318,46 @@ function register(api, h) {
     res.json(lireDemande(one('SELECT * FROM partenaires_demandes WHERE id = ?', d.id)));
   }));
 
+  /** Présenter un établissement (prospect ou fiche client) à un partenaire, avec son accord : sourcing de clients. */
+  async function presenterClient(p, b) {
+    if (!b.consentement) fail(400, 'Confirmez que l\'établissement a donné son accord pour être présenté à cette agence partenaire.');
+    let x;
+    if (b.prospect_id) {
+      const r = one('SELECT * FROM prospects WHERE id = ?', Number(b.prospect_id)); if (!r) fail(400, 'Établissement introuvable.');
+      const rep = JSON.parse(r.reponses || '{}');
+      x = { prospect_id: r.id, client_id: r.client_id || null, etablissement: r.etablissement, contact: r.repondant || '', telephone: r.telephone, email: r.email, adresse: r.adresse, secteur: r.type_etab,
+        source: r.source === 'visite' ? 'Visite terrain' : 'Site CHR Intérim (Besoin de renforts)',
+        resume: [rep.effectif && 'Effectif : ' + rep.effectif, rep.frequence && 'Recours aux extras : ' + rep.frequence, (rep.postes || []).length && 'Postes recherchés : ' + rep.postes.filter(y => y !== 'Autre').join(', '),
+          rep.delai && 'Délai habituel : ' + rep.delai, rep.pics && 'Pics d\'activité : ' + rep.pics, rep.probleme_principal && 'Difficulté principale : ' + rep.probleme_principal].filter(Boolean).join('\n') };
+    } else {
+      const c = one('SELECT * FROM clients WHERE id = ?', Number(b.client_id)); if (!c) fail(400, 'Choisissez l\'établissement à présenter.');
+      x = { prospect_id: null, client_id: c.id, etablissement: c.nom, contact: c.contact || '', telephone: c.telephone, email: c.email, adresse: [c.adresse, c.ville].filter(Boolean).join(', '), secteur: c.secteur, source: 'Fiche client', resume: '' };
+    }
+    let demande = null;
+    if (b.demande_id) { demande = one('SELECT * FROM partenaires_demandes WHERE id = ? AND partenaire_id = ? AND type = \'client\'', Number(b.demande_id), p.id); if (!demande) fail(400, 'Ce besoin de clients n\'appartient pas à ce partenaire.'); }
+    if (one('SELECT 1 FROM presentations WHERE partenaire_id = ? AND type = \'client\' AND (prospect_id = ? OR client_id = ?)', p.id, x.prospect_id ?? -1, x.client_id ?? -1)) fail(409, 'Cet établissement a déjà été présenté à ce partenaire.');
+    const id = Number(run(`INSERT INTO presentations (type, partenaire_id, demande_id, prospect_id, client_id, etablissement, secteur, adresse, prenom, nom, poste, ville, telephone, email, source, resume, consentement_le)
+      VALUES ('client',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`, p.id, demande?.id || null, x.prospect_id, x.client_id, x.etablissement, x.secteur || null, x.adresse || null, x.contact, '', x.secteur || null, x.adresse || null,
+      x.telephone || null, x.email || null, x.source, str(b.resume, 2000) || x.resume).lastInsertRowid);
+    let envoi = null;
+    if (p.email) envoi = await envoyer('mail', { email: p.email }, `Nouveau client présenté : ${x.etablissement}`,
+      `${P.get('raison_sociale')} vous présente un établissement${demande ? ` pour votre recherche « ${demande.poste} »` : ''} : ${x.etablissement}${x.secteur ? ' (' + x.secteur + ')' : ''}${x.adresse ? ', ' + x.adresse : ''}.\n\nRetrouvez ses coordonnées et ses besoins dans votre espace partenaire, rubrique « Clients présentés », et indiquez-nous la suite donnée.`,
+      { titre: 'Nouveau client présenté', bouton: 'Ouvrir mon espace partenaire' });
+    return { ...one('SELECT * FROM presentations WHERE id = ?', id), envoi: envoi?.statut || null };
+  }
   /** Présenter un candidat à un partenaire (avec l'accord du candidat). */
   api.post('/presentations', role('agence'), wrap(async (req, res) => {
     const b = req.body || {};
     const p = one('SELECT * FROM partenaires WHERE id = ?', Number(b.partenaire_id)); if (!p) fail(400, 'Choisissez l\'agence partenaire.');
     if (p.statut !== 'actif') fail(409, 'Ce partenariat n\'est pas actif.');
+    if (b.type === 'client') return res.status(201).json(await presenterClient(p, b));
     const c = one('SELECT * FROM candidats WHERE id = ?', Number(b.candidat_id)); if (!c) fail(400, 'Choisissez le candidat à présenter.');
     if (!c.partage_partenaires && !b.consentement) fail(400, 'Confirmez que le candidat a donné son accord pour être présenté à cette agence partenaire.');
     const r = JSON.parse(c.reponses || '{}');
     const st = require('./sejour').situationCandidat(r, h.today());
     if (st?.niveau === 'interdit') fail(409, `Présentation impossible : ${st.court.toLowerCase()} (pas d'autorisation de travail valable en France).`);
     let demande = null;
-    if (b.demande_id) { demande = one('SELECT * FROM partenaires_demandes WHERE id = ? AND partenaire_id = ?', Number(b.demande_id), p.id); if (!demande) fail(400, 'Ce besoin n\'appartient pas à ce partenaire.'); }
+    if (b.demande_id) { demande = one('SELECT * FROM partenaires_demandes WHERE id = ? AND partenaire_id = ? AND type = \'candidat\'', Number(b.demande_id), p.id); if (!demande) fail(400, 'Ce besoin n\'appartient pas à ce partenaire.'); }
     if (one('SELECT 1 FROM presentations WHERE partenaire_id = ? AND candidat_id = ? AND COALESCE(demande_id, 0) = ?', p.id, c.id, demande?.id || 0)) fail(409, 'Ce candidat a déjà été présenté à ce partenaire pour ce besoin.');
     const resume = str(b.resume, 2000) || [r.experience && 'Expérience : ' + r.experience, r.situation && 'Situation : ' + (r.situation === 'Autre' && r.situation_autre ? r.situation_autre : r.situation),
       (r.creneaux || []).length && 'Disponibilités : ' + r.creneaux.join(', '), r.vehicule && 'Véhiculé(e)', (r.formations || []).filter(x => x !== 'Autre').length && 'Formations : ' + r.formations.filter(x => x !== 'Autre').join(', '), r.langues && 'Langues : ' + r.langues].filter(Boolean).join('\n');
@@ -380,7 +429,7 @@ function register(api, h) {
   const P_ = role('partenaire');
   api.get('/partenaire/tableau', P_, wrap((req, res) => {
     const p = moi(req), L = presentationsDe(p.id);
-    res.json({ partenaire: publicPartenaire(p), commission: libCommission(p), stats: stats(p.id),
+    res.json({ partenaire: publicPartenaire(p), commission: libCommission(p), commission_client: libCommissionClient(p), stats: stats(p.id),
       agence: { nom: P.get('raison_sociale'), email: P.get('email'), telephone: P.get('telephone') },
       a_traiter: L.filter(x => x.statut === 'proposee').slice(0, 10).map(pourPartenaire),
       demandes: all('SELECT d.*, (SELECT COUNT(*) FROM presentations x WHERE x.demande_id = d.id) AS presentes FROM partenaires_demandes d WHERE partenaire_id = ? AND statut = \'ouverte\' ORDER BY id DESC', p.id).map(lireDemande),
@@ -390,6 +439,13 @@ function register(api, h) {
     (SELECT COUNT(*) FROM presentations x WHERE x.demande_id = d.id AND x.statut = 'placee') AS places FROM partenaires_demandes d WHERE partenaire_id = ? ORDER BY d.statut = 'ouverte' DESC, d.id DESC`, req.user.partenaire_id).map(lireDemande)));
   api.post('/partenaire/demandes', P_, wrap(async (req, res) => {
     const p = moi(req), d = demandeBody(req.body || {}), id = insererDemande(p.id, d);
+    if (d.type === 'client') {
+      run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', `Nouvelle recherche de clients du partenaire ${p.raison_sociale} : ${d.nb_postes} × ${d.poste}${d.ville ? ', ' + d.ville : ''}`);
+      if (P.get('email')) await envoyer('mail', { email: P.get('email') }, `Recherche de clients : ${p.raison_sociale}`,
+        `L'agence partenaire ${p.raison_sociale} recherche ${d.nb_postes} client(s) : ${d.poste}${d.ville ? ' à ' + d.ville : ''}.${d.description ? '\n\n' + d.description : ''}\n\nRetrouvez la recherche dans l'espace agence, rubrique Partenariats › Sourcing clients.`,
+        { titre: 'Nouvelle recherche de clients', bouton: 'Ouvrir le sourcing clients' });
+      return res.status(201).json(lireDemande(one('SELECT * FROM partenaires_demandes WHERE id = ?', id)));
+    }
     run('INSERT INTO notifications (pour_agence, message) VALUES (1, ?)', `Nouveau besoin du partenaire ${p.raison_sociale} : ${d.nb_postes} × ${d.poste}${d.ville ? ', ' + d.ville : ''}`);
     if (P.get('email')) await envoyer('mail', { email: P.get('email') }, `Besoin de recrutement : ${p.raison_sociale}`,
       `L'agence partenaire ${p.raison_sociale} demande ${d.nb_postes} × ${d.poste}${d.ville ? ' à ' + d.ville : ''}${d.date_debut ? ' à partir du ' + dfr(d.date_debut) : ''} (${d.type_contrat}).${d.description ? '\n\n' + d.description : ''}\n\nRetrouvez le besoin dans l'espace agence, rubrique Partenariats › Sourcing job boards.`,
@@ -416,7 +472,7 @@ function register(api, h) {
   api.get('/partenaire/presentations/:id/cv', P_, faire((req, res) => envoyerCv(res, mienne(req, 'presentations'))));
   api.get('/partenaire/commissions', P_, (req, res) => {
     const p = moi(req), L = presentationsDe(p.id).filter(x => x.statut === 'placee' || x.commission_statut !== 'non_due').map(pourPartenaire);
-    res.json({ commission: libCommission(p), delai_paiement: p.delai_paiement, lignes: L, totaux: totaux(L) });
+    res.json({ commission: libCommission(p), commission_client: libCommissionClient(p), delai_paiement: p.delai_paiement, lignes: L, totaux: totaux(L) });
   });
   api.get('/partenaire/factures/:id', P_, wrap((req, res) => {
     const x = mienne(req, 'presentations'); if (!x.facture_numero) fail(404, 'Facture introuvable.');

@@ -145,3 +145,45 @@ test('sourcing de clients : établissement présenté au partenaire, client sign
   assert.ok((await ag.get('/notifications')).data.some(n => /Hôtel du Parc client signé/.test(n.message)));
   r = await pa.get('/partenaire/tableau'); assert.equal(r.data.stats.clients_signes, 1); assert.match(r.data.commission_client, /6 %/);
 });
+
+test('relevé mensuel : fichier pré-rempli, dépôt par le partenaire, contrôles et prévisionnel de l\'ETT', async () => {
+  const ag = await agence();
+  const pid = (await ag.post('/partenaires', { raison_sociale: 'Relevés Intérim' })).data.id;
+  const acc = (await ag.post('/acces', { type: 'partenaire', id: pid })).data;
+  const pa = await connecte(acc.username, acc.password, 'Partenaire2026');
+  assert.equal(await postuler({ prenom: 'Jade', nom: 'Petit', source: 'hellowork' }), 201);
+  const c = (await ag.get('/candidats')).data.find(x => x.prenom === 'Jade');
+  const xid = (await ag.post('/presentations', { partenaire_id: pid, candidat_id: c.id, consentement: true })).data.id;
+  await pa.put(`/partenaire/presentations/${xid}`, { statut: 'placee', date_placement: plusJours(-40) });
+  const mois = plusJours(-35).slice(0, 7);
+  // Fichier à remplir : CSV pré-rempli avec l'intérimaire placé
+  const cookie = await (async () => { const r = await fetch(base + '/login', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-CHR': '1' }, body: JSON.stringify({ username: acc.username, password: 'Partenaire2026' }) }); return r.headers.get('set-cookie').split(';')[0]; })();
+  const m = await fetch(base + '/partenaire/releves/modele?mois=' + mois, { headers: { Cookie: cookie } });
+  assert.equal(m.status, 200); assert.match(m.headers.get('content-type'), /text\/csv/);
+  const txt = await m.text(); assert.ok(txt.includes(`P-${xid};Intérimaire;Jade Petit`)); assert.ok(txt.includes('Heures travaillées dans le mois'));
+  const deposer = async (contenu, enc = 'utf-8') => {
+    const f = new FormData(); f.append('mois', mois);
+    f.append('fichier', new Blob([enc === 'latin1' ? Buffer.from(contenu, 'latin1') : contenu], { type: 'text/csv' }), 'releve.csv');
+    const r = await fetch(base + '/partenaire/releves', { method: 'POST', headers: { 'X-CHR': '1', Cookie: cookie }, body: f });
+    return { status: r.status, data: await r.json() };
+  };
+  const lignes = txt.replace(/^﻿/, '').trim().split(/\r\n/);
+  // Erreur : heures manquantes sur une ligne avec un CA → refus complet avec numéro de ligne
+  let r = await deposer([...lignes.slice(0, -1), `P-${xid};Intérimaire;Jade Petit;Brasserie X;Serveur;;;;12,50;;300;Réalisée;`].join('\r\n'));
+  assert.equal(r.status, 400); assert.match(r.data.error, /Ligne 7 : heures/);
+  // Dépôt correct (encodage Windows d'Excel) : une ligne pré-remplie et une mission hors présentation
+  r = await deposer([...lignes.slice(0, -1), `P-${xid};Intérimaire;Jade Petit;Brasserie X;Serveur;01/${mois.slice(5)}/${mois.slice(0, 4)};;100;12,50;2;;Réalisée;`, `;Intérimaire;Marc Noir;Brasserie X;Plongeur;;;50;12;;1 000,00;;`].join('\r\n'), 'latin1');
+  assert.equal(r.status, 201); assert.equal(r.data.lignes, 2); assert.equal(r.data.ca_ht, 3500);
+  assert.ok((await ag.get('/notifications')).data.some(n => /Relevé mensuel de Relevés Intérim/.test(n.message)));
+  // Prévisionnel : chaque mission simulée comme si l'agence était l'ETT
+  const p = (await ag.get(`/partenaires/previsionnel?partenaire_id=${pid}&croissance=0`)).data;
+  assert.equal(p.total.missions, 2); assert.equal(p.total.ca_ht, 3500); assert.equal(p.total.heures, 150);
+  // 100 h × 12,50 = 1 250 brut ; + IFM 10 % + ICCP 10 % = 1 512,50 ; + charges 20 % = 1 815 de coût
+  const l1 = p.missions.find(x => x.interimaire === 'Jade Petit'); assert.equal(l1.cout, 1815); assert.equal(l1.marge, 685);
+  assert.equal(p.projection.length, 12); assert.equal(p.ett.ca_annuel, 42000); assert.equal(p.ett.garantie_financiere, 3360);
+  assert.equal(p.par_origine.find(o => o.nom === 'HelloWork').ca_ht, 2500);
+  assert.equal(p.releves[0].deposes[0].mois, mois);
+  // Un partenaire ne voit pas le prévisionnel de l'agence
+  assert.equal((await pa.get('/partenaires/previsionnel')).status, 403);
+  assert.equal((await pa.get('/partenaire/releves')).data.deposes.length, 1);
+});

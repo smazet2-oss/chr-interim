@@ -190,6 +190,8 @@ const droits = require('./droits');
 droits(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 prospects.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 candidats.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
+// Relevés mensuels des partenaires et prévisionnel de l'ETT (avant /partenaires/:id)
+require('./releves').register(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today(), HttpError });
 partenaires.register(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today(), HttpError });
 etude.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a) });
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });

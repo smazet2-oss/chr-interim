@@ -9,6 +9,7 @@ require('./visites'); // crée la table des visites
 require('./etude'); // crée les tables de l'étude de marché
 require('./candidats'); // crée la table des candidatures
 require('./partenaires'); // crée les tables des partenariats
+const RELEVES = require('./releves'); // relevés mensuels des partenaires
 
 if (one('SELECT 1 FROM clients LIMIT 1')) {
   console.log('La base contient déjà des données : démonstration non installée. (npm run demo:reset pour repartir de zéro)');
@@ -232,8 +233,8 @@ tx(() => {
     const ids = cands.map(([pr, n, src, poste, ville, part]) => Number(run('INSERT INTO candidats (prenom, nom, telephone, ville, poste, reponses, statut, source, partage_partenaires) VALUES (?,?,?,?,?,?,\'entretien\',?,?)',
       pr, n, '06 70 00 00 0' + pr.length, ville, poste, JSON.stringify({ nationalite_cat: 'Française', situation: 'Sans emploi / demandeur d\'emploi', postes: [poste], poste_principal: poste, experience: '1 à 3 ans', creneaux: ['Le soir', 'Le week-end'] }), src, part).lastInsertRowid));
     const pres = (k, statut, extra = '') => run(`INSERT INTO presentations (partenaire_id, demande_id, candidat_id, prenom, nom, poste, ville, telephone, source, resume, consentement_le, statut, retour_partenaire, date_placement, commission_montant, commission_statut, created_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?, datetime('now', '-8 days'),?,?,?,?,?, datetime('now', '-8 days'))`, pid, d1, ids[k], cands[k][0], cands[k][1], 'Serveur', cands[k][4], '06 70 00 00 0' + cands[k][0].length, cands[k][2],
-      'Expérience : 1 à 3 ans\nDisponibilités : Le soir, Le week-end', statut, extra, statut === 'placee' ? jour(-2) : null, statut === 'placee' ? 350 : null, statut === 'placee' ? 'a_facturer' : 'non_due');
+      VALUES (?,?,?,?,?,?,?,?,?,?, datetime('now', '-100 days'),?,?,?,?,?, datetime('now', '-100 days'))`, pid, d1, ids[k], cands[k][0], cands[k][1], 'Serveur', cands[k][4], '06 70 00 00 0' + cands[k][0].length, cands[k][2],
+      'Expérience : 1 à 3 ans\nDisponibilités : Le soir, Le week-end', statut, extra, statut === 'placee' ? jour(-95) : null, statut === 'placee' ? 350 : null, statut === 'placee' ? 'a_facturer' : 'non_due');
     pres(0, 'placee', 'Embauchée en contrat saisonnier jusqu\'à fin septembre.');
     pres(1, 'proposee');
     // Sourcing de clients : recherche du partenaire et établissement présenté (prospect « Hôtel des Célestins »)
@@ -244,5 +245,20 @@ tx(() => {
       'Recours aux extras : Saisonnier / événementiel\nPostes recherchés : Employé d\'étage / femme de chambre, Réceptionniste / veilleur de nuit', 'Rendez-vous avec le directeur prévu la semaine prochaine.');
   }
 });
+// Relevés mensuels du partenaire (3 derniers mois), déposés comme par le partenaire : fichier pré-rempli complété
+{
+  const p = one('SELECT * FROM partenaires WHERE raison_sociale = ?', 'Rhône Emploi Intérim'), x = one('SELECT id FROM presentations WHERE partenaire_id = ? AND statut = \'placee\'', p.id);
+  const mois0 = jour(0).slice(0, 7), decal = (m, k) => { const [a, n] = m.split('-').map(Number); return new Date(Date.UTC(a, n - 1 + k, 15)).toISOString().slice(0, 7); };
+  [[-3, 118, 2, 1], [-2, 132, 3, 2], [-1, 146, 4, 2]].forEach(([k, h, nb, extra]) => {
+    const m = decal(mois0, k), [a, n] = m.split('-'), base = RELEVES.modele(p, m).replace(/^\ufeff/, '').trim().split('\r\n').filter(l => l.startsWith('#') || l.startsWith('Réf'));
+    const L = [`P-${x.id};Intérimaire;Sarah Lemoine;Brasserie Saint-Paul;Serveur;01/${n}/${a};;${h};12,50;1,95;;Réalisée;Contrat saisonnier`];
+    const autres = [['Hugo Faure', 'Hôtel Bellecour', 'Réceptionniste', 13.2, 2.0], ['Amina Kone', 'Restaurant Le Square', 'Plongeur', 12.31, 1.9], ['Lina Roy', 'Brasserie Saint-Paul', 'Commis de cuisine', 12.6, 1.95], ['Omar Diallo', 'Hôtel Bellecour', 'Cuisinier', 13.8, 2.05]];
+    autres.slice(0, nb).forEach(([nom, cl, po, t, c], i) => L.push(`;Intérimaire;${nom};${cl};${po};;;${40 + i * 18 + k * -6};${String(t).replace('.', ',')};${String(c).replace('.', ',')};;Réalisée;`));
+    for (let i = 0; i < extra; i++) L.push(`;Client;Extra week-end ${i + 1};Hôtel des Célestins;Femme de chambre;;;${24 + i * 8};12,40;2;;Réalisée;Client présenté en cours de signature`);
+    const buf = Buffer.from([...base, ...L].join('\r\n'), 'utf8'), r = RELEVES.analyser(buf, p, m);
+    if (r.erreurs.length) throw new Error(r.erreurs.join(' '));
+    RELEVES.enregistrer(p, m, r.lignes, buf, `releve-${m}.csv`, 'partenaire');
+  });
+}
 console.log('Démonstration installée. Comptes (mot de passe « Demo2026! ») : claire.morel (agence), comptoir.lyon (employeur), yanis.benali, lucas.martin, thomas.petit (intérimaires), rhone.emploi (agence partenaire).');
 console.log('camille.roux : mot de passe provisoire « Provisoire1 » (changement obligatoire à la première connexion).');

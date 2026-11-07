@@ -30,7 +30,7 @@ const FONCTIONS = {
     { k: 'a_paie', l: 'Paie', d: 'Calcul, fiches de paie, paiement.', vues: ['paie'], api: [['GET', /^\/paie$/], ['POST', /^\/bulletins/]] },
     { k: 'a_facturation', l: 'Facturation, relances et coefficients', d: 'Factures, relances, contrats commerciaux.', vues: ['facturation', 'relances', 'tarifs'], api: [['POST', /^\/factures/], ['GET', /^\/factures\/\d+\/document$/], ['GET', /^\/relances$/], [T, /^\/contrats-clients/]] },
     { k: 'a_suppression', l: 'Supprimer des fiches', d: 'Suppression définitive de clients ou d\'intérimaires.', vues: [], api: [['DELETE', /^\/(clients|interimaires)\/\d+$/]] },
-    { k: 'a_partenaires', l: 'Partenariats (agences ETT)', d: 'Agences partenaires, sourcing de candidats et de clients, commissions.', vues: ['partenaires', 'sourcing', 'sourcing_clients', 'commissions'], api: [[T, /^\/(partenaires|partenaires-demandes|presentations)(\/|$)/], ['POST', /^\/candidats\/sourcing$/]] },
+    { k: 'a_partenaires', l: 'Partenariats (agences ETT)', d: 'Agences partenaires, sourcing de candidats et de clients, commissions.', vues: ['partenaires', 'sourcing', 'sourcing_clients', 'previsionnel', 'commissions'], api: [[T, /^\/(partenaires|partenaires-demandes|presentations)(\/|$)/], ['POST', /^\/candidats\/sourcing$/]] },
     { k: 'a_acces', l: 'Accès utilisateurs', d: 'Créer, réinitialiser, désactiver des comptes.', vues: ['acces'], api: [[T, /^\/acces/]] },
     { k: 'a_journal', l: 'Journal des envois', d: 'Historique des e-mails, SMS et WhatsApp.', vues: ['journal'], api: [['GET', /^\/journal(\/compteurs)?$/], ['POST', /^\/journal\/supprimer$/]] },
     { k: 'a_parametres', l: 'Paramètres', d: 'Identité légale, taux, messagerie.', vues: ['parametres'], api: [[T, /^\/parametres/]] },
@@ -67,6 +67,7 @@ const FONCTIONS = {
     { k: 'p_retours', l: 'Donner la suite des candidats et des clients', d: 'Entretien, rendez-vous, placé, client signé, chiffre d\'affaires.', vues: [], api: [['PUT', /^\/partenaire\/presentations\//]] },
     { k: 'p_cv', l: 'Télécharger les CV', d: 'CV des candidats présentés.', vues: [], api: [['GET', /^\/partenaire\/presentations\/\d+\/cv$/]] },
     { k: 'p_commissions', l: 'Commissions et factures', d: 'Relevé des commissions.', vues: ['commissions'], api: [['GET', /^\/partenaire\/(commissions|factures)/]] },
+    { k: 'p_releves', l: 'Relevés mensuels d\'activité', d: 'Télécharger et déposer le fichier du mois.', vues: ['releves'], api: [[T, /^\/partenaire\/releves/]] },
     { k: 'p_convention', l: 'Signer la convention', d: 'Signature en ligne de la convention.', vues: [], api: [['POST', /^\/partenaire\/convention\/signer$/]] },
   ],
 };

@@ -118,7 +118,7 @@ const NAV = {
       ['heures', 'Relevés d\'heures', 'clock'], ['paie', 'Paie', 'wallet'], ['evaluations', 'Évaluations', 'star'], ['etude_i', 'Étude de marché', 'chart']]],
     ['+', 'Clients', 'building', [['clients', 'Fiches clients', 'building'], ['prospects', 'Candidatures clients', 'target'], ['etude_c', 'Étude de marché', 'chart']]],
     ['+', 'Facturation', 'receipt', [['facturation', 'Factures et débiteurs', 'receipt'], ['relances', 'Relances', 'send'], ['tarifs', 'Coefficients et contrats', 'file']]],
-    ['+', 'Partenariats', 'link', [['partenaires', 'Agences partenaires', 'link'], ['sourcing', 'Sourcing candidats', 'target'], ['sourcing_clients', 'Sourcing clients', 'building'], ['commissions', 'Commissions', 'wallet']]],
+    ['+', 'Partenariats', 'link', [['partenaires', 'Agences partenaires', 'link'], ['sourcing', 'Sourcing candidats', 'target'], ['sourcing_clients', 'Sourcing clients', 'building'], ['commissions', 'Commissions', 'wallet'], ['previsionnel', 'Prévisionnel ETT', 'chart']]],
     ['+', 'Administration', 'gear', [['stats', 'Statistiques', 'chart'], ['droits', 'Droits d\'accès', 'shield'], ['acces', 'Accès utilisateurs', 'lock'], ['journal', 'Journal des envois', 'list'], ['parametres', 'Paramètres', 'gear']]],
     ['histoire', 'Notre histoire', 'star']],
   client: [['accueil', 'Tableau de bord', 'dash'], ['jour', 'Planning', 'cal'], ['demandes', 'Mes missions', 'briefcase'],
@@ -129,7 +129,7 @@ const NAV = {
     ['+', 'Administratif et social', 'folder', [['contrats', 'Contrats', 'file'], ['paie', 'Paie', 'wallet'], ['documents', 'Téléverser mes documents', 'upload']]], ['histoire', 'Notre histoire', 'star']],
   // Agence d'emploi partenaire : l'agence lui présente des candidats sourcés sur les job boards (apport d'affaires).
   partenaire: [['accueil', 'Tableau de bord', 'dash'], ['demandes', 'Mes besoins', 'briefcase'], ['candidats', 'Candidats présentés', 'users'], ['clients', 'Clients présentés', 'building'],
-    ['+', 'Administratif', 'folder', [['commissions', 'Commissions et factures', 'wallet'], ['convention', 'Convention de partenariat', 'file']]], ['histoire', 'Notre histoire', 'star']],
+    ['+', 'Administratif', 'folder', [['releves', 'Relevés mensuels', 'upload'], ['commissions', 'Commissions et factures', 'wallet'], ['convention', 'Convention de partenariat', 'file']]], ['histoire', 'Notre histoire', 'star']],
 };
 /** Menu à plat (listes déroulantes dépliées) et groupe d'une rubrique. */
 /** Menu du compte connecté : sans les rubriques verrouillées (Droits d'accès réservé à l'administrateur). */
@@ -1511,7 +1511,7 @@ function classement(titre, L, fmt, vide) {
   return panel(titre, '', L.length ? `<div class="panel-b classement">${L.map(x => `<div class="cl-l" title="${esc(x.nom)} : ${esc(fmt(x.valeur))}"><span class="cl-n">${esc(x.nom)}</span><span class="cl-b"><span style="width:${x.valeur / max * 100}%"></span></span><span class="cl-v num">${fmt(x.valeur)}</span></div>`).join('')}</div>` : empty(vide));
 }
 /** Barre des statistiques : vue (agence : activité ou étude de marché) et mois affiché (liste des mois, par année). */
-const vueStats = v => S.me.profil === 'agence' ? `<div class="seg" data-titre="Statistiques">${[['activite', 'Activité'], ['jours', 'Détail par jour'], ['etude', 'Étude de marché']].map(([k, l]) => `<button type="button" aria-pressed="${v === k}" data-a="svue" data-v="${k}">${l}</button>`).join('')}</div>` : '';
+const vueStats = v => S.me.profil === 'agence' ? `<div class="seg" data-titre="Statistiques">${[['activite', 'Activité'], ['jours', 'Détail par jour'], ['etude', 'Étude de marché'], ...(peut('a_partenaires') ? [['previsionnel', 'Prévisionnel ETT (partenariats)']] : [])].map(([k, l]) => `<button type="button" aria-pressed="${v === k}" data-a="svue" data-v="${k}">${l}</button>`).join('')}</div>` : '';
 function barreStats(d, vue = 'activite') {
   const ans = [...new Set(d.mois_choix.map(m => m.slice(0, 4)))];
   const lib = m => moisLong(m).replace(/^./, c => c.toUpperCase()) + (m === d.mois_courant ? ' (en cours)' : '');
@@ -1522,6 +1522,7 @@ const fmtH = n => num(n) + ' h', eur0 = n => (Number(n) || 0).toLocaleString('fr
 V.agence.stats = async () => {
   if (S.p.svue === 'etude') return etudeStats();
   if (S.p.svue === 'jours') return joursStats();
+  if (S.p.svue === 'previsionnel') return previsionnelStats(true);
   const d = await GET(urlStats()), k = d.cles;
   return head('Statistiques', `Chiffres clés de ${moisLong(d.mois)} (heures validées par les deux parties), comparés au mois précédent, et évolution sur 6 mois.`) +
     barreStats(d) + `<h2 class="stats-titre">${ic('dash')}Chiffres clés du mois</h2><div class="kpis">${tuile('Chiffre d\'affaires HT', 'receipt', k.ca_ht, eur0, k.ca_ht_prec)}${tuile('Marge brute estimée', 'chart', k.marge, eur0, undefined, k.marge_pc === null ? 'Aucune heure validée' : `${num(k.marge_pc)} % du chiffre d'affaires`)}
@@ -2266,6 +2267,7 @@ document.addEventListener('change', e => {
   if (el.dataset?.j === 'case') journalSelection();
   if (el.dataset?.j === 'statut') { S.p.jstatut = el.value; reload(); }
   if (el.dataset?.j === 'smois') { S.p.smois = el.value; reload(); }
+  if (el.dataset?.j === 'prm' && el.value) { S.p.prm = el.value; reload(); }
   if (el.dataset?.j === 'etout') { document.querySelectorAll('[data-j="ecase"]:not(:disabled)').forEach(x => { x.checked = el.checked; }); etudeSelection(); }
   if (el.dataset?.j === 'ecase') etudeSelection();
   // Réglage d'un compte : comme l'espace, accessible ou verrouillé
@@ -2533,9 +2535,10 @@ V.agence.sourcing_clients = async () => {
 
 /* ===== Espace partenaire ===== */
 V.partenaire.accueil = async () => {
-  const t = await GET('/partenaire/tableau'), p = t.partenaire, s = t.stats;
+  const [t, rel] = await Promise.all([GET('/partenaire/tableau'), peut('p_releves') ? GET('/partenaire/releves').catch(() => null) : null]), p = t.partenaire, s = t.stats;
+  const releve = rel?.manquants.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('upload')}</div><div><b>Relevé mensuel à déposer : ${rel.manquants.map(moisLong).join(', ')}</b><div class="small muted">Téléchargez le fichier du mois, complétez les missions, déposez-le.</div></div>${btn('Relevés mensuels', 'chev', 'data-a="nav" data-v="releves"', 'sm primary')}</div></section>` : '';
   const conv = p.convention_signee_le ? '' : `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('edit')}</div><div><b>Convention d'apporteur d'affaires à signer</b><div class="small muted">Lisez-la et signez-la en ligne pour démarrer le partenariat.</div></div>${btn('Signer la convention', 'chev', 'data-a="nav" data-v="convention"', 'sm primary')}</div></section>`;
-  return head(`Bienvenue, ${esc(p.raison_sociale)}`, `Partenariat avec ${esc(t.agence.nom)} : déposez vos besoins de recrutement et vos recherches de clients : nous trouvons les candidats sur les job boards et les établissements qui ont besoin de personnel, et vous les présentons. Indiquez la suite donnée à chacun.`, peut('p_demandes') ? btn('Nouveau besoin', 'plus', 'data-a="nav" data-v="demandes"', 'primary') : '') + conv +
+  return head(`Bienvenue, ${esc(p.raison_sociale)}`, `Partenariat avec ${esc(t.agence.nom)} : déposez vos besoins de recrutement et vos recherches de clients : nous trouvons les candidats sur les job boards et les établissements qui ont besoin de personnel, et vous les présentons. Indiquez la suite donnée à chacun.`, peut('p_demandes') ? btn('Nouveau besoin', 'plus', 'data-a="nav" data-v="demandes"', 'primary') : '') + conv + releve +
     `<div class="kpis">${kpi('Besoins ouverts', 'briefcase', s.demandes_ouvertes)}${kpi('Candidats à traiter', 'idcard', s.a_traiter, s.a_traiter ? 'Donnez-nous votre retour' : 'À jour', s.a_traiter ? 'down' : '')}${kpi('Clients à traiter', 'building', s.clients_a_traiter, `${s.clients_signes} client(s) signé(s)`, s.clients_a_traiter ? 'down' : '')}${kpi('Placés', 'check', s.places, `${s.presentes} présenté(s)`)}</div>` +
     `<div class="grid-main">${panel('À traiter', btn('Candidats', 'chev', 'data-a="nav" data-v="candidats"', 'sm') + btn('Clients', 'chev', 'data-a="nav" data-v="clients"', 'sm'), t.a_traiter.length ? `<div class="list">${t.a_traiter.map(x => `<div class="li" style="flex-wrap:wrap"><div style="flex:1;min-width:200px"><b>${esc(nomPres(x))}</b> ${typeBadge(x)}<div class="small muted">${esc((x.type === 'client' ? [x.secteur, x.adresse] : [x.poste, x.ville]).filter(Boolean).join(' · '))} · présenté le ${fdate(x.created_at.slice(0, 10), 'num')}</div></div>${peut('p_retours') ? btn('Donner la suite', 'edit', `data-a="presouvrir" data-id="${x.id}"`, 'sm primary') : ''}</div>`).join('')}</div>` : empty('Rien en attente de votre retour.'))}
     ${panel('Vos besoins ouverts', '', t.demandes.length ? `<div class="list">${t.demandes.map(d => `<div class="li"><div><b>${d.nb_postes} × ${esc(d.poste)}</b> ${d.type === 'client' ? badge('pris', 'Clients') : ''}<div class="small muted">${esc((d.type === 'client' ? [d.ville] : [d.ville, d.type_contrat, periodeBesoin(d)]).filter(Boolean).join(' · '))}</div></div><span class="small">${d.presentes} présenté(s)</span></div>`).join('')}</div>` : empty('Aucun besoin ouvert.'))}</div>` +
@@ -2581,6 +2584,59 @@ V.partenaire.convention = async () => {
         <label class="check full"><input type="checkbox" name="accepte" value="1" required> J'ai lu la convention, je l'accepte et je suis habilité(e) à signer pour l'agence.</label><div class="err full" hidden></div><div class="full row"><button class="btn primary" type="submit">${ic('check')}Signer la convention</button></div></form>`) : '');
 };
 
+
+/* ===== Prévisionnel de l'ETT à partir des relevés mensuels des partenaires ===== */
+async function previsionnelStats(dansStats) {
+  const q = new URLSearchParams({ croissance: S.p.pvg ?? 5, delai: S.p.pvd ?? 30, ...(S.p.pvp ? { partenaire_id: S.p.pvp } : {}) });
+  const [d, parts] = await Promise.all([GET('/partenaires/previsionnel?' + q), GET('/partenaires')]);
+  const t = d.total, e = d.ett, M = d.par_mois, actifs = parts.partenaires.filter(p => p.statut === 'actif');
+  const manq = d.releves.reduce((a, r) => a + r.manquants.length, 0), dernier = M[M.length - 1];
+  const serie = k => (M.length ? M.slice(-6) : []).map(x => ({ mois: x.mois, valeur: x[k] }));
+  const filtres = `<form data-f="pvfiltre" class="panel-b inline-form"><label class="f">Partenaire<select name="pvp"><option value="">Tous les partenaires</option>${parts.partenaires.map(p => `<option value="${p.id}" ${String(S.p.pvp) === String(p.id) ? 'selected' : ''}>${esc(p.raison_sociale)}</option>`).join('')}</select></label>
+    <label class="f">Croissance mensuelle (%)<input type="text" inputmode="decimal" name="pvg" value="${esc(String(d.parametres.croissance).replace('.', ','))}"></label><label class="f">Délai de paiement des clients (jours)<input type="number" name="pvd" min="0" max="90" value="${d.parametres.delai}"></label><button class="btn" type="submit">${ic('chart')}Recalculer</button></form>`;
+  const tabMois = M.length ? `<div class="scroll"><table><thead><tr><th>Mois</th><th class="r">Missions</th><th class="r">Heures</th><th class="r">Intérimaires</th><th class="r">Clients</th><th class="r">CA HT</th><th class="r">Coût salarial chargé</th><th class="r">Marge brute</th><th class="r">Coef. moyen</th><th class="r">Commissions perçues</th></tr></thead><tbody>
+    ${M.map(x => `<tr><td>${moisLong(x.mois)}</td><td class="r num">${x.missions}</td><td class="r num">${num(x.heures)}</td><td class="r num">${x.interimaires}</td><td class="r num">${x.clients}</td><td class="r num"><b>${eur0(x.ca_ht)}</b></td><td class="r num">${eur0(x.cout)}</td><td class="r num ${x.marge < 0 ? 'down' : ''}">${eur0(x.marge)} <span class="small muted">${pct(x.marge_pc)}</span></td><td class="r num">${x.coefficient_moyen ? num(x.coefficient_moyen) : '—'}</td><td class="r num">${eur0(x.commissions)}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucun relevé déposé : les statistiques apparaîtront dès le premier relevé mensuel d\'un partenaire.');
+  const tabProj = d.projection.length ? `<div class="scroll"><table><thead><tr><th>Mois</th><th class="r">Heures</th><th class="r">ETP intérimaires</th><th class="r">CA HT</th><th class="r">Coût salarial chargé</th><th class="r">Marge brute</th><th class="r">CA cumulé</th><th class="r">Marge cumulée</th></tr></thead><tbody>
+    ${d.projection.map(x => `<tr><td>${moisLong(x.mois)}</td><td class="r num">${num(x.heures)}</td><td class="r num">${num(x.etp)}</td><td class="r num"><b>${eur0(x.ca_ht)}</b></td><td class="r num">${eur0(x.cout)}</td><td class="r num">${eur0(x.marge)}</td><td class="r num">${eur0(x.cumul_ca)}</td><td class="r num">${eur0(x.cumul_marge)}</td></tr>`).join('')}</tbody></table></div>` : empty('Projection disponible dès le premier relevé.');
+  const grp = (titre, L) => classement(titre, L.map(x => ({ nom: x.nom, valeur: x.ca_ht })), eur0, 'Aucune donnée.');
+  const tabGrp = (titre, L) => panel(titre, '', L.length ? `<div class="scroll"><table><thead><tr><th></th><th class="r">Missions</th><th class="r">Heures</th><th class="r">Taux brut moyen</th><th class="r">Coef. moyen</th><th class="r">CA HT</th><th class="r">Marge</th></tr></thead><tbody>${L.map(x => `<tr><td><b>${esc(x.nom)}</b></td><td class="r num">${x.missions}</td><td class="r num">${num(x.heures)}</td><td class="r num">${x.taux_moyen ? eur(x.taux_moyen) : '—'}</td><td class="r num">${x.coefficient_moyen ? num(x.coefficient_moyen) : '—'}</td><td class="r num">${eur0(x.ca_ht)}</td><td class="r num">${eur0(x.marge)} <span class="small muted">${pct(x.marge_pc)}</span></td></tr>`).join('')}</tbody></table></div>` : empty('Aucune donnée.'));
+  const suivi = d.releves.length ? `<div class="list">${d.releves.map(r => `<div class="li" style="flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:220px"><b>${esc(r.raison_sociale)}</b>
+      <div class="small">${r.deposes.length ? r.deposes.slice(0, 6).map(x => `<span class="row" style="display:inline-flex;gap:4px;margin-right:10px">${badge('libre', moisCourt(x.mois) + ' ' + x.mois.slice(0, 4))}<a class="link" href="/api/partenaires/releves/${x.id}/fichier">${x.lignes} ligne(s) · ${eur0(x.ca)}</a></span>`).join('') : '<span class="muted">Aucun relevé déposé</span>'}</div>
+      ${r.manquants.length ? `<div class="small err-inline" style="margin-top:4px">${ic('alert', 'style="width:12px;height:12px;vertical-align:-2px"')} Manquant : ${r.manquants.map(moisLong).join(', ')}</div>` : ''}</div></div>`).join('')}</div>` : empty('Aucun partenaire actif.');
+  const deposer = actifs.length ? `<form data-f="releveagence" class="panel-b inline-form" style="border-top:1px solid var(--line)"><label class="f">Partenaire<select name="partenaire" required>${actifs.map(p => `<option value="${p.id}">${esc(p.raison_sociale)}</option>`).join('')}</select></label>
+    <label class="f">Mois<input type="month" name="mois" required value="${addDays((S.cfg?.aujourdhui || '').slice(0, 8) + '01', -1).slice(0, 7)}"></label><label class="f">Fichier rempli (CSV)<input type="file" name="fichier" accept=".csv,text/csv"></label>
+    <button class="btn" type="button" data-a="relevemodele">${ic('download')}Fichier à remplir</button><button class="btn primary" type="submit">${ic('upload')}Déposer</button><div class="err" hidden style="flex-basis:100%"></div></form>` : '';
+  return head('Prévisionnel ETT', 'À partir des relevés mensuels de vos partenaires (missions des intérimaires et des clients envoyés depuis votre site), chaque mission est simulée comme si elle était réalisée par votre propre ETT : salaire brut, indemnité de fin de mission, congés payés, charges patronales, chiffre d\'affaires et marge. Estimations indicatives selon vos Paramètres (paie et facturation).') +
+    (dansStats ? `<div class="stats-barre">${vueStats('previsionnel')}</div>` : '') + panel(null, '', filtres) +
+    `<h2 class="stats-titre">${ic('dash')}Activité générée par vos job boards</h2><div class="kpis">${kpi('CA HT des missions', 'receipt', eur0(t.ca_ht), `${t.missions} mission(s) · ${num(t.heures)} h`)}${kpi('Marge brute simulée', 'chart', eur0(t.marge), t.marge_pc === null ? 'Aucun relevé' : `${num(t.marge_pc)} % du CA`)}
+      ${kpi('Commissions perçues', 'wallet', eur0(t.commissions), t.marge > 0 ? `${num(Math.round(t.commissions / t.marge * 1000) / 10)} % de la marge d'une ETT` : '')}${kpi('Relevés manquants', 'alert', manq, manq ? 'À réclamer aux partenaires' : 'À jour', manq ? 'down' : '')}</div>
+    <div class="kpis">${kpi('Intérimaires différents', 'users', t.interimaires)}${kpi('Établissements clients', 'building', t.clients)}${kpi('Taux horaire brut moyen', 'clock', t.taux_moyen ? eur(t.taux_moyen) : '—')}${kpi('Coefficient moyen', 'receipt', t.coefficient_moyen ? num(t.coefficient_moyen) : '—', dernier ? `Dernier relevé : ${moisLong(dernier.mois)}` : '')}</div>
+    ${M.length ? `<div class="grid2">${histogramme('CA HT des missions', serie('ca_ht'), eur0)}${histogramme('Marge brute simulée', serie('marge'), eur0)}</div>` : ''}
+    ${panel('Détail mois par mois', '', tabMois)}
+    <h2 class="stats-titre">${ic('target')}Prévisionnel de votre ETT sur 12 mois</h2>
+    <div class="kpis">${kpi('CA HT annuel prévisionnel', 'receipt', eur0(e.ca_annuel), `Base : moyenne des 3 derniers mois, ${num(d.parametres.croissance)} % par mois`)}${kpi('Marge brute annuelle', 'chart', eur0(e.marge_annuelle), `contre ${eur0(e.commissions_annuelles)} de commissions par an`)}
+      ${kpi('Intérimaires en ETP', 'users', num(e.etp_moyen), 'Équivalents temps plein (151,67 h par mois)')}${kpi('Besoin en fonds de roulement', 'wallet', eur0(e.bfr), `Salaires avancés avant le paiement des clients (${d.parametres.delai} j)`)}</div>
+    <div class="kpis">${kpi('Garantie financière', 'shield', eur0(e.garantie_financiere), '8 % du CA annuel, avec un minimum fixé chaque année par décret')}</div>
+    ${panel('Projection mois par mois', '', tabProj)}
+    <h2 class="stats-titre">${ic('chart')}Répartition</h2><div class="grid2">${grp('CA par origine (job board ou client présenté)', d.par_origine)}${grp('CA par partenaire', d.par_partenaire)}</div>
+    ${tabGrp('Postes : heures, taux et coefficients', d.par_poste)}${tabGrp('Établissements clients', d.par_client)}
+    <h2 class="stats-titre">${ic('list')}Missions simulées</h2>${panel(`${d.missions.length} mission(s)${d.missions.length >= 200 ? ' (200 dernières)' : ''}`, '', d.missions.length ? `<div class="scroll"><table><thead><tr><th>Mois</th><th>Intérimaire</th><th>Client</th><th class="r">Heures</th><th class="r">Taux brut</th><th class="r">Coef.</th><th class="r">Brut + IFM + CP</th><th class="r">Charges</th><th class="r">CA HT</th><th class="r">Marge</th></tr></thead><tbody>
+      ${d.missions.map(x => `<tr><td>${moisCourt(x.mois)} ${x.mois.slice(0, 4)}<div class="small muted">${esc(x.partenaire)}</div></td><td><b>${esc(x.interimaire || '—')}</b><div class="small muted">${esc([x.poste, x.origine].filter(Boolean).join(' · '))}</div></td><td>${esc(x.client || '—')}</td><td class="r num">${num(x.heures)}</td><td class="r num">${eur(x.taux_horaire)}</td><td class="r num">${num(x.coefficient)}</td><td class="r num">${eur(x.total_brut)}</td><td class="r num">${eur(x.charges)}</td><td class="r num"><b>${eur(x.ca)}</b></td><td class="r num ${x.marge < 0 ? 'down' : ''}">${eur(x.marge)}</td></tr>`).join('')}</tbody></table></div>` : empty('Aucune mission.'))}
+    <h2 class="stats-titre">${ic('upload')}Relevés mensuels des partenaires</h2>${panel('Suivi des relevés', '', suivi + deposer)}`;
+}
+V.agence.previsionnel = () => previsionnelStats(false);
+V.partenaire.releves = async () => {
+  const d = await GET('/partenaire/releves'), m = S.p.prm || d.mois_conseille;
+  return head('Relevés mensuels', 'Chaque mois, transmettez-nous l\'activité réalisée avec les intérimaires et les clients que nous vous avons présentés : une ligne par mission avec les heures, le taux horaire brut et le coefficient (ou le chiffre d\'affaires facturé). Ce relevé sert aussi au calcul des commissions au pourcentage.') +
+    (d.manquants.length ? `<section class="panel" style="border-color:var(--attente-dot)"><div class="task" style="border:0"><div class="ic w">${ic('alert')}</div><div><b>Relevé${d.manquants.length > 1 ? 's' : ''} à déposer</b><div class="small muted">${d.manquants.map(moisLong).join(', ')}</div></div></div></section>` : '') +
+    panel('1. Télécharger le fichier du mois', '', `<div class="panel-b inline-form"><label class="f">Mois<input type="month" data-j="prm" value="${m}" max="${(S.cfg?.aujourdhui || '').slice(0, 7)}"></label><a class="btn primary" href="/api/partenaire/releves/modele?mois=${m}">${ic('download')}Fichier à remplir (${esc(moisLong(m))})</a></div>
+      <div class="panel-b small muted" style="padding-top:0">Fichier CSV qui s'ouvre dans Excel, pré-rempli avec les intérimaires placés et les clients signés. Une ligne par mission : copiez une ligne pour plusieurs missions, ajoutez les autres missions réalisées chez les clients présentés, laissez les heures vides si rien ce mois-ci. Colonnes : ${d.colonnes.map(esc).join(' · ')}.</div>`) +
+    panel('2. Déposer le fichier rempli', '', `<form data-f="relevepart" class="panel-b inline-form"><label class="f">Mois<input type="month" name="mois" required value="${m}" max="${(S.cfg?.aujourdhui || '').slice(0, 7)}"></label><label class="f">Fichier (CSV, enregistré depuis Excel)<input type="file" name="fichier" required accept=".csv,text/csv"></label><button class="btn primary" type="submit">${ic('upload')}Déposer le relevé</button><div class="err" hidden style="flex-basis:100%"></div></form>
+      <div class="panel-b small muted" style="padding-top:0">Dans Excel : Fichier › Enregistrer sous › « CSV UTF-8 (délimité par des points-virgules) ». Un nouveau dépôt pour le même mois remplace le précédent.</div>`) +
+    panel(`Relevés déposés (${d.deposes.length})`, '', d.deposes.length ? `<div class="scroll"><table><thead><tr><th>Mois</th><th>Déposé le</th><th class="r">Missions</th><th class="r">Heures</th><th class="r">CA HT</th><th></th></tr></thead><tbody>
+      ${d.deposes.map(x => `<tr><td><b>${moisLong(x.mois)}</b></td><td>${fdate(x.created_at.slice(0, 10), 'num')}${x.depose_par === 'agence' ? ' <span class="small muted">(par l\'agence)</span>' : ''}</td><td class="r num">${x.lignes}</td><td class="r num">${num(x.heures)}</td><td class="r num">${eur(x.ca)}</td><td class="r"><a class="btn sm ghost" href="/api/partenaire/releves/${x.id}/fichier">${ic('download')}Fichier</a></td></tr>`).join('')}</tbody></table></div>` : empty('Aucun relevé déposé.'));
+};
+
 /* Actions et formulaires des partenariats */
 const erreurForm = (f, e) => { const x = f.querySelector('.err'); if (x) { x.textContent = e.message; x.hidden = false; } else toast(e.message, true); };
 Object.assign(A, {
@@ -2599,6 +2655,7 @@ Object.assign(A, {
   compaye: el => act(async () => { await POST(`/presentations/${el.dataset.id}/payee`); toast('Paiement enregistré'); reload(); }, el),
   pcfiltre: el => { S.p.pcf = el.dataset.f; reload(); },
   pkfiltre: el => { S.p.pkf = el.dataset.f; reload(); },
+  relevemodele: el => { const f = el.closest('form'), m = f.mois.value; if (!m) return toast('Choisissez le mois.', true); location.href = `/api/partenaires/${f.partenaire.value}/releves/modele?mois=${m}`; },
   pdtype: el => { S.p.pdt = el.dataset.t; reload(); },
 });
 Object.assign(F, {
@@ -2616,6 +2673,9 @@ Object.assign(F, {
     let r; try { r = await POST('/presentations', { type: 'client', partenaire_id: Number(pid), demande_id: did ? Number(did) : null, [k === 'p' ? 'prospect_id' : 'client_id']: Number(id), resume: fd.get('resume'), consentement: !!fd.get('consentement') }); } catch (e) { return erreurForm(f, e); }
     closeModal(); toast(r.envoi === 'envoye' ? 'Établissement présenté, partenaire prévenu par e-mail' : 'Établissement présenté'); reload();
   }),
+  pvfiltre: fd => { S.p.pvp = fd.get('pvp'); S.p.pvg = fd.get('pvg').replace(',', '.'); S.p.pvd = fd.get('pvd'); reload(); },
+  relevepart: (fd, f) => act(async () => { if (!fd.get('fichier')?.size) return erreurForm(f, new Error('Choisissez le fichier rempli.')); let r; try { r = await POST('/partenaire/releves', fd); } catch (e) { return erreurForm(f, e); } toast(`Relevé de ${moisLong(r.mois)} enregistré : ${r.lignes} mission(s), ${eur(r.ca_ht)} HT`); reload(); }),
+  releveagence: (fd, f) => act(async () => { if (!fd.get('fichier')?.size) return erreurForm(f, new Error('Choisissez le fichier rempli.')); let r; try { r = await POST(`/partenaires/${fd.get('partenaire')}/releves`, fd); } catch (e) { return erreurForm(f, e); } toast(`Relevé de ${moisLong(r.mois)} enregistré : ${r.lignes} mission(s), ${eur(r.ca_ht)} HT`); reload(); }),
   presmaj: (fd, f) => act(async () => { try { await PUT((S.me.profil === 'partenaire' ? '/partenaire/presentations/' : '/presentations/') + f.dataset.id, Object.fromEntries(fd)); } catch (e) { return erreurForm(f, e); } closeModal(); toast('Suite enregistrée'); reload(); }),
   sourcenew: (fd, f) => act(async () => { for (const [k, v] of [...fd]) if (v === '' || (v instanceof File && !v.size)) fd.delete(k); try { await POST('/candidats/sourcing', fd); } catch (e) { return erreurForm(f, e); } closeModal(); toast('Candidat ajouté aux candidatures'); reload(); }),
   pdemande: (fd, f) => act(async () => { try { await POST('/partenaire/demandes', lireDemandeForm(fd)); } catch (e) { return erreurForm(f, e); } toast(fd.get('type') === 'client' ? 'Recherche de clients envoyée à l\'agence' : 'Besoin envoyé à l\'agence'); reload(); }),

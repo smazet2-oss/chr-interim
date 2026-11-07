@@ -76,10 +76,29 @@ function situation({ nationalite, titre, expiration }, ref) {
 const situationCandidat = (r, ref) => situation({ nationalite: nationaliteCandidat(r), titre: titreCandidat(r), expiration: r.titre_expiration }, ref);
 const situationInterim = (i, ref) => situation({ nationalite: i.nationalite, titre: i.titre_sejour, expiration: i.titre_expiration }, ref);
 
-/** Contrôle d'une mission pour un intérimaire étranger : { bloquants, alertes } (même forme que le contrôle d'âge). */
-function controleMission(i, m) {
+/** Date limite de vérification du titre à la préfecture : 2 jours ouvrables avant la mission (samedis, dimanches et jours fériés exclus). */
+function dateLimiteVerification(dateMission) {
+  const ferie = d => { try { return require('./hcr').estFerie(d); } catch { return false; } };
+  const d = new Date(dateMission + 'T12:00Z'); let n = 0;
+  while (n < 2) { d.setUTCDate(d.getUTCDate() - 1); const iso = d.toISOString().slice(0, 10), j = d.getUTCDay(); if (j !== 0 && j !== 6 && !ferie(iso)) n++; }
+  return d.toISOString().slice(0, 10);
+}
+const fr = iso => iso.split('-').reverse().join('/');
+const ecartJours = (a, b) => Math.round((Date.parse(b + 'T12:00Z') - Date.parse(a + 'T12:00Z')) / 864e5);
+
+/** Contrôle d'une mission pour un intérimaire étranger : { bloquants, alertes } (même forme que le contrôle d'âge).
+ *  Titre non encore vérifié à la préfecture : mission dans les 3 jours (24, 48 ou 72 h) ou après la date limite grisée ; à 4 jours ou plus, alerte avec la date limite. */
+function controleMission(i, m, aujourdhui) {
   const s = situationInterim(i, m.date), bloquants = [], alertes = [];
   if (!s) return { bloquants, alertes };
+  const auj = aujourdhui || new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' });
+  if ((s.niveau === 'autorise' || s.niveau === 'conditions') && !i.titre_verifie_le && m.date >= auj) {
+    const limite = dateLimiteVerification(m.date), j = ecartJours(auj, m.date);
+    if (j <= 3 || auj > limite) bloquants.push(`titre de séjour non vérifié à la préfecture : vérification à faire au moins 2 jours ouvrables avant la mission (au plus tard le ${fr(limite)}), mission ${j <= 0 ? 'aujourd\'hui' : `dans ${j * 24} h`}`);
+    else alertes.push(`vigilance : vérifier le titre de séjour auprès de la préfecture au plus tard le ${fr(limite)}`);
+  }
+  // Mission éloignée ou titre proche de l'expiration : rappel de la validité à la date de la mission
+  if (s.expiration && s.niveau !== 'interdit' && s.expiration >= m.date && ecartJours(m.date, s.expiration) <= 30) alertes.push(`vigilance : titre valable jusqu'au ${fr(s.expiration)}, à renouveler avant toute mission après cette date`);
   if (s.niveau === 'interdit') bloquants.push(`${s.court.toLowerCase()} : pas d'autorisation de travail valable`);
   else if (s.niveau === 'verifier') bloquants.push('titre de séjour non renseigné : à justifier avant toute mission');
   if (s.expiration && s.expiration < m.date && s.niveau !== 'interdit') bloquants.push(`titre expiré à la date de la mission (fin de validité le ${s.expiration.split('-').reverse().join('/')})`);
@@ -91,4 +110,4 @@ function controleMission(i, m) {
 /** Nationalité de la fiche intérimaire à partir de la candidature. */
 const nationaliteFiche = r => { const n = nationaliteCandidat(r); return n === 'Française' ? 'Française' : n && /union|europ/i.test(n) ? 'Union européenne / EEE / Suisse' : n ? 'Autre' : 'Française'; };
 
-module.exports = { NATIONALITES_CAND, TITRES, REGLES_COMMUNES, situation, situationCandidat, situationInterim, controleMission, nationaliteFiche, nationaliteCandidat, titreCandidat };
+module.exports = { dateLimiteVerification, NATIONALITES_CAND, TITRES, REGLES_COMMUNES, situation, situationCandidat, situationInterim, controleMission, nationaliteFiche, nationaliteCandidat, titreCandidat };

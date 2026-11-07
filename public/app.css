@@ -996,7 +996,7 @@ button.lien-profil:focus-visible{outline:2px solid #C99948;outline-offset:2px;bo
 .ctrl-age{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin-top:4px}
 .ctrl-bloque{font-size:12px;color:var(--danger-fg);font-weight:600}
 .ctrl-alerte{font-size:12px;color:var(--attente-fg)}
-.li-bloque{opacity:.85;cursor:not-allowed}
+.li-bloque{opacity:.55;cursor:not-allowed;background:var(--off-bg,#F1F3F6)}
 
 /* ---------- Nationalité hors UE : titre de séjour ---------- */
 .alerte-sejour-rouge{background:var(--danger-dot)!important;color:#fff!important;border-color:var(--danger-dot)!important}
@@ -1008,3 +1008,11 @@ tr.ligne-interdite td{background:var(--danger-bg)!important}
 tr.ligne-interdite .lien-profil{color:var(--danger-fg)}
 .refus-auto{display:inline-flex;align-items:center;gap:4px;color:var(--danger-fg);font-weight:700;padding:0 6px}
 .refus-auto svg{width:14px;height:14px}
+
+/* ---------- Titre de séjour : délai de vérification ---------- */
+.mission-grisee{opacity:.6;background:var(--off-bg,#F1F3F6)}
+.mission-grisee-info{display:flex;gap:8px;align-items:flex-start;margin-bottom:6px;padding:8px 10px;border-radius:8px;background:var(--danger-bg);color:var(--danger-fg);font-size:12.5px;font-weight:600}
+.mission-grisee-info svg{width:15px;height:15px;flex:none;margin-top:1px}
+.verif-a-faire{display:inline-flex;align-items:center;gap:4px;color:var(--attente-fg);font-weight:600;font-size:12.5px}
+.verif-a-faire svg{width:13px;height:13px}
+.ctrl-alerte{font-weight:600}

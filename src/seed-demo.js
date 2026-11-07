@@ -113,6 +113,9 @@ tx(() => {
       'Léna', 'Robert', 'Commis de salle', 'Restauration', 'Villeurbanne', 'Bac pro CSR en cours', 'Stages en brasserie', 12.31, '06 00 00 00 21', 'lena@exemple.fr', ans(17), 'Lyon (France)');
     run('INSERT INTO interimaires (prenom, nom, poste, secteur, ville, competences, experience, taux_horaire, telephone, email, date_naissance, lieu_naissance, dossier_complet) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)',
       'Gérard', 'Lambert', 'Veilleur de nuit', 'Hôtellerie', 'Lyon 3e', 'Accueil, sécurité incendie (SSIAP 1)', '30 ans en hôtellerie', 12.31, '06 00 00 00 22', 'gerard@exemple.fr', ans(66), 'Mâcon (France)');
+    // Serveur de nationalité étrangère, carte de résident pas encore vérifiée à la préfecture : missions proches grisées
+    run('INSERT INTO interimaires (prenom, nom, poste, secteur, ville, competences, experience, taux_horaire, telephone, email, date_naissance, lieu_naissance, nationalite, titre_sejour, titre_expiration, dossier_complet) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,1)',
+      'Amadou', 'Traoré', 'Serveur', 'Restauration', 'Lyon 8e', 'Service en salle, anglais', '4 ans en brasserie', 12.31, '06 00 00 00 23', 'amadou@exemple.fr', ans(29), 'Bamako (Mali)', 'Autre', 'Carte de résident ou carte « résident de longue durée-UE »', jour(900));
   }
 
   // Contrats et lignes d'expérience des missions déjà verrouillées.

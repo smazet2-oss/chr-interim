@@ -14,6 +14,7 @@ const SEJOUR = require('./sejour');
 const { addColumn } = require('./db');
 addColumn('interimaires', 'titre_sejour', 'TEXT');
 addColumn('interimaires', 'titre_expiration', 'TEXT');
+addColumn('interimaires', 'titre_verifie_le', 'TEXT'); // vérification du titre auprès de la préfecture
 
 db.exec(`CREATE TABLE IF NOT EXISTS candidats (
   id INTEGER PRIMARY KEY,

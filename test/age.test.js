@@ -126,3 +126,32 @@ test('candidature étrangère : titre demandé, non acceptable mise en rouge et 
   const q = st.sections.flatMap(x => x.questions).find(x => x.k === 'titre_sejour');
   assert.ok(q.options.find(o => o.l === SJ.TITRES[6]).n >= 1 && q.options.find(o => o.l === SJ.TITRES[3]).n >= 1);
 });
+
+test('titre non vérifié : missions à 24, 48 ou 72 h grisées, vigilance à 4 jours ou plus avec la date limite', async () => {
+  const T = SJ.TITRES[0], i = { nationalite: 'Autre', titre_sejour: T, titre_expiration: '2034-01-01' };
+  // Lundi 16 novembre 2026 : date limite le jeudi 12 (2 jours ouvrables avant)
+  assert.equal(SJ.dateLimiteVerification('2026-11-16'), '2026-11-12');
+  assert.equal(SJ.dateLimiteVerification('2026-11-13'), '2026-11-10', 'mercredi 11 novembre férié exclu');
+  for (const d of ['2026-11-07', '2026-11-08', '2026-11-09', '2026-11-10']) assert.equal(SJ.controleMission(i, { date: d }, '2026-11-07').bloquants.length, 1, d);
+  const v = SJ.controleMission(i, { date: '2026-11-16' }, '2026-11-07');
+  assert.equal(v.bloquants.length, 0); assert.match(v.alertes.join(), /au plus tard le 12\/11\/2026/);
+  // Vérifié : plus de délai ni d'alerte
+  assert.deepEqual(SJ.controleMission({ ...i, titre_verifie_le: '2026-11-01' }, { date: '2026-11-08' }, '2026-11-07'), { bloquants: [], alertes: [] });
+  // Titre expirant peu après la mission : vigilance
+  assert.match(SJ.controleMission({ ...i, titre_verifie_le: '2026-11-01', titre_expiration: '2026-12-01' }, { date: '2026-11-20' }, '2026-11-07').alertes.join(), /valable jusqu'au 01\/12\/2026/);
+
+  // Serveur : diffusion grisée puis possible après vérification ; changement de titre = vérification à refaire
+  const ag = await agence();
+  const c = (await ag.post('/clients', { nom: 'Hôtel Titre' })).data;
+  const it = (await ag.post('/interimaires', { prenom: 'Amina', nom: 'Diallo', poste: 'Serveur', telephone: '0611112222', nationalite: 'Autre', titre_sejour: T, titre_expiration: '2034-01-01' })).data;
+  const m = (await ag.post('/missions', { client_id: c.id, poste: 'Serveur', date: plusJours(2), debut: '11:00', fin: '15:00', nb_postes: 1 })).data;
+  assert.ok((await ag.get(`/missions/${m.id}/controle-age`)).data[it.id].bloquants.length);
+  assert.equal((await ag.post(`/missions/${m.id}/diffuser`, { interims: [it.id], canaux: ['sms'] })).data.envoyes, 0);
+  const loin = (await ag.post('/missions', { client_id: c.id, poste: 'Serveur', date: plusJours(10), debut: '11:00', fin: '15:00', nb_postes: 1 })).data;
+  const k = (await ag.get(`/missions/${loin.id}/controle-age`)).data[it.id];
+  assert.equal(k.bloquants.length, 0); assert.match(k.alertes.join(), /au plus tard le/);
+  await ag.post(`/interimaires/${it.id}/titre-verifie`, {});
+  assert.equal((await ag.post(`/missions/${m.id}/diffuser`, { interims: [it.id], canaux: ['sms'] })).data.envoyes, 1);
+  await ag.put(`/interimaires/${it.id}`, { titre_expiration: '2035-01-01' });
+  assert.equal((await ag.get('/interimaires')).data.find(x => x.id === it.id).titre_verifie_le, null, 'nouveau titre : à revérifier');
+});

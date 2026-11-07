@@ -258,6 +258,8 @@ function interimBody(b) {
   if (b.titre_sejour !== undefined) { if (b.titre_sejour && !SEJOUR.TITRES.includes(b.titre_sejour)) fail(400, 'Titre de séjour invalide.'); c.titre_sejour = b.titre_sejour || null; }
   if (b.titre_expiration !== undefined) { if (b.titre_expiration && !isDate(b.titre_expiration)) fail(400, 'Date de fin de validité invalide.'); c.titre_expiration = b.titre_expiration || null; }
   if (c.nationalite && c.nationalite !== 'Autre') { c.titre_sejour = null; c.titre_expiration = null; }
+  // Nouveau titre : la vérification à la préfecture est à refaire
+  if (b.titre_verifie_le !== undefined) { if (b.titre_verifie_le && !isDate(b.titre_verifie_le)) fail(400, 'Date de vérification invalide.'); c.titre_verifie_le = b.titre_verifie_le || null; }
   return c;
 }
 const INTERIM_SQL = `SELECT i.*,
@@ -295,8 +297,11 @@ api.post('/interimaires', role('agence'), wrap((req, res) => {
   res.status(201).json(one('SELECT * FROM interimaires WHERE id = ?', r.lastInsertRowid));
 }));
 api.put('/interimaires/:id', role('agence'), wrap((req, res) => {
-  const c = interimBody(req.body), keys = Object.keys(c);
-  if (!one('SELECT 1 FROM interimaires WHERE id = ?', req.params.id)) fail(404, 'Intérimaire introuvable.');
+  const c = interimBody(req.body), avant = one('SELECT * FROM interimaires WHERE id = ?', req.params.id);
+  if (!avant) fail(404, 'Intérimaire introuvable.');
+  // Titre de séjour modifié : vérification à la préfecture à refaire
+  if (c.titre_verifie_le === undefined && ((c.titre_sejour !== undefined && c.titre_sejour !== avant.titre_sejour) || (c.titre_expiration !== undefined && c.titre_expiration !== avant.titre_expiration))) c.titre_verifie_le = null;
+  const keys = Object.keys(c);
   if (keys.length) run(`UPDATE interimaires SET ${keys.map(k => k + ' = ?').join(', ')} WHERE id = ?`, ...keys.map(k => c[k]), req.params.id);
   res.json(one('SELECT * FROM interimaires WHERE id = ?', req.params.id));
 }));
@@ -459,6 +464,7 @@ function missionPourInterim(m, iid) {
   return {
     id: m.id, client_nom: m.client_nom, client_secteur: m.client_secteur, poste: m.poste, date: m.date, debut: m.debut, fin: m.fin,
     nb_postes: m.nb_postes, taux_horaire: m.taux_horaire, etat, simulation: simulation.pourMission(m, 'interim'),
+    bloque: etat === 'a_repondre' ? (() => { const ii = one('SELECT * FROM interimaires WHERE id = ?', iid) || {}; return [...AGE.controleMission(AGE.age(ii.date_naissance, m.date), m, m.client_secteur).bloquants, ...SEJOUR.controleMission(ii, m, today()).bloquants]; })() : [],
     contrat: k, validee_le: m.validee_le || null, motif_annulation: etat === 'annulee' ? m.motif_annulation || null : null, motif_desistement: des ? des.motif : null,
     documents: ['confirmee', 'signature'].includes(etat) ? docsMission(m).map(d => d.id === null ? { ...d, contrat_id: one('SELECT id FROM contrats WHERE mission_id = ? AND interim_id = ?', m.id, iid)?.id } : d) : [],
   };
@@ -553,7 +559,7 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
     for (const iid of ids) {
       const i = one('SELECT * FROM interimaires WHERE id = ? AND suspendu = 0', iid); if (!i) continue;
       // Mineurs : mission non conforme (nuit, durée, moins de 16 ans) non proposée
-      const k = AGE.controleMission(AGE.age(i.date_naissance, m.date), m, m.client_secteur), ks = SEJOUR.controleMission(i, m);
+      const k = AGE.controleMission(AGE.age(i.date_naissance, m.date), m, m.client_secteur), ks = SEJOUR.controleMission(i, m, today());
       if (k.bloquants.length || ks.bloquants.length) { ecartes.push({ id: i.id, nom: `${i.prenom} ${i.nom}`, raisons: [...k.bloquants, ...ks.bloquants] }); continue; }
       const r = run('INSERT OR IGNORE INTO envois (mission_id, interim_id, canaux) VALUES (?,?,?)', m.id, iid, canaux.join(','));
       if (!r.changes) continue;
@@ -568,13 +574,21 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
   res.json({ envoyes: dest.length, canaux, simules: canaux.filter(c => !canalConfigure(c)).map(c => CANAL_LABEL[c]), ecartes });
 }));
 
+/** Titre de séjour vérifié auprès de la préfecture (date du jour par défaut) ; vide pour annuler. */
+api.post('/interimaires/:id/titre-verifie', role('agence'), wrap((req, res) => {
+  const i = one('SELECT id, nationalite FROM interimaires WHERE id = ?', req.params.id); if (!i) fail(404, 'Intérimaire introuvable.');
+  const d = req.body?.annuler ? null : (isDate(req.body?.date) ? req.body.date : today());
+  if (d && d > today()) fail(400, 'La date de vérification ne peut pas être dans le futur.');
+  run('UPDATE interimaires SET titre_verifie_le = ? WHERE id = ?', d, i.id);
+  res.json({ titre_verifie_le: d });
+}));
 /** Contrôle d'âge des intérimaires pour une mission (fenêtre de diffusion) : mineurs, moins de 16 ans, 64 ans ou plus. */
 api.get('/missions/:id/controle-age', role('agence'), (req, res) => {
   const m = missionRow(req.params.id); if (!m) fail(404, 'Mission introuvable.');
   const out = {};
-  for (const i of all('SELECT id, date_naissance, nationalite, titre_sejour, titre_expiration FROM interimaires WHERE suspendu = 0')) {
+  for (const i of all('SELECT id, date_naissance, nationalite, titre_sejour, titre_expiration, titre_verifie_le FROM interimaires WHERE suspendu = 0')) {
     const a = AGE.age(i.date_naissance, m.date), cat = AGE.categorie(a, i.date_naissance, m.date), ka = AGE.controleMission(a, m, m.client_secteur);
-    const st = SEJOUR.situationInterim(i, m.date), ks = SEJOUR.controleMission(i, m);
+    const st = SEJOUR.situationInterim(i, m.date), ks = SEJOUR.controleMission(i, m, today());
     if (!cat && !st) continue;
     out[i.id] = { age: a, categorie: cat, sejour: st, bloquants: [...ka.bloquants, ...ks.bloquants], alertes: [...ka.alertes, ...ks.alertes] };
   }
@@ -593,7 +607,7 @@ api.post('/missions/:id/repondre', role('interim'), wrap((req, res) => {
       const ii = one('SELECT * FROM interimaires WHERE id = ?', iid);
       const k = AGE.controleMission(AGE.age(ii?.date_naissance, m.date), m, m.client_secteur);
       if (k.bloquants.length) fail(409, `Mission non autorisée pour un mineur : ${k.bloquants.join(' ; ')}.`);
-      const ks = SEJOUR.controleMission(ii || {}, m);
+      const ks = SEJOUR.controleMission(ii || {}, m, today());
       if (ks.bloquants.length) fail(409, `Mission impossible : ${ks.bloquants.join(' ; ')}. Contactez l'agence avec votre titre de séjour.`);
     }
     run('INSERT INTO reponses (mission_id, interim_id, etat) VALUES (?,?,?)', m.id, iid, accepte ? 'accepte' : 'decline');

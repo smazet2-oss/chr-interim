@@ -80,6 +80,8 @@ test('expériences, dossier légal, contrat et paie', async () => {
   assert.equal((await paul.get(`/pieces/${d.pieces[0].id}/fichier`)).status, 404, 'un autre intérimaire n\'y accède pas');
   assert.equal((await cl.get(`/pieces/${d.pieces[0].id}/fichier`)).status, 404, 'l\'employeur n\'y accède pas');
 
+  // Titre de séjour vérifié à la préfecture : missions proposables dès le lendemain
+  assert.ok((await ag.post(`/interimaires/${i.id}/titre-verifie`, {})).data.titre_verifie_le);
   // Mission verrouillée → ligne d'expérience automatique et contrat à signer.
   const m = (await cl.post('/missions', { poste: 'Serveuse', date: plusJours(3), debut: '12:00', fin: '16:00', nb_postes: 1 })).data;
   await ag.post(`/missions/${m.id}/diffuser`, { interims: [i.id], canaux: ['sms'] });

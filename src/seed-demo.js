@@ -8,6 +8,7 @@ require('./prospects'); // crée la table des prospects
 require('./visites'); // crée la table des visites
 require('./etude'); // crée les tables de l'étude de marché
 require('./candidats'); // crée la table des candidatures
+require('./partenaires'); // crée les tables des partenariats
 
 if (one('SELECT 1 FROM clients LIMIT 1')) {
   console.log('La base contient déjà des données : démonstration non installée. (npm run demo:reset pour repartir de zéro)');
@@ -218,6 +219,24 @@ tx(() => {
       page, ORIGINES[k % ORIGINES.length], page !== 'connexion' && k % 7 === 0 ? 1 : 0, `-${age} days`);
   }
   run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', I[0], f1, 'Nouvelle mission : Commis de cuisine chez Brasserie Le Comptoir');
+  // Partenariat : agence ETT partenaire (apport d'affaires en sourcing), son accès, un besoin et des candidats présentés
+  {
+    const pid = Number(run(`INSERT INTO partenaires (raison_sociale, siret, adresse, ville, contact, email, telephone, zones, metiers, commission_type, commission_valeur, convention_numero, convention_signee_le, convention_signee_nom, convention_signee_mode)
+      VALUES (?,?,?,?,?,?,?,?,?, 'forfait', 350, ?, datetime('now', '-30 days'), ?, 'en_ligne')`, 'Rhône Emploi Intérim', '812 345 678 00021', '45 cours Lafayette', 'Lyon 3e', 'Nadia Benali, directrice d\'agence',
+      'contact@rhone-emploi.example', '04 72 00 11 22', 'Lyon, Villeurbanne, Rhône (69)', 'Salle, cuisine, hôtellerie', 'AA-' + jour(0).slice(0, 4) + '-0001', 'Nadia Benali, directrice d\'agence').lastInsertRowid);
+    run('INSERT INTO users (username, password_hash, profil, nom, partenaire_id, must_change) VALUES (?,?,?,?,?,0)', 'rhone.emploi', PW, 'partenaire', 'Nadia Benali', pid);
+    const dem = (poste, ville, nb, debut, contrat, desc, jb) => Number(run('INSERT INTO partenaires_demandes (partenaire_id, poste, ville, nb_postes, date_debut, type_contrat, description, job_boards) VALUES (?,?,?,?,?,?,?,?)', pid, poste, ville, nb, debut, contrat, desc, JSON.stringify(jb)).lastInsertRowid);
+    const d1 = dem('Serveur', 'Lyon 2e', 3, jour(10), 'Saisonnier', 'Brasserie de 120 couverts, service en coupure, anglais apprécié.', ['Indeed', 'HelloWork']);
+    dem('Plongeur', 'Villeurbanne', 1, jour(4), 'Mission d\'intérim', 'Restauration collective, horaires de jour.', ['France Travail']);
+    const cands = [['Sarah', 'Lemoine', 'Indeed', 'Serveur', 'Lyon 8e', 1], ['Hugo', 'Faure', 'HelloWork', 'Serveur', 'Lyon 1er', 1], ['Amina', 'Kone', 'France Travail', 'Plongeur', 'Villeurbanne', 0]];
+    const ids = cands.map(([pr, n, src, poste, ville, part]) => Number(run('INSERT INTO candidats (prenom, nom, telephone, ville, poste, reponses, statut, source, partage_partenaires) VALUES (?,?,?,?,?,?,\'entretien\',?,?)',
+      pr, n, '06 70 00 00 0' + pr.length, ville, poste, JSON.stringify({ nationalite_cat: 'Française', situation: 'Sans emploi / demandeur d\'emploi', postes: [poste], poste_principal: poste, experience: '1 à 3 ans', creneaux: ['Le soir', 'Le week-end'] }), src, part).lastInsertRowid));
+    const pres = (k, statut, extra = '') => run(`INSERT INTO presentations (partenaire_id, demande_id, candidat_id, prenom, nom, poste, ville, telephone, source, resume, consentement_le, statut, retour_partenaire, date_placement, commission_montant, commission_statut, created_at)
+      VALUES (?,?,?,?,?,?,?,?,?,?, datetime('now', '-8 days'),?,?,?,?,?, datetime('now', '-8 days'))`, pid, d1, ids[k], cands[k][0], cands[k][1], 'Serveur', cands[k][4], '06 70 00 00 0' + cands[k][0].length, cands[k][2],
+      'Expérience : 1 à 3 ans\nDisponibilités : Le soir, Le week-end', statut, extra, statut === 'placee' ? jour(-2) : null, statut === 'placee' ? 350 : null, statut === 'placee' ? 'a_facturer' : 'non_due');
+    pres(0, 'placee', 'Embauchée en contrat saisonnier jusqu\'à fin septembre.');
+    pres(1, 'proposee');
+  }
 });
-console.log('Démonstration installée. Comptes (mot de passe « Demo2026! ») : claire.morel (agence), comptoir.lyon (employeur), yanis.benali, lucas.martin, thomas.petit (intérimaires).');
+console.log('Démonstration installée. Comptes (mot de passe « Demo2026! ») : claire.morel (agence), comptoir.lyon (employeur), yanis.benali, lucas.martin, thomas.petit (intérimaires), rhone.emploi (agence partenaire).');
 console.log('camille.roux : mot de passe provisoire « Provisoire1 » (changement obligatoire à la première connexion).');

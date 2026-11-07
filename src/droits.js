@@ -1,5 +1,5 @@
 'use strict';
-// Droits d'accès : l'administrateur de l'agence décide, pour chaque espace (agence, employeur, intérimaire)
+// Droits d'accès : l'administrateur de l'agence décide, pour chaque espace (agence, employeur, intérimaire, partenaire)
 // et pour chaque compte, des fonctions accessibles ou verrouillées.
 // Une fonction verrouillée disparaît du menu et ses actions sont refusées par le serveur.
 // L'administrateur n'est jamais restreint ; lui seul gère les droits.
@@ -30,6 +30,7 @@ const FONCTIONS = {
     { k: 'a_paie', l: 'Paie', d: 'Calcul, fiches de paie, paiement.', vues: ['paie'], api: [['GET', /^\/paie$/], ['POST', /^\/bulletins/]] },
     { k: 'a_facturation', l: 'Facturation, relances et coefficients', d: 'Factures, relances, contrats commerciaux.', vues: ['facturation', 'relances', 'tarifs'], api: [['POST', /^\/factures/], ['GET', /^\/factures\/\d+\/document$/], ['GET', /^\/relances$/], [T, /^\/contrats-clients/]] },
     { k: 'a_suppression', l: 'Supprimer des fiches', d: 'Suppression définitive de clients ou d\'intérimaires.', vues: [], api: [['DELETE', /^\/(clients|interimaires)\/\d+$/]] },
+    { k: 'a_partenaires', l: 'Partenariats (agences ETT)', d: 'Agences partenaires, sourcing job boards, commissions.', vues: ['partenaires', 'sourcing', 'commissions'], api: [[T, /^\/(partenaires|partenaires-demandes|presentations)(\/|$)/], ['POST', /^\/candidats\/sourcing$/]] },
     { k: 'a_acces', l: 'Accès utilisateurs', d: 'Créer, réinitialiser, désactiver des comptes.', vues: ['acces'], api: [[T, /^\/acces/]] },
     { k: 'a_journal', l: 'Journal des envois', d: 'Historique des e-mails, SMS et WhatsApp.', vues: ['journal'], api: [['GET', /^\/journal(\/compteurs)?$/], ['POST', /^\/journal\/supprimer$/]] },
     { k: 'a_parametres', l: 'Paramètres', d: 'Identité légale, taux, messagerie.', vues: ['parametres'], api: [[T, /^\/parametres/]] },
@@ -60,6 +61,13 @@ const FONCTIONS = {
     { k: 'i_contrats', l: 'Contrats', d: 'Lire et signer ses contrats.', vues: ['contrats'], api: [[T, /^\/contrats(\/|$)/]] },
     { k: 'i_paie', l: 'Paie', d: 'Fiches de paie et paie en cours.', vues: ['paie'], api: [['GET', /^\/(bulletins|paie\/en-cours)/]] },
     { k: 'i_documents', l: 'Téléverser ses documents', d: 'Pièces du dossier.', vues: ['documents'], api: [['POST', /^\/interimaires\/\d+\/pieces$/], ['DELETE', /^\/pieces\//]] },
+  ],
+  partenaire: [
+    { k: 'p_demandes', l: 'Déposer des besoins de recrutement', d: 'Formulaire « Nouveau besoin ».', vues: [], api: [['POST', /^\/partenaire\/demandes$/], ['PUT', /^\/partenaire\/demandes\//]] },
+    { k: 'p_retours', l: 'Donner la suite des candidats', d: 'Entretien, retenu, placé, chiffre d\'affaires.', vues: [], api: [['PUT', /^\/partenaire\/presentations\//]] },
+    { k: 'p_cv', l: 'Télécharger les CV', d: 'CV des candidats présentés.', vues: [], api: [['GET', /^\/partenaire\/presentations\/\d+\/cv$/]] },
+    { k: 'p_commissions', l: 'Commissions et factures', d: 'Relevé des commissions.', vues: ['commissions'], api: [['GET', /^\/partenaire\/(commissions|factures)/]] },
+    { k: 'p_convention', l: 'Signer la convention', d: 'Signature en ligne de la convention.', vues: [], api: [['POST', /^\/partenaire\/convention\/signer$/]] },
   ],
 };
 const PAR_CLE = Object.fromEntries(Object.values(FONCTIONS).flat().map(f => [f.k, f]));
@@ -101,7 +109,7 @@ module.exports = function register(api, h) {
     reserve(req);
     const D = all('SELECT * FROM droits');
     const profils = Object.fromEntries(Object.keys(FONCTIONS).map(p => [p, Object.fromEntries(D.filter(d => d.cible === 'profil:' + p).map(d => [d.fonction, !!d.acces]))]));
-    const comptes = all(`SELECT u.id, u.username, u.nom, u.profil, u.super_admin, u.actif, c.nom AS client_nom FROM users u LEFT JOIN clients c ON c.id = u.client_id ORDER BY u.profil, u.nom`)
+    const comptes = all(`SELECT u.id, u.username, u.nom, u.profil, u.super_admin, u.actif, COALESCE(c.nom, p.raison_sociale) AS client_nom FROM users u LEFT JOIN clients c ON c.id = u.client_id LEFT JOIN partenaires p ON p.id = u.partenaire_id ORDER BY u.profil, u.nom`)
       .map(u => ({ ...u, super_admin: !!u.super_admin, reglages: Object.fromEntries(D.filter(d => d.cible === 'user:' + u.id).map(d => [d.fonction, !!d.acces])), verrous: verrous(u) }));
     res.json({ catalogue: catalogue(), profils, comptes });
   }));
@@ -109,7 +117,7 @@ module.exports = function register(api, h) {
   api.put('/droits', wrap((req, res) => {
     reserve(req);
     const { cible, fonction, acces } = req.body || {};
-    const m = /^(profil:(agence|client|interim)|user:(\d+))$/.exec(String(cible || ''));
+    const m = /^(profil:(agence|client|interim|partenaire)|user:(\d+))$/.exec(String(cible || ''));
     if (!m) fail(400, 'Cible invalide.');
     const profil = m[2] || one('SELECT profil FROM users WHERE id = ?', Number(m[3]))?.profil;
     if (!profil) fail(404, 'Compte introuvable.');

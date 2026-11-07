@@ -95,14 +95,19 @@ function auth(req, res, next) {
   const token = parseCookies(req.headers.cookie)[COOKIE];
   if (!token) return res.status(401).json({ error: 'Connexion requise.' });
   const u = one(`SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
-                 LEFT JOIN clients c ON c.id = u.client_id LEFT JOIN interimaires i ON i.id = u.interim_id
+                 LEFT JOIN clients c ON c.id = u.client_id LEFT JOIN interimaires i ON i.id = u.interim_id LEFT JOIN partenaires p ON p.id = u.partenaire_id
                  WHERE s.token = ? AND s.expires_at > ? AND u.actif = 1
-                 AND COALESCE(c.suspendu, 0) = 0 AND COALESCE(i.suspendu, 0) = 0`, token, new Date().toISOString());
+                 AND COALESCE(c.suspendu, 0) = 0 AND COALESCE(i.suspendu, 0) = 0 AND COALESCE(p.statut, 'actif') = 'actif'`, token, new Date().toISOString());
   if (!u) return res.status(401).json({ error: 'Session expirée. Reconnectez-vous.' });
   req.user = u; req.token = token;
   // Tant que le mot de passe provisoire n'est pas changé, seules ces routes sont ouvertes.
   if (u.must_change && !['/me', '/password', '/logout'].includes(req.originalUrl.split('?')[0].replace(/^\/api/, ''))) {
     return res.status(403).json({ error: 'must_change' });
+  }
+  // Agence partenaire : seulement son espace (/partenaire/…), son compte et la configuration.
+  const chemin = req.originalUrl.split('?')[0].replace(/^\/api/, '');
+  if (u.profil === 'partenaire' && !['/me', '/password', '/logout', '/config'].includes(chemin) && !/^\/partenaire(\/|$)/.test(chemin)) {
+    return res.status(403).json({ error: 'Accès réservé à l\'agence.' });
   }
   next();
 }
@@ -127,6 +132,7 @@ function meData(u) {
   const me = { id: u.id, username: u.username, nom: u.nom, profil: u.profil, must_change: !!u.must_change, super_admin: !!u.super_admin, verrous: require('./droits').verrous(u), vues_verrouillees: require('./droits').vuesVerrouillees(u) };
   if (u.client_id) me.client = one('SELECT id, nom, secteur, ville FROM clients WHERE id = ?', u.client_id);
   if (u.interim_id) me.interim = one('SELECT id, prenom, nom, poste, ville FROM interimaires WHERE id = ?', u.interim_id);
+  if (u.partenaire_id) me.partenaire = one('SELECT id, raison_sociale, ville, convention_signee_le FROM partenaires WHERE id = ?', u.partenaire_id);
   return me;
 }
 app.post('/api/login', limiteConnexion, wrap((req, res) => {
@@ -138,7 +144,8 @@ app.post('/api/login', limiteConnexion, wrap((req, res) => {
   }
   if (!u.actif) fail(403, 'Ce compte est désactivé. Contactez votre agence.');
   if ((u.client_id && one('SELECT suspendu FROM clients WHERE id = ?', u.client_id)?.suspendu)
-    || (u.interim_id && one('SELECT suspendu FROM interimaires WHERE id = ?', u.interim_id)?.suspendu)) {
+    || (u.interim_id && one('SELECT suspendu FROM interimaires WHERE id = ?', u.interim_id)?.suspendu)
+    || (u.partenaire_id && one('SELECT statut FROM partenaires WHERE id = ?', u.partenaire_id)?.statut !== 'actif')) {
     fail(403, 'Votre profil est suspendu. Contactez votre agence.');
   }
   run('DELETE FROM sessions WHERE expires_at < ?', new Date().toISOString());
@@ -174,6 +181,8 @@ candidats.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), Htt
 require('./visites').publiques(api);
 // Étude de marché annuelle : questionnaire anonyme ouvert depuis l'e-mail ou le lien public.
 const etude = require('./etude');
+// Partenariats avec des agences ETT (apport d'affaires en sourcing) : tables créées après celle des candidatures.
+const partenaires = require('./partenaires');
 etude.publiques(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 api.use(auth);
 // Droits d'accès par espace et par compte (contrôle de chaque requête).
@@ -181,6 +190,7 @@ const droits = require('./droits');
 droits(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn) });
 prospects.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
 candidats.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today() });
+partenaires.register(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), today: () => today(), HttpError });
 etude.agence(api, { fail: (...a) => fail(...a), wrap: fn => wrap(fn), role: (...a) => role(...a) });
 dossier(api, { fail: (...a) => fail(...a), str: (...a) => str(...a), isDate: (...a) => isDate(...a), today: () => today(), wrap: fn => wrap(fn), role: (...a) => role(...a), HttpError });
 const contratsClients = require('./contrats-clients')(api, { fail: (...a) => fail(...a), isDate: (...a) => isDate(...a), wrap: fn => wrap(fn), role: (...a) => role(...a), str: (...a) => str(...a), today: () => today() });
@@ -367,9 +377,9 @@ api.put('/notes-privees/:interimId', role('client'), wrap((req, res) => {
 
 /* ---------------- Accès utilisateurs (agence) ---------------- */
 api.get('/acces', role('agence'), (req, res) => {
-  res.json(all(`SELECT u.id, u.username, u.nom, u.profil, u.must_change, u.actif, u.last_login, u.client_id, u.interim_id,
-     c.nom AS client_nom, i.poste AS interim_poste FROM users u
-     LEFT JOIN clients c ON c.id = u.client_id LEFT JOIN interimaires i ON i.id = u.interim_id ORDER BY u.profil, u.username`));
+  res.json(all(`SELECT u.id, u.username, u.nom, u.profil, u.must_change, u.actif, u.last_login, u.client_id, u.interim_id, u.partenaire_id,
+     c.nom AS client_nom, i.poste AS interim_poste, p.raison_sociale AS partenaire_nom FROM users u
+     LEFT JOIN clients c ON c.id = u.client_id LEFT JOIN interimaires i ON i.id = u.interim_id LEFT JOIN partenaires p ON p.id = u.partenaire_id ORDER BY u.profil, u.username`));
 });
 api.post('/acces', role('agence'), wrap((req, res) => {
   const { type } = req.body, id = Number(req.body.id);
@@ -383,12 +393,16 @@ api.post('/acces', role('agence'), wrap((req, res) => {
     const i = one('SELECT * FROM interimaires WHERE id = ?', id); if (!i) fail(404, 'Intérimaire introuvable.');
     if (one('SELECT 1 FROM users WHERE interim_id = ?', id)) fail(409, 'Cet intérimaire a déjà un accès.');
     user = { username: uniqueUsername(slug(nomInterim(i))), profil: 'interim', nom: nomInterim(i), client_id: null, interim_id: id };
+  } else if (type === 'partenaire') {
+    const p = one('SELECT * FROM partenaires WHERE id = ?', id); if (!p) fail(404, 'Partenaire introuvable.');
+    if (one('SELECT 1 FROM users WHERE partenaire_id = ?', id)) fail(409, 'Ce partenaire a déjà un accès.');
+    user = { username: uniqueUsername(slug(p.raison_sociale)), profil: 'partenaire', nom: p.contact || p.raison_sociale, client_id: null, interim_id: null, partenaire_id: id };
   } else if (type === 'agence') {
     const nom = str(req.body.nom, 80); if (!nom) fail(400, 'Indiquez le nom du collaborateur.');
     user = { username: uniqueUsername(slug(nom)), profil: 'agence', nom, client_id: null, interim_id: null };
   } else fail(400, 'Type d\'accès invalide.');
-  run('INSERT INTO users (username, password_hash, profil, nom, client_id, interim_id, must_change) VALUES (?,?,?,?,?,?,1)',
-    user.username, bcrypt.hashSync(password, 10), user.profil, user.nom, user.client_id, user.interim_id);
+  run('INSERT INTO users (username, password_hash, profil, nom, client_id, interim_id, partenaire_id, must_change) VALUES (?,?,?,?,?,?,?,1)',
+    user.username, bcrypt.hashSync(password, 10), user.profil, user.nom, user.client_id, user.interim_id, user.partenaire_id || null);
   // Le mot de passe provisoire n'est renvoyé qu'une seule fois, jamais stocké en clair.
   res.status(201).json({ id: Number(one('SELECT id FROM users WHERE username = ?', user.username).id), username: user.username, password, profil: user.profil, nom: user.nom });
 }));
@@ -409,7 +423,7 @@ api.post('/acces/:id/envoyer', role('agence'), wrap(async (req, res) => {
   if (!u.must_change) fail(409, 'Ce compte a déjà choisi son mot de passe : réinitialisez-le pour envoyer de nouveaux identifiants.');
   const pw = String(req.body.password || '');
   if (!bcrypt.compareSync(pw, u.password_hash)) fail(400, 'Mot de passe provisoire incorrect.');
-  const fiche = u.interim_id ? one('SELECT email, telephone FROM interimaires WHERE id = ?', u.interim_id) : u.client_id ? one('SELECT email, telephone FROM clients WHERE id = ?', u.client_id) : {};
+  const fiche = u.interim_id ? one('SELECT email, telephone FROM interimaires WHERE id = ?', u.interim_id) : u.client_id ? one('SELECT email, telephone FROM clients WHERE id = ?', u.client_id) : u.partenaire_id ? one('SELECT email, telephone FROM partenaires WHERE id = ?', u.partenaire_id) : {};
   const dest = { email: str(req.body.email, 120) || fiche?.email, telephone: str(req.body.telephone, 30) || fiche?.telephone };
   const canaux = (req.body.canaux || []).filter(c => CANAUX.includes(c));
   if (!canaux.length) fail(400, 'Choisissez au moins un moyen d\'envoi.');
@@ -1010,6 +1024,7 @@ api.post('/journal/supprimer', role('agence'), (req, res) => {
 });
 api.get('/config', (req, res) => res.json({ points_etab: POINTS_ETAB, note_basse: NOTE_BASSE, canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES,
   regles_mineurs: AGE.REGLES_MINEURS, regles_senior: AGE.REGLES_SENIOR, retraite: AGE.RETRAITE, titres_sejour: SEJOUR.TITRES,
+  job_boards: partenaires.JOB_BOARDS, contrats_partenaire: partenaires.CONTRATS,
   taux_postes: hcr.tauxPostes(), smic: hcr.smic(), coefficient_minimum: contratsClients.coefMin(),
   // Coût d'une heure pour l'agence ÷ taux horaire brut (fin de mission, congés payés, charges) : sert au calcul de marge d'un contrat.
   ...(req.user.profil === 'agence' ? { facteur_cout: (1 + P.num('ifm_taux', 10) / 100) * (1 + P.num('iccp_taux', 10) / 100) * (1 + P.num('charges_patronales_taux', 20) / 100) } : {}) }));

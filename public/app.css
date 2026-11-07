@@ -1016,3 +1016,7 @@ tr.ligne-interdite .lien-profil{color:var(--danger-fg)}
 .verif-a-faire{display:inline-flex;align-items:center;gap:4px;color:var(--attente-fg);font-weight:600;font-size:12.5px}
 .verif-a-faire svg{width:13px;height:13px}
 .ctrl-alerte{font-weight:600}
+
+/* Partenariats : origine des candidatures (job board) */
+.badge.jb{background:#EEF1F5;color:#334155}
+.badge.jb::before{display:none}

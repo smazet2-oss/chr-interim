@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
-  profil TEXT NOT NULL CHECK (profil IN ('agence','client','interim')),
+  profil TEXT NOT NULL CHECK (profil IN ('agence','client','interim','partenaire')),
   nom TEXT NOT NULL,
   client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
   interim_id INTEGER REFERENCES interimaires(id) ON DELETE CASCADE,
@@ -209,6 +209,20 @@ CREATE TABLE IF NOT EXISTS bulletin_heures (
 `);
 
 // Migrations de colonnes (bases créées avec une version précédente).
+/** Profil « partenaire » (agences ETT partenaires) : les bases créées avant ce profil reconstruisent la table des comptes
+ *  (SQLite ne permet pas de modifier une contrainte CHECK). Les colonnes et les données sont conservées. */
+(function profilPartenaire() {
+  const sql = db.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'users'").get()?.sql || '';
+  if (!sql || sql.includes("'partenaire'")) return;
+  const nouveau = sql.replace(/'agence',\s*'client',\s*'interim'/, "'agence','client','interim','partenaire'").replace(/^CREATE TABLE\s+(IF NOT EXISTS\s+)?["`]?users["`]?/i, 'CREATE TABLE users_new');
+  db.exec('PRAGMA foreign_keys = OFF');
+  try {
+    db.exec('BEGIN');
+    db.exec(nouveau);
+    db.exec('INSERT INTO users_new SELECT * FROM users; DROP TABLE users; ALTER TABLE users_new RENAME TO users;');
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; } finally { db.exec('PRAGMA foreign_keys = ON'); }
+})();
 function addColumn(table, col, def) {
   if (!db.prepare(`PRAGMA table_info(${table})`).all().some(c => c.name === col)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${col} ${def}`);
 }

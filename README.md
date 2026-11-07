@@ -21,7 +21,7 @@ npm start
 Ouvrez ensuite http://localhost:3000.
 
 - **Sans `npm run demo`** : au premier démarrage, le serveur crée le compte agence `admin` et affiche son mot de passe provisoire dans le terminal. Il faudra le changer à la première connexion.
-- **Avec la démonstration** : mot de passe `Demo2026!` pour `claire.morel` (agence), `comptoir.lyon` (employeur), `yanis.benali`, `lucas.martin`, `thomas.petit` (intérimaires). `camille.roux` a le mot de passe provisoire `Provisoire1`, pour tester la première connexion.
+- **Avec la démonstration** : mot de passe `Demo2026!` pour `claire.morel` (agence), `comptoir.lyon` (employeur), `yanis.benali`, `lucas.martin`, `thomas.petit` (intérimaires), `rhone.emploi` (agence partenaire). `camille.roux` a le mot de passe provisoire `Provisoire1`, pour tester la première connexion.
 - `npm run demo:reset` efface toutes les données et réinstalle la démonstration.
 - `npm test` lance les tests automatiques du circuit complet.
 
@@ -35,9 +35,10 @@ Page « Notre histoire » (« Nés à la réception, rodés à l'exigence du ter
 
 Le tableau de bord, le planning et les missions en accès direct, puis les autres rubriques en listes déroulantes. **Une seule liste est ouverte à la fois** : en ouvrir une ferme la précédente. La liste de la page affichée s'ouvre seule, la dernière ouverte est mémorisée sur l'appareil, et un badge résume les éléments à traiter quand une liste est fermée. Le logo ramène au tableau de bord.
 
-- **Agence** : Tableau de bord, Planning, Missions ; Intérimaires (fiches, candidatures, contrats de mission, relevés d'heures, paie, évaluations) ; Clients (fiches clients, candidatures clients) ; Facturation (factures et débiteurs, relances, coefficients et contrats) ; Administration (statistiques, droits d'accès, accès utilisateurs, journal des envois, paramètres).
+- **Agence** : Tableau de bord, Planning, Missions ; Intérimaires (fiches, candidatures, contrats de mission, relevés d'heures, paie, évaluations) ; Clients (fiches clients, candidatures clients) ; Facturation (factures et débiteurs, relances, coefficients et contrats) ; Partenariats (agences partenaires, sourcing job boards, commissions) ; Administration (statistiques, droits d'accès, accès utilisateurs, journal des envois, paramètres).
 - **Employeur** : Tableau de bord, Planning, Mes missions ; Suivi (heures et évaluations, statistiques, intérimaires) ; Administratif et social (documents, contrats de mission, factures, contrat commercial).
 - **Intérimaire** : Accueil, Mon planning, Missions proposées ; Suivi (heures, statistiques, profil et CV, avis) ; Administratif et social (contrats, paie, documents).
+- **Agence partenaire** : Tableau de bord, Mes besoins de recrutement, Candidats présentés ; Administratif (commissions et factures, convention de partenariat).
 
 **Sections repliables** : dans Paramètres (Identité, Facturation, Paie, Convention HCR, Relances, Messagerie) et dans Statistiques (Chiffres clés, Évolution sur 6 mois, Notes, Visites du site…), chaque section s'ouvre et se ferme d'un clic sur son titre. Une seule est ouverte à la fois ; la dernière ouverte est mémorisée pour chaque page sur l'appareil.
 
@@ -141,6 +142,17 @@ La candidature demande la nationalité (française ; Union européenne, EEE ou S
 - **Vérification à la préfecture** (au moins 2 jours ouvrables avant la mission, jours fériés et week-ends exclus) : tant que le bouton « Titre vérifié auprès de la préfecture » de la fiche n'a pas été utilisé, les missions à 24, 48 ou 72 h (ou passée la date limite) sont grisées à la diffusion et dans l'espace de l'intérimaire ; à partir de 4 jours, une alerte « vigilance » donne la date limite de vérification. Un titre modifié est à revérifier. Un titre qui expire dans les 30 jours suivant la mission déclenche aussi une alerte de vigilance.
 
 Règles indicatives, à faire valider (préfecture, DREETS) ; elles se modifient dans `src/sejour.js`.
+
+### Partenariats : apporteur d'affaires en sourcing (job boards)
+
+L'agence trouve des candidats sur les job boards (Indeed, HelloWork, France Travail, LinkedIn, Facebook, Jobteaser, StudentJob, Leboncoin, L'Hôtellerie Restauration…) et les présente à des **agences d'emploi (ETT) partenaires**, qui lui versent une commission sur chaque placement.
+
+- **Agences partenaires** : fiche du partenaire (contact, zones, métiers), commission au forfait par placement ou en pourcentage du chiffre d'affaires HT, délai de paiement, durée de non-contournement, notes internes. Depuis la fiche : création de l'**accès partenaire** (identifiant et mot de passe provisoire, comme pour un employeur), besoins, candidats présentés, convention.
+- **Convention d'apporteur d'affaires** (n° AA-AAAA-0001) générée automatiquement : objet, présentation des candidats, commission, non-contournement, RGPD, durée. Le partenaire la signe en ligne ; l'agence peut enregistrer une signature papier. Modifier les conditions financières après signature crée une nouvelle convention à signer. *Modèle à faire relire par un juriste avant la première signature.*
+- **Sourcing job boards** : besoins déposés par les partenaires (poste, ville, nombre, dates, contrat, taux, job boards à privilégier), candidats présentés et suite donnée, performance de chaque job board (candidats, présentés, placés, commissions) et **liens à mettre dans les annonces** (`/candidature?src=indeed`…) : l'origine de chaque candidature est enregistrée automatiquement. « Ajouter un candidat sourcé » saisit un candidat trouvé sur un job board (avec son CV).
+- **Présenter un candidat** (depuis le sourcing, la fiche du partenaire ou la candidature) : seulement avec l'**accord du candidat** (case facultative du formulaire de candidature, ou confirmation de l'agence). Le partenaire est prévenu par e-mail. Les candidats sans autorisation de travail ne peuvent pas être présentés.
+- **Commissions** : dues dès qu'un candidat est déclaré placé (forfait), ou dès que le partenaire déclare le chiffre d'affaires réalisé (pourcentage). L'agence facture (facture COM-AAAA-0001 imprimable, visible par le partenaire), puis enregistre le paiement.
+- **Espace partenaire** : tableau de bord (candidats à traiter, besoins ouverts, contact), dépôt et suivi des besoins, candidats présentés avec profil, coordonnées et CV, suite donnée (entretien, retenu, non retenu, placé, chiffre d'affaires), commissions et factures, convention. Le partenaire n'a **aucun accès** aux autres données de l'agence (missions, clients, intérimaires, candidatures, notifications) : le serveur refuse toute autre requête. Chaque fonction de l'espace peut être verrouillée dans Droits d'accès › Partenaires. Suspendre ou terminer un partenariat déconnecte ses comptes.
 
 ### Fiche client
 
@@ -325,6 +337,7 @@ src/candidats.js  page publique « Je cherche des missions » et suivi des candi
 src/simulation.js simulation de paie, de coût et de marge
 src/visites.js    visites du site et origine des clics (Facebook, e-mail, QR code…)
 src/etude.js      étude de marché annuelle : envoi, questionnaire anonyme, relances, résultats
+src/partenaires.js agences ETT partenaires : besoins, présentations, commissions, convention, espace partenaire
 src/seed-demo.js  données de démonstration
 public/           interface (HTML, CSS, JavaScript sans framework)
 test/             tests automatiques de l'API

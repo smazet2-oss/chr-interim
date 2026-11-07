@@ -105,8 +105,10 @@ function publiques(api, h) {
     }
     if (!fichier && !limite(req.ip)) fail(429, 'Trop d\'envois depuis cette connexion. Réessayez dans une heure ou appelez-nous.');
     const poste = r.poste_principal && r.poste_principal !== 'Autre' ? r.poste_principal : r.postes?.find(x => x !== 'Autre') || r.postes_autre || null;
-    run('INSERT INTO candidats (prenom, nom, telephone, email, ville, poste, reponses, cv_fichier, cv_nom) VALUES (?,?,?,?,?,?,?,?,?)',
-      r.prenom, r.nom, r.telephone || null, r.email || null, r.ville || null, poste, JSON.stringify(r), fichier, req.file ? String(req.file.originalname).slice(0, 120) : null);
+    // Accord facultatif pour être présenté aux agences partenaires ; origine (job board) si la page a été ouverte depuis une annonce
+    const source = require('./partenaires').sourceDepuisLien(b.source);
+    run('INSERT INTO candidats (prenom, nom, telephone, email, ville, poste, reponses, cv_fichier, cv_nom, source, partage_partenaires) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
+      r.prenom, r.nom, r.telephone || null, r.email || null, r.ville || null, poste, JSON.stringify(r), fichier, req.file ? String(req.file.originalname).slice(0, 120) : null, source, b.partage_partenaires ? 1 : 0);
     require('./visites').convertir(b.visite, 'candidature');
     if (P.get('email')) {
       await envoyer('mail', { email: P.get('email') }, `Nouvelle candidature : ${r.prenom} ${r.nom}`,
@@ -154,8 +156,11 @@ function agence(api, h) {
     const b = req.body || {};
     if (b.statut !== undefined && !STATUTS.includes(b.statut)) fail(400, 'Statut invalide.');
     if (b.date_relance && !isDate(b.date_relance)) fail(400, 'Date de rappel invalide.');
-    run('UPDATE candidats SET statut = ?, date_relance = ?, notes_agence = ?, updated_at = datetime(\'now\') WHERE id = ?',
-      b.statut ?? c.statut, b.date_relance === undefined ? c.date_relance : (b.date_relance || null), b.notes_agence === undefined ? c.notes_agence : String(b.notes_agence).slice(0, 3000), c.id);
+    const JB = require('./partenaires').JOB_BOARDS;
+    if (b.source !== undefined && !JB.includes(b.source)) fail(400, 'Origine invalide.');
+    run('UPDATE candidats SET statut = ?, date_relance = ?, notes_agence = ?, source = ?, partage_partenaires = ?, updated_at = datetime(\'now\') WHERE id = ?',
+      b.statut ?? c.statut, b.date_relance === undefined ? c.date_relance : (b.date_relance || null), b.notes_agence === undefined ? c.notes_agence : String(b.notes_agence).slice(0, 3000),
+      b.source ?? c.source, b.partage_partenaires === undefined ? c.partage_partenaires : (b.partage_partenaires ? 1 : 0), c.id);
     res.json(lire(one('SELECT * FROM candidats WHERE id = ?', c.id)));
   }));
   api.get('/candidats/:id/cv', role('agence'), wrap((req, res) => {

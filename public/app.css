@@ -997,3 +997,14 @@ button.lien-profil:focus-visible{outline:2px solid #C99948;outline-offset:2px;bo
 .ctrl-bloque{font-size:12px;color:var(--danger-fg);font-weight:600}
 .ctrl-alerte{font-size:12px;color:var(--attente-fg)}
 .li-bloque{opacity:.85;cursor:not-allowed}
+
+/* ---------- Nationalité hors UE : titre de séjour ---------- */
+.alerte-sejour-rouge{background:var(--danger-dot)!important;color:#fff!important;border-color:var(--danger-dot)!important}
+.alerte-sejour-ok{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:var(--libre-bg);color:var(--libre-fg);font-size:11.5px;font-weight:600;white-space:nowrap}
+.alerte-sejour-ok svg{width:12px;height:12px}
+.conditions-ok{border-color:var(--line-strong);background:var(--surface-2)}
+.conditions-ok .conditions-age-t{color:var(--ink)}
+tr.ligne-interdite td{background:var(--danger-bg)!important}
+tr.ligne-interdite .lien-profil{color:var(--danger-fg)}
+.refus-auto{display:inline-flex;align-items:center;gap:4px;color:var(--danger-fg);font-weight:700;padding:0 6px}
+.refus-auto svg{width:14px;height:14px}

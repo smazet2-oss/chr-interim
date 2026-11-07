@@ -121,7 +121,7 @@ test('candidatures : page publique avec CV, suivi et inscription', async () => {
   };
   const pub = agent();
   assert.ok((await pub.get('/public/candidature')).data.questionnaire.length >= 4);
-  const c = { prenom: 'Sarah', nom: 'Lopez', telephone: '0655443322', ville: 'Lyon 7e', postes: ['Serveur', 'Barman'], poste_principal: 'Barman', experience: 'Moins d\'un an', creneaux: ['Le soir', 'Le week-end'], situation: 'Autre', situation_autre: 'Intermittente du spectacle' };
+  const c = { prenom: 'Sarah', nom: 'Lopez', telephone: '0655443322', ville: 'Lyon 7e', postes: ['Serveur', 'Barman'], poste_principal: 'Barman', experience: 'Moins d\'un an', creneaux: ['Le soir', 'Le week-end'], situation: 'Autre', situation_autre: 'Intermittente du spectacle', nationalite_cat: 'Française' };
   assert.equal((await envoi(c)).status, 400, 'consentement obligatoire');
   assert.equal((await envoi({ ...c, consentement: '1' }, { contenu: 'MZ exécutable', type: 'application/pdf', nom: 'cv.pdf' })).status, 400, 'faux PDF refusé');
   const pdf = { contenu: '%PDF-1.4 cv', type: 'application/pdf', nom: 'CV Sarah.pdf' };

@@ -12,6 +12,7 @@ const P = require('./parametres');
 const simulation = require('./simulation');
 const hcr = require('./hcr');
 const AGE = require('./age');
+const SEJOUR = require('./sejour');
 const { dureeHeures } = simulation;
 
 const app = express();
@@ -253,6 +254,10 @@ function interimBody(b) {
   }
   if (b.date_naissance !== undefined) { if (b.date_naissance && !isDate(b.date_naissance)) fail(400, 'Date de naissance invalide.'); c.date_naissance = b.date_naissance || null; }
   if (b.nationalite !== undefined) { if (!dossier.NATIONALITES.includes(b.nationalite)) fail(400, 'Nationalité invalide.'); c.nationalite = b.nationalite; }
+  // Titre de séjour (nationalité hors UE) : type et date de fin de validité
+  if (b.titre_sejour !== undefined) { if (b.titre_sejour && !SEJOUR.TITRES.includes(b.titre_sejour)) fail(400, 'Titre de séjour invalide.'); c.titre_sejour = b.titre_sejour || null; }
+  if (b.titre_expiration !== undefined) { if (b.titre_expiration && !isDate(b.titre_expiration)) fail(400, 'Date de fin de validité invalide.'); c.titre_expiration = b.titre_expiration || null; }
+  if (c.nationalite && c.nationalite !== 'Autre') { c.titre_sejour = null; c.titre_expiration = null; }
   return c;
 }
 const INTERIM_SQL = `SELECT i.*,
@@ -264,7 +269,7 @@ const INTERIM_SQL = `SELECT i.*,
 api.get('/interimaires', (req, res) => {
   const p = req.user.profil;
   // Agence : âge et catégorie (mineur, moins de 16 ans, 64 ans ou plus) calculés à la date du jour
-  if (p === 'agence') return res.json(all(INTERIM_SQL + ' ORDER BY i.nom, i.prenom').map(i => { const a = AGE.age(i.date_naissance, today()); return { ...i, age: a, categorie_age: AGE.categorie(a, i.date_naissance, today()) }; }));
+  if (p === 'agence') return res.json(all(INTERIM_SQL + ' ORDER BY i.nom, i.prenom').map(i => { const a = AGE.age(i.date_naissance, today()); return { ...i, age: a, categorie_age: AGE.categorie(a, i.date_naissance, today()), sejour: SEJOUR.situationInterim(i, today()) }; }));
   if (p === 'interim') return res.json(all(INTERIM_SQL + ' WHERE i.id = ?', req.user.interim_id));
   // Employeur : intérimaires venus chez lui, candidats à ses missions, et nouveaux inscrits de son secteur.
   const cid = req.user.client_id, secteur = one('SELECT secteur FROM clients WHERE id = ?', cid).secteur;
@@ -548,8 +553,8 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
     for (const iid of ids) {
       const i = one('SELECT * FROM interimaires WHERE id = ? AND suspendu = 0', iid); if (!i) continue;
       // Mineurs : mission non conforme (nuit, durée, moins de 16 ans) non proposée
-      const k = AGE.controleMission(AGE.age(i.date_naissance, m.date), m, m.client_secteur);
-      if (k.bloquants.length) { ecartes.push({ id: i.id, nom: `${i.prenom} ${i.nom}`, raisons: k.bloquants }); continue; }
+      const k = AGE.controleMission(AGE.age(i.date_naissance, m.date), m, m.client_secteur), ks = SEJOUR.controleMission(i, m);
+      if (k.bloquants.length || ks.bloquants.length) { ecartes.push({ id: i.id, nom: `${i.prenom} ${i.nom}`, raisons: [...k.bloquants, ...ks.bloquants] }); continue; }
       const r = run('INSERT OR IGNORE INTO envois (mission_id, interim_id, canaux) VALUES (?,?,?)', m.id, iid, canaux.join(','));
       if (!r.changes) continue;
       run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', iid, m.id, `Nouvelle mission : ${m.poste} chez ${m.client_nom}`);
@@ -567,9 +572,11 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
 api.get('/missions/:id/controle-age', role('agence'), (req, res) => {
   const m = missionRow(req.params.id); if (!m) fail(404, 'Mission introuvable.');
   const out = {};
-  for (const i of all('SELECT id, date_naissance FROM interimaires WHERE suspendu = 0 AND date_naissance IS NOT NULL')) {
-    const a = AGE.age(i.date_naissance, m.date), cat = AGE.categorie(a, i.date_naissance, m.date); if (!cat) continue;
-    out[i.id] = { age: a, categorie: cat, ...AGE.controleMission(a, m, m.client_secteur) };
+  for (const i of all('SELECT id, date_naissance, nationalite, titre_sejour, titre_expiration FROM interimaires WHERE suspendu = 0')) {
+    const a = AGE.age(i.date_naissance, m.date), cat = AGE.categorie(a, i.date_naissance, m.date), ka = AGE.controleMission(a, m, m.client_secteur);
+    const st = SEJOUR.situationInterim(i, m.date), ks = SEJOUR.controleMission(i, m);
+    if (!cat && !st) continue;
+    out[i.id] = { age: a, categorie: cat, sejour: st, bloquants: [...ka.bloquants, ...ks.bloquants], alertes: [...ka.alertes, ...ks.alertes] };
   }
   res.json(out);
 });
@@ -583,8 +590,11 @@ api.post('/missions/:id/repondre', role('interim'), wrap((req, res) => {
     if (one('SELECT 1 FROM reponses WHERE mission_id = ? AND interim_id = ?', m.id, iid)) fail(409, 'Vous avez déjà répondu à cette mission.');
     if (accepte && compteurs(m.id).actifs >= m.nb_postes) fail(409, 'Mission complète : toutes les places sont prises.');
     if (accepte) {
-      const k = AGE.controleMission(AGE.age(one('SELECT date_naissance FROM interimaires WHERE id = ?', iid)?.date_naissance, m.date), m, m.client_secteur);
+      const ii = one('SELECT * FROM interimaires WHERE id = ?', iid);
+      const k = AGE.controleMission(AGE.age(ii?.date_naissance, m.date), m, m.client_secteur);
       if (k.bloquants.length) fail(409, `Mission non autorisée pour un mineur : ${k.bloquants.join(' ; ')}.`);
+      const ks = SEJOUR.controleMission(ii || {}, m);
+      if (ks.bloquants.length) fail(409, `Mission impossible : ${ks.bloquants.join(' ; ')}. Contactez l'agence avec votre titre de séjour.`);
     }
     run('INSERT INTO reponses (mission_id, interim_id, etat) VALUES (?,?,?)', m.id, iid, accepte ? 'accepte' : 'decline');
     run('UPDATE notifications SET lu = 1 WHERE mission_id = ? AND interim_id = ?', m.id, iid);
@@ -985,7 +995,7 @@ api.post('/journal/supprimer', role('agence'), (req, res) => {
   res.json({ supprimes: Number(r.changes) });
 });
 api.get('/config', (req, res) => res.json({ points_etab: POINTS_ETAB, note_basse: NOTE_BASSE, canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES,
-  regles_mineurs: AGE.REGLES_MINEURS, regles_senior: AGE.REGLES_SENIOR, retraite: AGE.RETRAITE,
+  regles_mineurs: AGE.REGLES_MINEURS, regles_senior: AGE.REGLES_SENIOR, retraite: AGE.RETRAITE, titres_sejour: SEJOUR.TITRES,
   taux_postes: hcr.tauxPostes(), smic: hcr.smic(), coefficient_minimum: contratsClients.coefMin(),
   // Coût d'une heure pour l'agence ÷ taux horaire brut (fin de mission, congés payés, charges) : sert au calcul de marge d'un contrat.
   ...(req.user.profil === 'agence' ? { facteur_cout: (1 + P.num('ifm_taux', 10) / 100) * (1 + P.num('iccp_taux', 10) / 100) * (1 + P.num('charges_patronales_taux', 20) / 100) } : {}) }));

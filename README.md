@@ -131,6 +131,16 @@ La date de naissance (fiche intérimaire, candidature) donne l'âge. Une **alert
 
 Règles indicatives, à faire valider (DREETS, médecine du travail) ; elles se modifient dans `src/age.js`.
 
+### Nationalité hors Union européenne : titre de séjour
+
+La candidature demande la nationalité (française ; Union européenne, EEE ou Suisse ; autre). Pour une autre nationalité, elle demande le titre détenu (carte de résident, « vie privée et familiale », « salarié / travailleur temporaire », « étudiant », récépissé ou APS autorisant à travailler, demandeur d'asile, visa court séjour ou touriste, sans titre, démarches en cours) et sa date de fin de validité. La fiche intérimaire reprend ces informations (modifiables).
+
+- **Alerte** sur la candidature et la fiche, avec les conditions de travail du titre et les règles communes (interdiction d'employer sans autorisation, vérification du titre à la préfecture 2 jours ouvrables avant la première mission, contrat de mission limité à la validité du titre, égalité de traitement HCR). Étudiant : 964 heures par an au plus. Titre expirant dans les 60 jours : rappel.
+- **Non acceptable** (visa court séjour ou touriste, sans titre, démarches en cours, demandeur d'asile sans autorisation de travail, titre expiré) : ligne en rouge, acceptation et inscription refusées (le refus reste possible). La personne reste comptée dans les statistiques (étude de marché, candidatures du mois), avec la répartition par nationalité et par titre.
+- **Missions** : non proposées (diffusion) ni acceptables (espace intérimaire) sans titre valable à la date de la mission ; alerte pour les étudiants et les titres limités.
+
+Règles indicatives, à faire valider (préfecture, DREETS) ; elles se modifient dans `src/sejour.js`.
+
 ### Fiche client
 
 Clients › Fiches clients, sur le modèle de la fiche intérimaire : liste à gauche (note, nombre de missions), fiche à droite avec identité, coefficient, chiffres (missions, pourvues, note), accès à l'espace employeur, puis **Profil et étude de marché** : points clés (type d'établissement, effectif, fréquence des renforts, délai, coefficient jugé acceptable, règlement, besoin d'intérimaires véhiculés) et toutes les réponses au questionnaire, section par section. Le questionnaire vient de la demande faite sur le site (même adresse e-mail) ou d'une visite terrain ; « Saisir l'étude de marché » ouvre le questionnaire pré-rempli avec les coordonnées du client et l'enregistre sur sa fiche. Le suivi de l'étude annuelle (invité, a répondu) est indiqué, sans les réponses, qui restent anonymes. Viennent ensuite les avis, les contrats commerciaux et les documents.

@@ -790,10 +790,10 @@ V.agence.interimaires = async () => {
   return head('Intérimaires', 'Fiches candidats, dossier administratif, contrats et accès à l\'espace intérimaire.', btn('Nouvel intérimaire', 'plus', 'data-a="interimform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun intérimaire. Créez la première fiche.')) :
       `<div class="grid-main side">
-      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', listeParFonction(L, i => i.poste || 'Autre', s.id, i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b> ${alerteAge(i.date_naissance, true)}<span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}${alerteNote(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`, 'intérimaire'))}
+      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', listeParFonction(L, i => i.poste || 'Autre', s.id, i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b> ${alerteAge(i.date_naissance, true)}${i.sejour && i.sejour.niveau !== 'autorise' ? ` <span class="alerte-age${i.sejour.niveau === 'interdit' || i.sejour.niveau === 'verifier' ? ' alerte-sejour-rouge' : ''}" title="${esc(i.sejour.libelle)}">${ic('alert')}Titre</span>` : ''}<span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}${alerteNote(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`, 'intérimaire'))}
       <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}${gestionProfil('interimaires', s)}</div></div>
-      <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}${conditionsAge(s.date_naissance)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
-      <dt>Naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}${s.date_naissance ? ' ' + (alerteAge(s.date_naissance) || `<span class="muted">(${ageCalc(s.date_naissance)} ans)</span>`) : ''}${s.lieu_naissance ? ' à ' + esc(s.lieu_naissance) : ''}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
+      <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}${conditionsSejour(s.sejour)}${conditionsAge(s.date_naissance)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
+      <dt>Naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}${s.date_naissance ? ' ' + (alerteAge(s.date_naissance) || `<span class="muted">(${ageCalc(s.date_naissance)} ans)</span>`) : ''}${s.lieu_naissance ? ' à ' + esc(s.lieu_naissance) : ''}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)} ${alerteSejour(s.sejour)}</dd>
       <dt>Sécurité sociale</dt><dd class="mono">${esc(s.nir || '—')}</dd><dt>Domicile</dt><dd>${esc([s.adresse, [s.code_postal, s.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—')}</dd>
       <dt>Taux horaire brut</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>${s.cv_candidat ? `<dt>CV de candidature</dt><dd>${btn('Voir le CV', 'file', `data-a="cvvoir" data-id="${s.cv_candidat}"`, 'sm')}</dd>` : ''}
       <dt>Dossier administratif</dt><dd>${s.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd><dt>Note moyenne</dt><dd>${stars(s.note)}</dd></dl>
@@ -837,6 +837,17 @@ function conditionsAge(dn) {
   const R = c === 'senior' ? S.cfg?.regles_senior || [] : S.cfg?.regles_mineurs || [];
   const titre = c === 'senior' ? `${a} ans : âge légal de départ à la retraite atteint (${libMois(moisRetraite(dn))} pour sa génération)` : c === 'moins16' ? `Moins de 16 ans (${a} ans) : emploi interdit, sauf travaux légers pendant les vacances scolaires avec autorisation de l'inspection du travail` : `Mineur de ${a} ans : conditions de travail particulières (hôtellerie-restauration)`;
   return `<div class="conditions-age"><div class="conditions-age-t">${ic('alert')}<b>${esc(titre)}</b></div><ul>${R.map(x => `<li>${esc(x)}</li>`).join('')}</ul>${c !== 'senior' ? '<p class="small">Les missions de nuit (après 23 h 30 ou avant 6 h) et de plus de 8 heures ne peuvent pas lui être proposées.</p>' : ''}</div>`;
+}
+/** Nationalité hors UE : alerte selon le titre de séjour (rouge si non autorisé à travailler). */
+function alerteSejour(st) {
+  if (!st) return '';
+  const cls = st.niveau === 'interdit' || st.niveau === 'verifier' ? 'alerte-age alerte-sejour-rouge' : st.niveau === 'conditions' ? 'alerte-age' : 'alerte-sejour-ok';
+  return `<span class="${cls}" title="${esc(st.titre || 'Titre de séjour non renseigné')}">${ic(st.niveau === 'autorise' ? 'idcard' : 'alert')}${esc(st.libelle)}${st.expiration && st.niveau !== 'interdit' ? ` · jusqu'au ${fdate(st.expiration, 'num')}` : ''}</span>`;
+}
+function conditionsSejour(st) {
+  if (!st) return '';
+  const titre = st.niveau === 'interdit' ? `Candidature non acceptable : ${st.court.toLowerCase()}` : st.niveau === 'verifier' ? 'Nationalité hors Union européenne : titre de séjour à justifier avant toute mission' : `Nationalité hors Union européenne : ${st.court}`;
+  return `<div class="conditions-age${st.niveau === 'autorise' ? ' conditions-ok' : ''}"><div class="conditions-age-t">${ic(st.niveau === 'autorise' ? 'idcard' : 'alert')}<b>${esc(titre)}</b></div>${st.titre ? `<p class="small" style="margin:6px 0 0">Titre déclaré : ${esc(st.titre)}${st.expiration ? `, valable jusqu'au ${fdate(st.expiration, 'num')}` : ''}.</p>` : ''}${st.alertes.length ? `<p style="margin:4px 0 0"><b>${esc(st.alertes.join(' · '))}</b></p>` : ''}<ul>${st.regles.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div>`;
 }
 /** Liste des fiches classée par fonction (poste de l'intérimaire, secteur de l'établissement) en listes déroulantes :
  *  une seule ouverte à la fois, celle de la fiche affichée s'ouvre seule. */
@@ -1206,7 +1217,7 @@ V.interim.avis = async () => {
 /** Formulaire construit à partir du questionnaire servi par l'API. */
 function questionnaireHtml(Q) {
   const champ = c => {
-    const skip = c.skip ? ' data-skip' : '', id = 'q-' + c.k;
+    const skip = (c.skip ? ' data-skip' : '') + (c.si ? ` data-si="${esc(c.si[0])}" data-si-v="${esc(c.si[1])}" hidden` : ''), id = 'q-' + c.k;
     if (c.type === 'radio' || c.type === 'checks') {
       const t = c.type === 'radio' ? 'radio' : 'checkbox', opts = [...c.options, ...(c.autre ? ['Autre'] : [])];
       return `<fieldset class="q full"${skip}><legend>${esc(c.l)}${c.req ? ' <span class="req">*</span>' : ''}${c.type === 'checks' ? ' <span class="small muted">(plusieurs choix possibles)</span>' : ''}</legend>
@@ -1389,7 +1400,7 @@ V.agence.candidats = async () => {
     `<div class="kpis">${kpi('Candidatures actives', 'idcard', L.filter(x => !['inscrit', 'refuse'].includes(x.statut)).length)}${kpi('À rappeler aujourd\'hui', 'clock', dus, dus ? 'Rappels en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Nouvelles', 'send', L.filter(x => x.statut === 'nouveau').length)}${kpi('Inscrits', 'users', L.filter(x => x.statut === 'inscrit').length)}</div>` +
     panel(null, `<div class="seg" data-titre="Statut">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_rappeler', 'À rappeler'], ['entretien', 'Rendez-vous'], ['actifs', 'En cours'], ['inscrit', 'Inscrits'], ['refuse', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
       vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0" title="Voir le profil"><td><b class="lien-profil">${esc(x.prenom)} ${esc(x.nom)}</b> ${alerteAge(x.reponses.date_naissance)}${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div>${x.reponses.situation ? `<div class="small">${esc(x.reponses.situation === 'Autre' && x.reponses.situation_autre ? x.reponses.situation_autre : x.reponses.situation)}</div>` : ''}</td>
+      ${vis.map(x => `<tr class="clickable${x.sejour?.niveau === 'interdit' ? ' ligne-interdite' : ''}" data-a="candidat" data-id="${x.id}" tabindex="0" title="Voir le profil"><td><b class="lien-profil">${esc(x.prenom)} ${esc(x.nom)}</b> ${alerteAge(x.reponses.date_naissance)} ${alerteSejour(x.sejour)}${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div>${x.reponses.situation ? `<div class="small">${esc(x.reponses.situation === 'Autre' && x.reponses.situation_autre ? x.reponses.situation_autre : x.reponses.situation)}</div>` : ''}</td>
         <td class="small"><b>${esc(x.poste || '—')}</b>${x.reponses.experience ? `<div class="muted">${esc(x.reponses.experience)}</div>` : ''}</td>
         <td class="small">${esc((x.reponses.creneaux || []).join(', ') || '—')}${x.reponses.type_mission ? `<div class="muted">${esc(x.reponses.type_mission)}</div>` : ''}</td>
         <td>${fdate(x.created_at.slice(0, 10), 'num')}${x.cv_fichier ? `<div>${btn('Voir le CV', 'file', `data-a="cvvoir" data-id="${x.id}" title="${esc(x.cv_nom || 'CV')}"`, 'sm ghost cv-lien')}</div>` : ''}</td>
@@ -1416,14 +1427,14 @@ async function candidatModal(id) {
   const x = L.find(c => c.id === id); if (!x) return;
   const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : v === true ? 'Oui' : c.type === 'date' ? fdate(v, 'num') : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
   const secs = d.questionnaire.map(sec => { const L2 = sec.champs.map(c => [c.l, val(c)]).filter(([, v]) => v); return L2.length ? `<h3 class="q-titre">${esc(sec.titre)}</h3><dl class="kv">${L2.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''; }).join('');
-  openModal(`${modalHead(ic('idcard') + `${esc(x.prenom)} ${esc(x.nom)} ${alerteAge(x.reponses.date_naissance)}`, `Candidature reçue le ${fdate(x.created_at.slice(0, 10), 'num')} · ${esc(x.poste || 'poste non précisé')}`)}
-    <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${conditionsAge(x.reponses.date_naissance)}${x.cv_fichier ? `<h3 class="q-titre">CV joint</h3>${cvBloc(x.id, x.cv_fichier, x.cv_nom)}` : '<p class="small muted">Aucun CV joint à cette candidature.</p>'}${secs}</div>
+  openModal(`${modalHead(ic('idcard') + `${esc(x.prenom)} ${esc(x.nom)} ${alerteAge(x.reponses.date_naissance)} ${alerteSejour(x.sejour)}`, `Candidature reçue le ${fdate(x.created_at.slice(0, 10), 'num')} · ${esc(x.poste || 'poste non précisé')}`)}
+    <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${conditionsSejour(x.sejour)}${conditionsAge(x.reponses.date_naissance)}${x.cv_fichier ? `<h3 class="q-titre">CV joint</h3>${cvBloc(x.id, x.cv_fichier, x.cv_nom)}` : '<p class="small muted">Aucun CV joint à cette candidature.</p>'}${secs}</div>
     <form data-f="csuivi" data-id="${x.id}" class="panel-b form" style="border-top:1px solid var(--line)"><h3 class="q-titre full">Suivi du recrutement</h3>
       <label class="f">Statut<select name="statut">${Object.entries(C_ST).map(([k, [, l]]) => `<option value="${k}" ${k === x.statut ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="f">Date de rappel / d'entretien<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
       <label class="f full">Notes de l'agence<textarea name="notes_agence" maxlength="3000">${esc(x.notes_agence || '')}</textarea></label>
       ${decisionInfo(x) ? `<div class="full">${decisionInfo(x)}</div>` : ''}
-      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('candidat', x)}${x.interim_id ? btn('Ouvrir la fiche intérimaire', 'users', `data-a="ouvrirfiche" data-t="interim" data-id="${x.interim_id}"`, 'sm') : btn('Créer la fiche intérimaire', 'users', `data-a="cinterim" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="cdel" data-id="${x.id}"`, 'sm danger')}</div>
+      <div class="full row" style="justify-content:space-between;flex-wrap:wrap;gap:8px"><div class="row">${boutonsDecision('candidat', x)}${x.interim_id ? btn('Ouvrir la fiche intérimaire', 'users', `data-a="ouvrirfiche" data-t="interim" data-id="${x.interim_id}"`, 'sm') : x.sejour?.niveau === 'interdit' ? '' : btn('Créer la fiche intérimaire', 'users', `data-a="cinterim" data-id="${x.id}"`, 'sm')}${btn('Supprimer', 'trash', `data-a="cdel" data-id="${x.id}"`, 'sm danger')}</div>
       <div class="row">${btn('Fermer', '', 'data-a="close"')}<button class="btn primary" type="submit">Enregistrer le suivi</button></div></div></form>`);
   if (x.cv_fichier) $('#modal .modal')?.classList.add('modal-large');
 }
@@ -1668,7 +1679,7 @@ async function decisionModal(type, id, decision) {
 /** Message après une acceptation : la fiche intérimaire ou client est créée automatiquement. */
 const ficheCreee = r => r.interim_id ? ' Fiche intérimaire créée (Intérimaires › Fiches intérimaires).' : r.client_id ? ' Fiche client créée (Clients › Fiches clients).' : '';
 const boutonsDecision = (type, x) => ['nouveau', 'a_rappeler', 'a_relancer'].includes(x.statut)
-  ? btn('Accepter', 'check', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="acceptee"`, 'sm primary') + btn('Refuser', 'ban', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="refusee"`, 'sm danger') : '';
+  ? (x.sejour?.niveau === 'interdit' ? `<span class="small refus-auto" title="Pas d'autorisation de travail valable en France">${ic('ban')}Non acceptable</span>` : btn('Accepter', 'check', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="acceptee"`, 'sm primary')) + btn('Refuser', 'ban', `data-a="decider" data-t="${type}" data-id="${x.id}" data-d="refusee"`, 'sm danger') : '';
 const decisionInfo = x => x.decision ? `<div class="small ${x.decision === 'refusee' ? 'muted' : ''}" style="margin-top:2px">${x.decision === 'acceptee' ? `${ic('check', 'style="width:12px;height:12px;vertical-align:-2px"')} Acceptée le ${fdate(x.decision_le.slice(0, 10), 'num')}${x.rdv_propose ? ` · RDV ${new Date(x.rdv_propose).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}` : x.decision_sans_envoi ? '' : ' · RDV sous 48 h demandé'}` : `Refusée le ${fdate(x.decision_le.slice(0, 10), 'num')}`}${x.decision_sans_envoi ? ' · sans message' : ''}</div>` : '';
 
 /* ================= Planning : Mois / Semaine / Intérimaires, agenda en liste sur téléphone ================= */
@@ -1855,7 +1866,7 @@ async function missionForm() {
 async function diffuseModal(id) {
   const [ms, is, ka] = await Promise.all([GET('/missions'), GET('/interimaires'), GET(`/missions/${id}/controle-age`).catch(() => ({}))]);
   const m = ms.find(x => x.id === id); if (!m) return;
-  const ctrl = i => { const k = ka[i.id]; if (!k) return ''; return `<span class="ctrl-age">${alerteAge(i.date_naissance)}${k.bloquants.length ? `<span class="ctrl-bloque">Non proposable : ${esc(k.bloquants.join(' ; '))}</span>` : ''}${k.alertes.length ? `<span class="ctrl-alerte">${esc(k.alertes.join(' ; '))}</span>` : ''}</span>`; };
+  const ctrl = i => { const k = ka[i.id]; if (!k) return ''; return `<span class="ctrl-age">${alerteAge(i.date_naissance)}${alerteSejour(k.sejour)}${k.bloquants.length ? `<span class="ctrl-bloque">Non proposable : ${esc(k.bloquants.join(' ; '))}</span>` : ''}${k.alertes.length ? `<span class="ctrl-alerte">${esc(k.alertes.join(' ; '))}</span>` : ''}</span>`; };
   const deja = new Set(m.envois.map(e => e.interim_id));
   const norm = x => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const mots = norm(m.poste).split(/[\s-]+/).filter(x => x.length > 3 && !['extra', 'commis'].includes(x));
@@ -1881,6 +1892,8 @@ async function interimForm(id) {
     <label class="f">Secteur<select name="secteur">${opt(SECTEURS, i.secteur)}</select></label>${f('telephone', 'Téléphone (SMS, WhatsApp)', 'tel')}${f('email', 'E-mail', 'email')}${f('ville', 'Ville')}
     ${f('taux_horaire', 'Taux horaire brut (€)', 'number', 'step="0.01" min="10" max="60"')}${f('date_naissance', 'Date de naissance', 'date')}
     ${f('lieu_naissance', 'Lieu de naissance (ville, pays)')}<label class="f">Nationalité<select name="nationalite">${opt(S.cfg?.nationalites || ['Française'], i.nationalite || 'Française')}</select></label>
+    <label class="f" data-si="nationalite" data-si-v="Autre"${i.nationalite === 'Autre' ? '' : ' hidden'}>Titre de séjour ou autorisation de travail<select name="titre_sejour"><option value="">— à renseigner —</option>${opt(S.cfg?.titres_sejour || [], i.titre_sejour || '')}</select></label>
+    <label class="f" data-si="nationalite" data-si-v="Autre"${i.nationalite === 'Autre' ? '' : ' hidden'}>Fin de validité du titre<input type="date" name="titre_expiration" value="${esc(i.titre_expiration || '')}"></label>
     ${f('nir', 'N° de sécurité sociale', 'text', 'inputmode="numeric" maxlength="21" autocomplete="off" placeholder="1 85 05 69 123 456 78"')}${f('adresse', 'Adresse du domicile')}${f('code_postal', 'Code postal', 'text', 'inputmode="numeric" maxlength="5"')}
     <label class="f full">Compétences<input type="text" name="competences" value="${esc(i.competences || '')}"></label>
     <p class="hint full">Ces informations remplissent automatiquement le contrat de mission. L'employeur ne voit jamais la date et le lieu de naissance, le n° de sécurité sociale ni l'adresse du domicile. La date de naissance et la nationalité déterminent les pièces exigées (autorisation parentale, titre de séjour). Le dossier passe « complet » quand l'agence a validé toutes les pièces exigées.</p></div>
@@ -2267,6 +2280,8 @@ document.addEventListener('change', e => {
   if (e.target.name === 'quand') { const z = e.target.form.querySelector('[data-periode]'); if (z) z.hidden = e.target.value !== 'periode'; }
   // Motif « remplacement » : nom et poste du salarié remplacé (mentions obligatoires)
   if (e.target.matches?.('[data-motif]')) { const z = e.target.form.querySelector('[data-remplace]'); z.hidden = !/remplacement/i.test(e.target.value); z.querySelector('input').required = !z.hidden; }
+  // Questions conditionnelles (ex. titre de séjour si « Autre nationalité ») : affichées selon la réponse
+  if (e.target.form && e.target.name) e.target.form.querySelectorAll(`[data-si="${CSS.escape(e.target.name)}"]`).forEach(x => { x.hidden = !(e.target.value === x.dataset.siV && (e.target.type !== 'radio' || e.target.checked)); });
   // Questionnaire : « Rarement / jamais » saute les questions sur les renforts actuels
   if (e.target.name === 'frequence') e.target.form.querySelectorAll('[data-skip]').forEach(x => { x.hidden = e.target.value === 'Rarement / jamais'; });
   // « Autre » coché : champ de précision

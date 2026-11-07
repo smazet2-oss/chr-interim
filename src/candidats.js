@@ -10,6 +10,10 @@ const P = require('./parametres');
 const { envoyer } = require('./notify');
 const { POSTES_PROPOSES } = require('./hcr-grille');
 const { nettoyer, limite } = require('./prospects');
+const SEJOUR = require('./sejour');
+const { addColumn } = require('./db');
+addColumn('interimaires', 'titre_sejour', 'TEXT');
+addColumn('interimaires', 'titre_expiration', 'TEXT');
 
 db.exec(`CREATE TABLE IF NOT EXISTS candidats (
   id INTEGER PRIMARY KEY,
@@ -34,7 +38,9 @@ const QUESTIONNAIRE = [
     { k: 'email', l: 'E-mail', type: 'email' },
     { k: 'ville', l: 'Ville où vous habitez', type: 'text', req: true },
     { k: 'date_naissance', l: 'Date de naissance', type: 'date' },
-    { k: 'autorisation', l: 'Autorisation de travailler en France', type: 'radio', options: ['Nationalité française ou européenne', 'Titre de séjour autorisant à travailler', 'Démarches en cours'] },
+    { k: 'nationalite_cat', l: 'Votre nationalité', type: 'radio', req: true, options: SEJOUR.NATIONALITES_CAND },
+    { k: 'titre_sejour', l: 'Votre titre de séjour ou autorisation de travail', type: 'radio', si: ['nationalite_cat', 'Autre nationalité'], options: SEJOUR.TITRES },
+    { k: 'titre_expiration', l: 'Date de fin de validité du titre (si vous en avez un)', type: 'date', si: ['nationalite_cat', 'Autre nationalité'] },
   ] },
   { titre: 'Votre situation actuelle', champs: [
     { k: 'situation', l: 'Quelle est votre situation actuelle ?', type: 'radio', req: true, autre: true, options: ['Étudiant(e)', 'Salarié(e)', 'Sans emploi / demandeur d\'emploi', 'Retraité(e)'] },
@@ -84,7 +90,9 @@ function publiques(api, h) {
     if (b.site_web) return res.status(201).json({ ok: true }); // champ piège : robot
     if (!b.consentement) fail(400, 'Merci d\'accepter la conservation de vos informations pour que l\'agence vous recontacte.');
     const r = nettoyer(b, fail, CHAMPS);
-    for (const k of ['date_naissance', 'disponible_le']) if (r[k] && !isDate(r[k])) fail(400, 'Date invalide.');
+    for (const k of ['date_naissance', 'disponible_le', 'titre_expiration']) if (r[k] && !isDate(r[k])) fail(400, 'Date invalide.');
+    if (r.nationalite_cat === 'Autre nationalité' && !r.titre_sejour) fail(400, 'Indiquez votre titre de séjour ou votre autorisation de travail.');
+    if (r.nationalite_cat !== 'Autre nationalité') { delete r.titre_sejour; delete r.titre_expiration; }
     if (!req.file) fail(400, 'Joignez votre CV (PDF, Word ou photo, 5 Mo maximum) : il est obligatoire pour étudier votre candidature.');
     let fichier = null;
     if (req.file) {
@@ -114,9 +122,10 @@ function creerFiche(c) {
   const r = c.reponses, poste = c.poste || 'Serveur';
   const secteur = /cuisin|chef de partie|plong|commis de cuisine/i.test(poste) ? 'Cuisine' : /barman|bar\b/i.test(poste) ? 'Bar' : /chambre|gouvernante|r[ée]ception|veilleur|petit-d/i.test(poste) ? 'Hôtellerie' : 'Restauration';
   const competences = [r.vehicule && 'Véhiculé(e)', ...(r.formations || []).filter(x => x !== 'Autre'), r.formations_autre, r.langues && 'Langues : ' + r.langues].filter(Boolean).join(', ');
-  const nationalite = r.autorisation === 'Nationalité française ou européenne' ? 'Française' : 'Autre';
-  const id = Number(run('INSERT INTO interimaires (prenom, nom, poste, secteur, telephone, email, ville, competences, experience, date_naissance, nationalite) VALUES (?,?,?,?,?,?,?,?,?,?,?)',
-    c.prenom, c.nom, poste, secteur, c.telephone, c.email, c.ville, competences.slice(0, 1000), String(r.experience || '').slice(0, 1000), r.date_naissance || null, nationalite).lastInsertRowid);
+  const nationalite = SEJOUR.nationaliteFiche(r);
+  const id = Number(run('INSERT INTO interimaires (prenom, nom, poste, secteur, telephone, email, ville, competences, experience, date_naissance, nationalite, titre_sejour, titre_expiration) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
+    c.prenom, c.nom, poste, secteur, c.telephone, c.email, c.ville, competences.slice(0, 1000), String(r.experience || '').slice(0, 1000), r.date_naissance || null, nationalite,
+    nationalite === 'Autre' ? SEJOUR.titreCandidat(r) : null, nationalite === 'Autre' ? r.titre_expiration || null : null).lastInsertRowid);
   run('UPDATE candidats SET interim_id = ?, updated_at = datetime(\'now\') WHERE id = ?', id, c.id);
   return id;
 }
@@ -124,7 +133,7 @@ function creerFiche(c) {
 function agence(api, h) {
   const { fail, wrap, role } = h;
   api.get('/candidats', role('agence'), (req, res) => res.json(all('SELECT * FROM candidats ORDER BY CASE WHEN statut IN (\'inscrit\', \'refuse\') THEN 1 ELSE 0 END, COALESCE(date_relance, \'9999\'), id DESC').map(lire)
-    .map(c => { const AGE = require('./age'), a = AGE.age(c.reponses.date_naissance, h.today()); return { ...c, age: a, categorie_age: AGE.categorie(a, c.reponses.date_naissance, h.today()) }; })));
+    .map(c => { const AGE = require('./age'), a = AGE.age(c.reponses.date_naissance, h.today()); return { ...c, age: a, categorie_age: AGE.categorie(a, c.reponses.date_naissance, h.today()), sejour: SEJOUR.situationCandidat(c.reponses, h.today()) }; })));
   /** Texte proposé avant l'envoi, puis décision (acceptée : demande de rendez-vous sous 48 h ; refusée). */
   api.get('/candidats/:id/modele', role('agence'), wrap((req, res) => {
     const c = one('SELECT * FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');
@@ -133,6 +142,8 @@ function agence(api, h) {
   api.post('/candidats/:id/decision', role('agence'), wrap(async (req, res) => {
     const c = one('SELECT * FROM candidats WHERE id = ?', req.params.id); if (!c) fail(404, 'Candidature introuvable.');
     if (c.interim_id) fail(409, 'Cette personne est déjà inscrite.');
+    const st = SEJOUR.situationCandidat(JSON.parse(c.reponses || '{}'), h.today());
+    if ((req.body || {}).decision !== 'refusee' && st?.niveau === 'interdit') fail(409, `Candidature non acceptable : ${st.court.toLowerCase()} (pas d'autorisation de travail valable en France).`);
     const r = await decisions.decider('candidats', 'candidat', c, req.body || {}, h.today());
     if (r.decision === 'acceptee') r.interim_id = creerFiche(lire(c)); // fiche intérimaire créée dès l'acceptation
     res.json(r);
@@ -163,6 +174,8 @@ function agence(api, h) {
   api.post('/candidats/:id/interimaire', role('agence'), wrap((req, res) => {
     const c = lire(one('SELECT * FROM candidats WHERE id = ?', req.params.id)); if (!c) fail(404, 'Candidature introuvable.');
     if (c.interim_id) fail(409, 'Cette personne a déjà une fiche intérimaire.');
+    const st = SEJOUR.situationCandidat(c.reponses, h.today());
+    if (st?.niveau === 'interdit') fail(409, `Inscription impossible : ${st.court.toLowerCase()} (pas d'autorisation de travail valable en France).`);
     const id = creerFiche(c);
     run('UPDATE candidats SET statut = \'inscrit\', updated_at = datetime(\'now\') WHERE id = ?', c.id);
     res.status(201).json({ interim_id: id });

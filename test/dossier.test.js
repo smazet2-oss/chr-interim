@@ -45,7 +45,7 @@ const pdf = (nom = 'doc.pdf') => { const fd = new FormData(); fd.append('fichier
 test('expériences, dossier légal, contrat et paie', async () => {
   const ag = await connecte('admin', 'Admin-Temp1', 'Agence2026');
   const c = (await ag.post('/clients', { nom: 'Hôtel Test', adresse: '1 place Bellecour', ville: 'Lyon' })).data;
-  const i = (await ag.post('/interimaires', { prenom: 'Inès', nom: 'Garcia', poste: 'Serveuse', nationalite: 'Autre', date_naissance: '2000-05-01' })).data;
+  const i = (await ag.post('/interimaires', { prenom: 'Inès', nom: 'Garcia', poste: 'Serveuse', nationalite: 'Autre', titre_sejour: 'Carte de résident ou carte « résident de longue durée-UE »', titre_expiration: '2034-01-01', date_naissance: '2000-05-01' })).data;
   const autre = (await ag.post('/interimaires', { prenom: 'Paul', nom: 'Roy', poste: 'Serveur' })).data;
   const a1 = (await ag.post('/acces', { type: 'interim', id: i.id })).data;
   const a2 = (await ag.post('/acces', { type: 'interim', id: autre.id })).data;

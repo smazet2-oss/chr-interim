@@ -83,3 +83,46 @@ test('âge légal de départ à la retraite selon la génération', () => {
   assert.equal(A.categorie(63, '1963-01-01'.replace('1963', '1966'), '2029-01-01'), null);
   assert.equal(A.categorie(63, '1966-01-01', '2029-04-01'), 'senior');
 });
+
+const SJ = require('../src/sejour');
+test('titres de séjour : situation et conditions', () => {
+  const T = SJ.TITRES;
+  assert.equal(SJ.situation({ nationalite: 'Française' }), null);
+  assert.equal(SJ.situation({ nationalite: 'Union européenne / EEE / Suisse' }), null);
+  assert.equal(SJ.situation({ nationalite: 'Autre', titre: T[0], expiration: '2030-01-01' }, '2026-11-07').niveau, 'autorise');
+  const etu = SJ.situation({ nationalite: 'Autre', titre: T[3], expiration: '2027-09-30' }, '2026-11-07');
+  assert.equal(etu.niveau, 'conditions'); assert.match(etu.regles.join(), /964 heures/);
+  assert.equal(SJ.situation({ nationalite: 'Autre', titre: T[6] }, '2026-11-07').niveau, 'interdit');
+  assert.equal(SJ.situation({ nationalite: 'Autre', titre: T[8] }, '2026-11-07').niveau, 'interdit');
+  const exp = SJ.situation({ nationalite: 'Autre', titre: T[1], expiration: '2026-10-01' }, '2026-11-07');
+  assert.equal(exp.niveau, 'interdit'); assert.match(exp.libelle, /expiré/);
+  assert.equal(SJ.situation({ nationalite: 'Autre' }, '2026-11-07').niveau, 'verifier');
+  assert.match(SJ.situation({ nationalite: 'Autre', titre: T[1], expiration: '2026-12-01' }, '2026-11-07').alertes.join(), /24 jours/);
+  // Ancienne question de la candidature
+  assert.equal(SJ.situationCandidat({ autorisation: 'Nationalité française ou européenne' }), null);
+  assert.equal(SJ.situationCandidat({ autorisation: 'Démarches en cours' }).niveau, 'interdit');
+  // Mission après l'expiration du titre
+  assert.equal(SJ.controleMission({ nationalite: 'Autre', titre_sejour: T[0], titre_expiration: '2026-12-01' }, { date: '2026-12-15' }).bloquants.length, 1);
+  assert.match(SJ.controleMission({ nationalite: 'Autre', titre_sejour: T[3], titre_expiration: '2027-09-30' }, { date: '2026-12-15' }).alertes.join(), /964/);
+});
+
+test('candidature étrangère : titre demandé, non acceptable mise en rouge et comptée dans les statistiques', async () => {
+  const ag = await agence();
+  const env = async champs => { const f = new FormData(); for (const [k, v] of Object.entries(champs)) f.append(k, v); f.append('cv', new Blob(['%PDF-1.4 cv'], { type: 'application/pdf' }), 'cv.pdf');
+    return (await fetch(base + '/public/candidature', { method: 'POST', headers: { 'X-CHR': '1' }, body: f })).status; };
+  const base0 = { consentement: '1', prenom: 'Ana', nom: 'Silva', telephone: '0600000055', ville: 'Lyon', situation: 'Étudiant(e)', nationalite_cat: 'Autre nationalité', postes: 'Serveur' };
+  assert.equal(await env(base0), 400, 'titre de séjour demandé');
+  assert.equal(await env({ ...base0, titre_sejour: SJ.TITRES[6] }), 201);
+  assert.equal(await env({ ...base0, prenom: 'Liu', nom: 'Wei', titre_sejour: SJ.TITRES[3], titre_expiration: '2030-09-30' }), 201);
+  const L = (await ag.get('/candidats')).data, ana = L.find(c => c.nom === 'Silva'), liu = L.find(c => c.nom === 'Wei');
+  assert.equal(ana.sejour.niveau, 'interdit'); assert.equal(liu.sejour.niveau, 'conditions');
+  assert.equal((await ag.post(`/candidats/${ana.id}/decision`, { decision: 'acceptee', sans_envoi: true })).status, 409, 'non acceptable');
+  assert.equal((await ag.post(`/candidats/${ana.id}/decision`, { decision: 'refusee', sans_envoi: true })).status, 200, 'refus possible');
+  const r = (await ag.post(`/candidats/${liu.id}/decision`, { decision: 'acceptee', sans_envoi: true })).data;
+  const fiche = (await ag.get('/interimaires')).data.find(x => x.id === r.interim_id);
+  assert.equal(fiche.nationalite, 'Autre'); assert.equal(fiche.titre_sejour, SJ.TITRES[3]); assert.equal(fiche.sejour.niveau, 'conditions');
+  // Statistiques de l'étude : les deux candidatures comptées
+  const st = (await ag.get(`/etude/resultats?cible=interimaire&source=dossiers&annee=${plusJours(0).slice(0, 4)}`)).data;
+  const q = st.sections.flatMap(x => x.questions).find(x => x.k === 'titre_sejour');
+  assert.ok(q.options.find(o => o.l === SJ.TITRES[6]).n >= 1 && q.options.find(o => o.l === SJ.TITRES[3]).n >= 1);
+});

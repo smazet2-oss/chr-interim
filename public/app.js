@@ -790,10 +790,10 @@ V.agence.interimaires = async () => {
   return head('Intérimaires', 'Fiches candidats, dossier administratif, contrats et accès à l\'espace intérimaire.', btn('Nouvel intérimaire', 'plus', 'data-a="interimform"', 'primary')) +
     (!L.length ? panel(null, '', empty('Aucun intérimaire. Créez la première fiche.')) :
       `<div class="grid-main side">
-      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', listeParFonction(L, i => i.poste || 'Autre', s.id, i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}${alerteNote(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`, 'intérimaire'))}
+      ${panel(`${L.length} fiche${L.length > 1 ? 's' : ''}`, '', listeParFonction(L, i => i.poste || 'Autre', s.id, i => `<div class="li clickable ${i.id === s.id ? 'sel' : ''}" data-a="isel" data-id="${i.id}" tabindex="0" role="button"><div class="person"><div class="avatar">${initials(i.prenom + ' ' + i.nom)}</div><div><b>${esc(i.prenom)} ${esc(i.nom)}</b> ${alerteAge(i.date_naissance, true)}<span>${esc(i.poste)} · ${i.suspendu ? 'suspendu' : i.dossier_complet ? 'dossier complet' : 'dossier incomplet'}</span></div></div><div style="text-align:right">${stars(i.note)}${alerteNote(i.note)}<div class="small muted">${i.nb_missions} mission${i.nb_missions > 1 ? 's' : ''}</div></div></div>`, 'intérimaire'))}
       <div style="display:flex;flex-direction:column;gap:18px;min-width:0"><section class="panel"><div class="panel-h"><div class="person"><div class="avatar lg">${initials(s.prenom + ' ' + s.nom)}</div><div><h2>${esc(s.prenom)} ${esc(s.nom)}</h2><span>${esc(s.poste)} · ${esc(s.secteur)}</span></div></div><div class="row">${s.suspendu ? badge('off', 'Suspendu') : ''}${btn('Modifier', 'edit', `data-a="interimform" data-id="${s.id}"`, 'sm')}${gestionProfil('interimaires', s)}</div></div>
-      <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
-      <dt>Naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}${s.lieu_naissance ? ' à ' + esc(s.lieu_naissance) : ''}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
+      <div class="panel-b" style="display:flex;flex-direction:column;gap:16px">${suspenduInfo(s)}${conditionsAge(s.date_naissance)}<dl class="kv"><dt>Téléphone</dt><dd>${esc(s.telephone || '—')}</dd><dt>E-mail</dt><dd>${esc(s.email || '—')}</dd><dt>Ville</dt><dd>${esc(s.ville || '—')}</dd>
+      <dt>Naissance</dt><dd>${s.date_naissance ? fdate(s.date_naissance, 'num') : '—'}${s.date_naissance ? ' ' + (alerteAge(s.date_naissance) || `<span class="muted">(${ageCalc(s.date_naissance)} ans)</span>`) : ''}${s.lieu_naissance ? ' à ' + esc(s.lieu_naissance) : ''}</dd><dt>Nationalité</dt><dd>${esc(s.nationalite)}</dd>
       <dt>Sécurité sociale</dt><dd class="mono">${esc(s.nir || '—')}</dd><dt>Domicile</dt><dd>${esc([s.adresse, [s.code_postal, s.ville].filter(Boolean).join(' ')].filter(Boolean).join(', ') || '—')}</dd>
       <dt>Taux horaire brut</dt><dd>${eur(s.taux_horaire)}</dd><dt>Compétences</dt><dd>${esc(s.competences || '—')}</dd>${s.cv_candidat ? `<dt>CV de candidature</dt><dd>${btn('Voir le CV', 'file', `data-a="cvvoir" data-id="${s.cv_candidat}"`, 'sm')}</dd>` : ''}
       <dt>Dossier administratif</dt><dd>${s.dossier_complet ? badge('libre', 'Complet') : badge('attente', 'Incomplet')}</dd><dt>Note moyenne</dt><dd>${stars(s.note)}</dd></dl>
@@ -815,6 +815,25 @@ V.agence.clients = async () => {
       ${accessBox('client', s.id, s.acces)}</div></section>
       ${etudeClientPanel(s, et)}${avisPanel(av, 'client')}${contratsClientPanel(s, cc, 'agence')}${panel('Documents de prise de poste', '', docsTable(docs, true) + uploadForm(s.id))}</div></div>`);
 };
+/** Âge : alerte rouge pour les mineurs (et moins de 16 ans) et les 64 ans ou plus. */
+function ageCalc(dn) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dn || '')) return null;
+  const t = S.cfg?.aujourdhui || new Date().toISOString().slice(0, 10), [y, m, d] = dn.split('-').map(Number), [ty, tm, td] = t.split('-').map(Number);
+  return ty - y - (tm < m || (tm === m && td < d) ? 1 : 0);
+}
+function catAge(a) { return a === null || a === undefined ? null : a < 16 ? 'moins16' : a < 18 ? 'mineur' : a >= (S.cfg?.age_senior || 64) ? 'senior' : null; }
+function alerteAge(dn, court) {
+  const a = ageCalc(dn), c = catAge(a); if (!c) return '';
+  const L = { moins16: 'Moins de 16 ans', mineur: 'Mineur', senior: `${S.cfg?.age_senior || 64} ans ou plus` }[c];
+  return `<span class="alerte-age" title="${esc(L)} : ${a} ans">${ic('alert')}${court ? `${a} ans` : `${L} · ${a} ans`}</span>`;
+}
+/** Conditions particulières : mineurs (Code du travail et dérogations hôtellerie-restauration) ou 64 ans ou plus. */
+function conditionsAge(dn) {
+  const a = ageCalc(dn), c = catAge(a); if (!c) return '';
+  const R = c === 'senior' ? S.cfg?.regles_senior || [] : S.cfg?.regles_mineurs || [];
+  const titre = c === 'senior' ? `Personne de ${a} ans : points de vigilance` : c === 'moins16' ? `Moins de 16 ans (${a} ans) : emploi interdit, sauf travaux légers pendant les vacances scolaires avec autorisation de l'inspection du travail` : `Mineur de ${a} ans : conditions de travail particulières (hôtellerie-restauration)`;
+  return `<div class="conditions-age"><div class="conditions-age-t">${ic('alert')}<b>${esc(titre)}</b></div><ul>${R.map(x => `<li>${esc(x)}</li>`).join('')}</ul>${c !== 'senior' ? '<p class="small">Les missions de nuit (après 23 h 30 ou avant 6 h) et de plus de 8 heures ne peuvent pas lui être proposées.</p>' : ''}</div>`;
+}
 /** Liste des fiches classée par fonction (poste de l'intérimaire, secteur de l'établissement) en listes déroulantes :
  *  une seule ouverte à la fois, celle de la fiche affichée s'ouvre seule. */
 function listeParFonction(L, cle, selId, rendu, nom) {
@@ -1366,7 +1385,7 @@ V.agence.candidats = async () => {
     `<div class="kpis">${kpi('Candidatures actives', 'idcard', L.filter(x => !['inscrit', 'refuse'].includes(x.statut)).length)}${kpi('À rappeler aujourd\'hui', 'clock', dus, dus ? 'Rappels en retard ou du jour' : 'À jour', dus ? 'down' : '')}${kpi('Nouvelles', 'send', L.filter(x => x.statut === 'nouveau').length)}${kpi('Inscrits', 'users', L.filter(x => x.statut === 'inscrit').length)}</div>` +
     panel(null, `<div class="seg" data-titre="Statut">${[['nouveau', `À analyser (${L.filter(x => x.statut === 'nouveau').length})`], ['a_rappeler', 'À rappeler'], ['entretien', 'Rendez-vous'], ['actifs', 'En cours'], ['inscrit', 'Inscrits'], ['refuse', 'Refusées'], ['tous', 'Toutes']].map(([k, l]) => `<button type="button" aria-pressed="${f === k}" data-a="cfiltre" data-f="${k}">${l}</button>`).join('')}</div>`,
       vis.length ? `<div class="scroll"><table><thead><tr><th>Candidat</th><th>Postes</th><th>Disponibilités</th><th>Reçue le</th><th>Rappel</th><th>Statut</th><th></th></tr></thead><tbody>
-      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0" title="Voir le profil"><td><b class="lien-profil">${esc(x.prenom)} ${esc(x.nom)}</b>${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div>${x.reponses.situation ? `<div class="small">${esc(x.reponses.situation === 'Autre' && x.reponses.situation_autre ? x.reponses.situation_autre : x.reponses.situation)}</div>` : ''}</td>
+      ${vis.map(x => `<tr class="clickable" data-a="candidat" data-id="${x.id}" tabindex="0" title="Voir le profil"><td><b class="lien-profil">${esc(x.prenom)} ${esc(x.nom)}</b> ${alerteAge(x.reponses.date_naissance)}${x.reponses.vehicule ? ' ' + badge('libre', 'Véhiculé(e)') : ''}<div class="small muted">${esc([x.ville, x.telephone].filter(Boolean).join(' · '))}</div>${x.reponses.situation ? `<div class="small">${esc(x.reponses.situation === 'Autre' && x.reponses.situation_autre ? x.reponses.situation_autre : x.reponses.situation)}</div>` : ''}</td>
         <td class="small"><b>${esc(x.poste || '—')}</b>${x.reponses.experience ? `<div class="muted">${esc(x.reponses.experience)}</div>` : ''}</td>
         <td class="small">${esc((x.reponses.creneaux || []).join(', ') || '—')}${x.reponses.type_mission ? `<div class="muted">${esc(x.reponses.type_mission)}</div>` : ''}</td>
         <td>${fdate(x.created_at.slice(0, 10), 'num')}${x.cv_fichier ? `<div>${btn('Voir le CV', 'file', `data-a="cvvoir" data-id="${x.id}" title="${esc(x.cv_nom || 'CV')}"`, 'sm ghost cv-lien')}</div>` : ''}</td>
@@ -1393,8 +1412,8 @@ async function candidatModal(id) {
   const x = L.find(c => c.id === id); if (!x) return;
   const r = x.reponses, val = c => { const v = r[c.k]; if (v === undefined || v === '') return null; const t = Array.isArray(v) ? v.join(', ') : v === true ? 'Oui' : c.type === 'date' ? fdate(v, 'num') : String(v); return r[c.k + '_autre'] ? `${t} (${r[c.k + '_autre']})` : t; };
   const secs = d.questionnaire.map(sec => { const L2 = sec.champs.map(c => [c.l, val(c)]).filter(([, v]) => v); return L2.length ? `<h3 class="q-titre">${esc(sec.titre)}</h3><dl class="kv">${L2.map(([l, v]) => `<dt>${esc(l)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''; }).join('');
-  openModal(`${modalHead(ic('idcard') + `${esc(x.prenom)} ${esc(x.nom)}`, `Candidature reçue le ${fdate(x.created_at.slice(0, 10), 'num')} · ${esc(x.poste || 'poste non précisé')}`)}
-    <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${x.cv_fichier ? `<h3 class="q-titre">CV joint</h3>${cvBloc(x.id, x.cv_fichier, x.cv_nom)}` : '<p class="small muted">Aucun CV joint à cette candidature.</p>'}${secs}</div>
+  openModal(`${modalHead(ic('idcard') + `${esc(x.prenom)} ${esc(x.nom)} ${alerteAge(x.reponses.date_naissance)}`, `Candidature reçue le ${fdate(x.created_at.slice(0, 10), 'num')} · ${esc(x.poste || 'poste non précisé')}`)}
+    <div class="panel-b" style="display:flex;flex-direction:column;gap:6px">${conditionsAge(x.reponses.date_naissance)}${x.cv_fichier ? `<h3 class="q-titre">CV joint</h3>${cvBloc(x.id, x.cv_fichier, x.cv_nom)}` : '<p class="small muted">Aucun CV joint à cette candidature.</p>'}${secs}</div>
     <form data-f="csuivi" data-id="${x.id}" class="panel-b form" style="border-top:1px solid var(--line)"><h3 class="q-titre full">Suivi du recrutement</h3>
       <label class="f">Statut<select name="statut">${Object.entries(C_ST).map(([k, [, l]]) => `<option value="${k}" ${k === x.statut ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
       <label class="f">Date de rappel / d'entretien<input type="date" name="date_relance" value="${x.date_relance || ''}"></label>
@@ -1830,8 +1849,9 @@ async function missionForm() {
   majSimulation($('form[data-f="mission"]')); majPeriode($('form[data-f="mission"]'));
 }
 async function diffuseModal(id) {
-  const [ms, is] = await Promise.all([GET('/missions'), GET('/interimaires')]);
+  const [ms, is, ka] = await Promise.all([GET('/missions'), GET('/interimaires'), GET(`/missions/${id}/controle-age`).catch(() => ({}))]);
   const m = ms.find(x => x.id === id); if (!m) return;
+  const ctrl = i => { const k = ka[i.id]; if (!k) return ''; return `<span class="ctrl-age">${alerteAge(i.date_naissance)}${k.bloquants.length ? `<span class="ctrl-bloque">Non proposable : ${esc(k.bloquants.join(' ; '))}</span>` : ''}${k.alertes.length ? `<span class="ctrl-alerte">${esc(k.alertes.join(' ; '))}</span>` : ''}</span>`; };
   const deja = new Set(m.envois.map(e => e.interim_id));
   const norm = x => x.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   const mots = norm(m.poste).split(/[\s-]+/).filter(x => x.length > 3 && !['extra', 'commis'].includes(x));
@@ -1845,7 +1865,7 @@ async function diffuseModal(id) {
     <label class="f" style="max-width:260px">Taux horaire brut (€)<input type="number" name="taux_horaire" step="0.01" min="${S.cfg?.smic || 10}" max="60" value="${m.taux_horaire}"><span class="hint">Minimum HCR du poste : ${eur(tauxPoste(m.poste))}</span></label>
     ${simLive({ client_id: m.client_id, date: m.date, poste: m.poste, debut: m.debut, fin: m.fin, nb_postes: m.nb_postes, motif: m.motif })}
     <div><div class="row" style="justify-content:space-between;margin-bottom:6px"><span class="small muted" style="font-weight:500">Intérimaires destinataires</span>${deja.size ? `<span class="small muted">${deja.size} déjà contacté(s)</span>` : ''}</div>
-    <div style="border:1px solid var(--line);border-radius:8px;max-height:280px;overflow:auto">${L.map(i => `<label class="li clickable" style="padding:9px 12px"><span class="person"><input type="checkbox" name="interim" value="${i.id}" style="width:16px;height:16px;accent-color:var(--accent)"><span class="avatar">${initials(i.prenom + ' ' + i.nom)}</span><span><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)}${i.telephone ? '' : ' · pas de téléphone'}${i.email ? '' : ' · pas d\'e-mail'}</span></span></span>${match(i) ? badge('libre', 'Profil correspondant') : ''}</label>`).join('') || empty('Tous les intérimaires ont déjà été contactés.')}</div></div>
+    <div style="border:1px solid var(--line);border-radius:8px;max-height:280px;overflow:auto">${L.map(i => `<label class="li clickable${ka[i.id]?.bloquants.length ? ' li-bloque' : ''}" style="padding:9px 12px"><span class="person"><input type="checkbox" name="interim" value="${i.id}" ${ka[i.id]?.bloquants.length ? 'disabled' : ''} style="width:16px;height:16px;accent-color:var(--accent)"><span class="avatar">${initials(i.prenom + ' ' + i.nom)}</span><span><b>${esc(i.prenom)} ${esc(i.nom)}</b><span>${esc(i.poste)}${i.telephone ? '' : ' · pas de téléphone'}${i.email ? '' : ' · pas d\'e-mail'}</span>${ctrl(i)}</span></span>${match(i) ? badge('libre', 'Profil correspondant') : ''}</label>`).join('') || empty('Tous les intérimaires ont déjà été contactés.')}</div></div>
     <div class="err" hidden></div></div>${modalFoot(ic('send') + 'Valider et envoyer', 'type="submit"')}</form>`);
   majSimulation($('form[data-f="diffuser"]'));
 }
@@ -2098,7 +2118,7 @@ const F = {
   mission: fd => act(async () => { const r = await POST('/missions', Object.fromEntries(fd)); closeModal(); toast(r.jours > 1 ? `${r.jours} missions créées (une par jour). Diffusez-les aux intérimaires.` : 'Mission créée. Diffusez-la aux intérimaires.'); go('missions'); }),
   diffuser: (fd, f) => act(async () => {
     const r = await POST(`/missions/${f.dataset.id}/diffuser`, { interims: fd.getAll('interim').map(Number), canaux: fd.getAll('canal'), taux_horaire: Number(fd.get('taux_horaire')) });
-    closeModal(); toast(`Mission envoyée à ${r.envoyes} intérimaire${r.envoyes > 1 ? 's' : ''}${r.simules.length ? ` (${r.simules.join(', ')} : simulé, voir le journal)` : ''}.`); reload();
+    closeModal(); toast(`Mission envoyée à ${r.envoyes} intérimaire${r.envoyes > 1 ? 's' : ''}${r.simules.length ? ` (${r.simules.join(', ')} : simulé, voir le journal)` : ''}.${r.ecartes?.length ? ` Non proposée à ${r.ecartes.map(x => x.nom).join(', ')} (mineur : conditions non respectées).` : ''}`, !!r.ecartes?.length); reload();
   }),
   interim: (fd, f) => act(async () => {
     const b = Object.fromEntries(fd); if (!b.taux_horaire) delete b.taux_horaire;

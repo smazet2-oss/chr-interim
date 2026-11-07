@@ -121,6 +121,16 @@ Le contrat reprend le modèle HCR (IDCC 1979) en 9 articles : parties, motif de 
 
 Dans Intérimaires › Fiches intérimaires et Clients › Fiches clients, la liste est classée en listes déroulantes : par poste pour les intérimaires (Barman, Serveur, Plongeur…), par secteur pour les établissements (Bar, Hôtellerie, Restauration), avec le nombre de fiches de chaque groupe. Une seule liste est ouverte à la fois ; celle de la fiche affichée s'ouvre seule.
 
+### Âge : mineurs et 64 ans ou plus
+
+La date de naissance (fiche intérimaire, candidature) donne l'âge. Une **alerte rouge** avec l'âge s'affiche pour les **mineurs** (« Mineur · 17 ans », « Moins de 16 ans ») et les personnes de **64 ans ou plus**, sur la fiche, dans la liste, dans les candidatures et dans la fenêtre de diffusion. La fiche détaille les conditions particulières :
+
+- **Mineurs** (Code du travail, dérogations hôtellerie-restauration) : 8 h par jour et 35 h par semaine au plus ; pause de 30 min dès 4 h 30 ; repos quotidien de 12 h (14 h avant 16 ans) et 2 jours consécutifs par semaine ; nuit interdite de 22 h à 6 h (20 h à 6 h avant 16 ans), jusqu'à 23 h 30 possible en HCR avec la dérogation de l'inspection du travail (R3163-2) ; dimanches et jours fériés possibles en HCR ; service au bar interdit sauf jeunes en formation ; visite de prévention et autorisation parentale avant la première mission ; travaux dangereux interdits. Moins de 16 ans : emploi interdit sauf exceptions.
+- **Contrôle des missions** : une mission qui finit après 23 h 30, commence avant 6 h ou dure plus de 8 h n'est pas proposée à un mineur (case grisée à la diffusion, refus à l'acceptation) ; une fin entre 22 h et 23 h 30, un poste au bar ou un poste de plus de 4 h 30 affichent une alerte à vérifier.
+- **64 ans ou plus** : vérifier la situation de retraite (cumul emploi-retraite) et adapter le suivi de santé et les postes physiques.
+
+Règles indicatives, à faire valider (DREETS, médecine du travail) ; elles se modifient dans `src/age.js`.
+
 ### Fiche client
 
 Clients › Fiches clients, sur le modèle de la fiche intérimaire : liste à gauche (note, nombre de missions), fiche à droite avec identité, coefficient, chiffres (missions, pourvues, note), accès à l'espace employeur, puis **Profil et étude de marché** : points clés (type d'établissement, effectif, fréquence des renforts, délai, coefficient jugé acceptable, règlement, besoin d'intérimaires véhiculés) et toutes les réponses au questionnaire, section par section. Le questionnaire vient de la demande faite sur le site (même adresse e-mail) ou d'une visite terrain ; « Saisir l'étude de marché » ouvre le questionnaire pré-rempli avec les coordonnées du client et l'enregistre sur sa fiche. Le suivi de l'étude annuelle (invité, a répondu) est indiqué, sans les réponses, qui restent anonymes. Viennent ensuite les avis, les contrats commerciaux et les documents.

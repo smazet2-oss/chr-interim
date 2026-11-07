@@ -106,6 +106,15 @@ tx(() => {
   run('UPDATE interimaires SET date_naissance = \'1998-03-14\', lieu_naissance = \'Lyon (France)\', nir = \'198036938812397\', adresse = \'14 rue de Marseille\', code_postal = \'69007\' WHERE id = ?', I[0]);
   I.slice(1).forEach((id, k) => run('UPDATE interimaires SET date_naissance = ?, lieu_naissance = ?, adresse = ?, code_postal = ? WHERE id = ?', `199${k}-0${k + 1}-1${k}`, 'Lyon (France)', `${10 + k} avenue Berthelot`, '69007', id));
 
+  // Une intérimaire mineure (17 ans) et un veilleur de nuit de 66 ans : alertes d'âge et conditions particulières
+  {
+    const ans = n => { const d = new Date(); d.setFullYear(d.getFullYear() - n); d.setDate(d.getDate() - 40); return d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Paris' }); };
+    run('INSERT INTO interimaires (prenom, nom, poste, secteur, ville, competences, experience, taux_horaire, telephone, email, date_naissance, lieu_naissance, dossier_complet) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)',
+      'Léna', 'Robert', 'Commis de salle', 'Restauration', 'Villeurbanne', 'Bac pro CSR en cours', 'Stages en brasserie', 12.31, '06 00 00 00 21', 'lena@exemple.fr', ans(17), 'Lyon (France)');
+    run('INSERT INTO interimaires (prenom, nom, poste, secteur, ville, competences, experience, taux_horaire, telephone, email, date_naissance, lieu_naissance, dossier_complet) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,1)',
+      'Gérard', 'Lambert', 'Veilleur de nuit', 'Hôtellerie', 'Lyon 3e', 'Accueil, sécurité incendie (SSIAP 1)', '30 ans en hôtellerie', 12.31, '06 00 00 00 22', 'gerard@exemple.fr', ans(66), 'Mâcon (France)');
+  }
+
   // Contrats et lignes d'expérience des missions déjà verrouillées.
   for (const m of all('SELECT m.*, c.nom AS client_nom FROM missions m JOIN clients c ON c.id = m.client_id WHERE m.statut = \'verrouillee\'')) {
     dossier.surVerrouillage(m, all('SELECT interim_id FROM reponses WHERE mission_id = ? AND etat = \'retenu\'', m.id).map(x => x.interim_id), jour(0).slice(0, 4));

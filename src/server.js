@@ -11,6 +11,7 @@ const dossier = require('./dossier');
 const P = require('./parametres');
 const simulation = require('./simulation');
 const hcr = require('./hcr');
+const AGE = require('./age');
 const { dureeHeures } = simulation;
 
 const app = express();
@@ -262,7 +263,8 @@ const INTERIM_SQL = `SELECT i.*,
   FROM interimaires i`;
 api.get('/interimaires', (req, res) => {
   const p = req.user.profil;
-  if (p === 'agence') return res.json(all(INTERIM_SQL + ' ORDER BY i.nom, i.prenom'));
+  // Agence : âge et catégorie (mineur, moins de 16 ans, 64 ans ou plus) calculés à la date du jour
+  if (p === 'agence') return res.json(all(INTERIM_SQL + ' ORDER BY i.nom, i.prenom').map(i => { const a = AGE.age(i.date_naissance, today()); return { ...i, age: a, categorie_age: AGE.categorie(a) }; }));
   if (p === 'interim') return res.json(all(INTERIM_SQL + ' WHERE i.id = ?', req.user.interim_id));
   // Employeur : intérimaires venus chez lui, candidats à ses missions, et nouveaux inscrits de son secteur.
   const cid = req.user.client_id, secteur = one('SELECT secteur FROM clients WHERE id = ?', cid).secteur;
@@ -541,10 +543,13 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
     const t = Number(req.body.taux_horaire); if (!(t >= hcr.smic() && t <= 60)) fail(400, `Taux horaire brut invalide : ${hcr.smic().toFixed(2).replace('.', ',')} € minimum (SMIC).`);
     run('UPDATE missions SET taux_horaire = ? WHERE id = ?', t, m.id); m.taux_horaire = t;
   }
-  const dest = [];
+  const dest = [], ecartes = [];
   tx(() => {
     for (const iid of ids) {
       const i = one('SELECT * FROM interimaires WHERE id = ? AND suspendu = 0', iid); if (!i) continue;
+      // Mineurs : mission non conforme (nuit, durée, moins de 16 ans) non proposée
+      const k = AGE.controleMission(AGE.age(i.date_naissance, m.date), m, m.client_secteur);
+      if (k.bloquants.length) { ecartes.push({ id: i.id, nom: `${i.prenom} ${i.nom}`, raisons: k.bloquants }); continue; }
       const r = run('INSERT OR IGNORE INTO envois (mission_id, interim_id, canaux) VALUES (?,?,?)', m.id, iid, canaux.join(','));
       if (!r.changes) continue;
       run('INSERT INTO notifications (interim_id, mission_id, message) VALUES (?,?,?)', iid, m.id, `Nouvelle mission : ${m.poste} chez ${m.client_nom}`);
@@ -555,9 +560,19 @@ api.post('/missions/:id/diffuser', role('agence'), wrap((req, res) => {
   const d = new Date(m.date + 'T12:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long' });
   const texte = `${P.get('raison_sociale')} : nouvelle mission ${m.poste} chez ${m.client_nom}, ${d}, ${m.debut}–${m.fin}, taux horaire brut ${m.taux_horaire.toFixed(2).replace('.', ',')} €/h, soit environ ${simulation.pourMission(m, 'interim').total_brut.toFixed(2).replace('.', ',')} € brut avec fin de mission et congés payés (estimation). Les places sont attribuées aux premiers qui acceptent : connectez-vous à votre espace pour répondre.`;
   for (const i of dest) for (const c of canaux) envoyer(c, i, `Nouvelle mission — ${m.poste} le ${d}`, texte, { titre: 'Nouvelle mission disponible', bouton: 'Voir la mission' });
-  res.json({ envoyes: dest.length, canaux, simules: canaux.filter(c => !canalConfigure(c)).map(c => CANAL_LABEL[c]) });
+  res.json({ envoyes: dest.length, canaux, simules: canaux.filter(c => !canalConfigure(c)).map(c => CANAL_LABEL[c]), ecartes });
 }));
 
+/** Contrôle d'âge des intérimaires pour une mission (fenêtre de diffusion) : mineurs, moins de 16 ans, 64 ans ou plus. */
+api.get('/missions/:id/controle-age', role('agence'), (req, res) => {
+  const m = missionRow(req.params.id); if (!m) fail(404, 'Mission introuvable.');
+  const out = {};
+  for (const i of all('SELECT id, date_naissance FROM interimaires WHERE suspendu = 0 AND date_naissance IS NOT NULL')) {
+    const a = AGE.age(i.date_naissance, m.date), cat = AGE.categorie(a); if (!cat) continue;
+    out[i.id] = { age: a, categorie: cat, ...AGE.controleMission(a, m, m.client_secteur) };
+  }
+  res.json(out);
+});
 /** Réponse de l'intérimaire. Le verrou de places est vérifié dans une transaction. */
 api.post('/missions/:id/repondre', role('interim'), wrap((req, res) => {
   const iid = req.user.interim_id, accepte = !!req.body.accepte;
@@ -567,6 +582,10 @@ api.post('/missions/:id/repondre', role('interim'), wrap((req, res) => {
     if (m.statut !== 'diffusee') fail(409, 'Cette mission n\'est plus ouverte.');
     if (one('SELECT 1 FROM reponses WHERE mission_id = ? AND interim_id = ?', m.id, iid)) fail(409, 'Vous avez déjà répondu à cette mission.');
     if (accepte && compteurs(m.id).actifs >= m.nb_postes) fail(409, 'Mission complète : toutes les places sont prises.');
+    if (accepte) {
+      const k = AGE.controleMission(AGE.age(one('SELECT date_naissance FROM interimaires WHERE id = ?', iid)?.date_naissance, m.date), m, m.client_secteur);
+      if (k.bloquants.length) fail(409, `Mission non autorisée pour un mineur : ${k.bloquants.join(' ; ')}.`);
+    }
     run('INSERT INTO reponses (mission_id, interim_id, etat) VALUES (?,?,?)', m.id, iid, accepte ? 'accepte' : 'decline');
     run('UPDATE notifications SET lu = 1 WHERE mission_id = ? AND interim_id = ?', m.id, iid);
     if (accepte) run('INSERT INTO notifications (client_id, mission_id, message) VALUES (?,?,?)', m.client_id, m.id, `Un intérimaire a accepté la mission ${m.poste} du ${m.date}. Confirmez ou refusez.`);
@@ -966,6 +985,7 @@ api.post('/journal/supprimer', role('agence'), (req, res) => {
   res.json({ supprimes: Number(r.changes) });
 });
 api.get('/config', (req, res) => res.json({ points_etab: POINTS_ETAB, note_basse: NOTE_BASSE, canaux: Object.fromEntries(CANAUX.map(c => [c, canalConfigure(c)])), aujourdhui: today(), motifs: MOTIFS, nationalites: dossier.NATIONALITES,
+  regles_mineurs: AGE.REGLES_MINEURS, regles_senior: AGE.REGLES_SENIOR, age_senior: AGE.SENIOR,
   taux_postes: hcr.tauxPostes(), smic: hcr.smic(), coefficient_minimum: contratsClients.coefMin(),
   // Coût d'une heure pour l'agence ÷ taux horaire brut (fin de mission, congés payés, charges) : sert au calcul de marge d'un contrat.
   ...(req.user.profil === 'agence' ? { facteur_cout: (1 + P.num('ifm_taux', 10) / 100) * (1 + P.num('iccp_taux', 10) / 100) * (1 + P.num('charges_patronales_taux', 20) / 100) } : {}) }));

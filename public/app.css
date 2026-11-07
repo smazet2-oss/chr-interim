@@ -983,3 +983,17 @@ button.lien-profil:focus-visible{outline:2px solid #C99948;outline-offset:2px;bo
 .periode-jours.trop b,.periode-err{color:var(--danger-fg);font-weight:600}
 .sim-periode{display:flex;gap:8px;align-items:center;margin-top:8px;padding:10px 12px;border-radius:10px;border:1px solid rgba(201,153,72,.55);background:rgba(201,153,72,.08);font-size:13.5px}
 .sim-periode svg{width:16px;height:16px;color:#7E5F24;flex:none}
+
+/* ---------- Âge : mineurs et 64 ans ou plus ---------- */
+.alerte-age{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;background:var(--danger-bg);color:var(--danger-fg);border:1px solid var(--danger-dot);font-size:11.5px;font-weight:700;white-space:nowrap;vertical-align:1px}
+.alerte-age svg{width:12px;height:12px}
+.age-txt{color:var(--danger-fg);font-weight:600}
+.conditions-age{border:1px solid var(--danger-dot);background:var(--danger-bg);border-radius:10px;padding:12px 14px;color:var(--ink)}
+.conditions-age-t{display:flex;gap:8px;align-items:flex-start;color:var(--danger-fg)}
+.conditions-age-t svg{width:18px;height:18px;flex:none;margin-top:1px}
+.conditions-age ul{margin:8px 0 4px 18px;padding:0;display:flex;flex-direction:column;gap:4px;font-size:13px;line-height:1.5}
+.conditions-age p{margin:6px 0 0;color:var(--danger-fg)}
+.ctrl-age{display:flex;flex-direction:column;align-items:flex-start;gap:3px;margin-top:4px}
+.ctrl-bloque{font-size:12px;color:var(--danger-fg);font-weight:600}
+.ctrl-alerte{font-size:12px;color:var(--attente-fg)}
+.li-bloque{opacity:.85;cursor:not-allowed}
